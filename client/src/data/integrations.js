@@ -23,7 +23,7 @@ export const INTEGRATIONS = [
       },
       {
         label: 'Enter Keys', type: 'input', title: 'Paste your Telegram credentials',
-        desc: 'These go into Replit Secrets — never exposed in code.',
+        desc: 'These go into Netlify env vars — never exposed in code.',
         required: true,
         fields: [
           { key: 'TELEGRAM_BOT_TOKEN', label: 'Bot Token (from @BotFather)', placeholder: '1234567890:ABC...', required: true },
@@ -31,8 +31,8 @@ export const INTEGRATIONS = [
         ]
       },
       {
-        label: 'Save', type: 'secrets', title: 'Add to Replit Secrets',
-        desc: 'Copy each value → go to Replit sidebar → Tools → Secrets → add them.',
+        label: 'Save', type: 'secrets', title: 'Add to Netlify env vars',
+        desc: 'Copy each value → go to Netlify → Site settings → Environment variables → add them.',
         secrets: [
           { key: 'TELEGRAM_BOT_TOKEN', stateKey: 'TELEGRAM_BOT_TOKEN' },
           { key: 'TELEGRAM_CHAT_ID',   stateKey: 'TELEGRAM_CHAT_ID' },
@@ -77,8 +77,8 @@ export const INTEGRATIONS = [
         ]
       },
       {
-        label: 'Save', type: 'secrets', title: 'Add to Replit Secrets',
-        desc: 'Paste each into Replit → Tools → Secrets.',
+        label: 'Save', type: 'secrets', title: 'Add to Netlify env vars',
+        desc: 'Paste each into Netlify → Site settings → Environment variables.',
         secrets: [
           { key: 'RESEND_API_KEY',   stateKey: 'RESEND_API_KEY' },
           { key: 'ALERT_FROM_EMAIL', stateKey: 'ALERT_FROM_EMAIL' },
@@ -185,8 +185,8 @@ export const INTEGRATIONS = [
         ]
       },
       {
-        label: 'Save', type: 'secrets', title: 'Add to Replit Secrets',
-        desc: 'Add STRIPE_RESTRICTED_KEY to Replit Secrets.',
+        label: 'Save', type: 'secrets', title: 'Add to Netlify env vars',
+        desc: 'Add STRIPE_RESTRICTED_KEY to Netlify environment variables.',
         secrets: [{ key: 'STRIPE_RESTRICTED_KEY', stateKey: 'STRIPE_RESTRICTED_KEY' }]
       }
     ]
@@ -278,30 +278,6 @@ export const INTEGRATIONS = [
       {
         label: 'Done', type: 'info', icon: '✅', title: 'Notion linked',
         body: 'Opens from Integrations with one tap.',
-      }
-    ]
-  },
-
-  {
-    id: 'replit',
-    name: 'Replit Workspace',
-    icon: '💻',
-    category: 'Dev Tools',
-    description: 'One-tap access to your Replit projects.',
-    connected: false,
-    wizard: [
-      {
-        label: 'URLs', type: 'input', title: 'Add your Replit project links',
-        desc: 'Add the Replit URLs for Radar, Synced, Ajura, and JAKE itself.',
-        fields: [
-          { key: 'replit_radar', label: 'Radar project URL', placeholder: 'https://replit.com/@username/radar' },
-          { key: 'replit_synced', label: 'Synced project URL', placeholder: 'https://replit.com/@username/synced' },
-          { key: 'replit_ajura', label: 'Ajura Clothes URL', placeholder: 'https://replit.com/@username/ajura' },
-        ]
-      },
-      {
-        label: 'Done', type: 'info', icon: '✅', title: 'Replit linked',
-        body: 'All three projects accessible from Integrations.',
       }
     ]
   },

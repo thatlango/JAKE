@@ -106,8 +106,8 @@ function WizardStepView({ step, state, setState, onVerify, verifyResult }) {
             ))}
           </div>
           <div className="wizard-info-box" style={{ marginTop: 10 }}>
-            In Replit: <strong>Tools → Secrets</strong> → paste each key above.<br />
-            Your values are stored locally and never sent to any server except Replit Secrets.
+            In Netlify: <strong>Site settings → Environment variables</strong> → paste each key above.<br />
+            Your values are stored locally and never sent to any server except Netlify env vars.
           </div>
         </div>
       );
