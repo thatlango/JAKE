@@ -47,11 +47,31 @@ jake/
 - In Replit: go to **Tools → Secrets**
 - Add a secret: `ANTHROPIC_API_KEY` = your key from [console.anthropic.com](https://console.anthropic.com)
 
-### 4. Install and run
+### 4. Add Supabase credentials (required for clients/projects/prospects persistence)
+- In Replit **Secrets** or Netlify **Site configuration → Environment variables**, add:
+  - `SUPABASE_URL` = your Supabase project URL (`https://<project-ref>.supabase.co`)
+  - `SUPABASE_SERVICE_KEY` = your Supabase service role key (**recommended**)
+- Optional fallback (less privileged): `SUPABASE_ANON_KEY`
+- Optional: `SUPABASE_CONNECTION_STRING` (Postgres URI) if you want JAKE to auto-derive `SUPABASE_URL` from your `db.<project-ref>.supabase.co` host.
+
+> If you only have a **database password**, that is for direct Postgres connections and is **not used** by this app’s Supabase API client.  
+> You still need `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` (or `SUPABASE_ANON_KEY`).
+
+Example connection string format:
+```bash
+postgresql://postgres:[YOUR-PASSWORD]@db.<project-ref>.supabase.co:5432/postgres
+```
+
+### 5. Install and run
 Open the Replit Shell and run:
 ```bash
 npm run setup   # installs all dependencies
 npm run start   # starts both server + client
+```
+
+Optional Supabase tooling:
+```bash
+npx skills add supabase/agent-skills
 ```
 
 The app opens in the Replit webview. The Express server runs on port 3001, the React app on 5173.

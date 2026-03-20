@@ -1,10 +1,12 @@
 import { useState } from 'react';
 
 const STAGES = ['Prospect', 'Applied', 'In Delivery', 'Active Partner'];
+
+const STAGES = ['Prospect', 'Applied', 'In Delivery', 'Active Partner'];
 const STAGE_COLORS = {
-  'Prospect':       '#5A6480',
-  'Applied':        '#F0B429',
-  'In Delivery':    '#0ECB81',
+  Prospect: '#5A6480',
+  Applied: '#F0B429',
+  'In Delivery': '#0ECB81',
   'Active Partner': '#5E6AD2',
 };
 const TYPES = ['Consulting', 'Program', 'Partnership', 'Systems', 'Training', 'Academic', 'Other'];
@@ -19,6 +21,21 @@ export default function Pipeline({ pipeline, setPipeline, openAI }) {
   const [newDeal, setNewDeal] = useState(DEFAULT_DEAL);
   const [expanded, setExpanded] = useState(null);
 
+export default function Pipeline({ pipeline, openAI, onAddProspect }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    org: '',
+    valueUSD: '',
+    stage: 'Prospect',
+    type: 'Partnership',
+    deadline: '',
+    contact: '',
+    notes: '',
+  });
+
+  const inputStyle = { width: '100%', background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13, marginBottom: 8 };
+
   const totalConfirmed = pipeline
     .filter(p => p.stage === 'In Delivery' && p.valueUSD > 0)
     .reduce((sum, p) => sum + p.valueUSD, 0);
@@ -26,35 +43,23 @@ export default function Pipeline({ pipeline, setPipeline, openAI }) {
     .filter(p => p.stage === 'Applied' && p.valueUSD > 0)
     .reduce((sum, p) => sum + p.valueUSD, 0);
 
-  const addDeal = () => {
-    if (!newDeal.name.trim() || !newDeal.org.trim()) return;
-    const id = `deal_${Date.now()}`;
-    const valueUSD = parseFloat(newDeal.valueUSD) || 0;
-    setPipeline(prev => [...prev, {
-      ...newDeal,
-      id,
+  const addProspect = async () => {
+    if (!form.name.trim() || !form.org.trim()) return;
+    const valueUSD = Number(form.valueUSD) || 0;
+    const item = {
+      ...form,
+      name: form.name.trim(),
+      org: form.org.trim(),
       valueUSD,
       value: valueUSD > 0 ? `$${valueUSD.toLocaleString()}` : 'TBD',
-    }]);
-    setNewDeal(DEFAULT_DEAL);
+      deadline: form.deadline || null,
+      notes: form.notes.trim(),
+      contact: form.contact.trim(),
+    };
+    if (onAddProspect) await onAddProspect(item);
     setShowAdd(false);
+    setForm({ name: '', org: '', valueUSD: '', stage: 'Prospect', type: 'Partnership', deadline: '', contact: '', notes: '' });
   };
-
-  const moveStage = (id, direction) => {
-    setPipeline(prev => prev.map(p => {
-      if (p.id !== id) return p;
-      const idx = STAGES.indexOf(p.stage);
-      const newIdx = Math.max(0, Math.min(STAGES.length - 1, idx + direction));
-      return { ...p, stage: STAGES[newIdx] };
-    }));
-  };
-
-  const deleteDeal = (id) => {
-    if (!confirm('Remove this deal from the pipeline?')) return;
-    setPipeline(prev => prev.filter(p => p.id !== id));
-  };
-
-  const set = (k, v) => setNewDeal(f => ({ ...f, [k]: v }));
 
   return (
     <div className="module">
@@ -66,39 +71,39 @@ export default function Pipeline({ pipeline, setPipeline, openAI }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="ai-trigger-sm" onClick={() => setShowAdd(s => !s)}>+ Add Deal</button>
-          <button className="ai-trigger" onClick={() =>
-            openAI(`Pipeline: ${pipeline.map(p => `${p.name} at ${p.org} — ${p.stage}${p.valueUSD > 0 ? ` ($${p.valueUSD.toLocaleString()})` : ''}`).join('; ')}`)
-          }>✦ Ask AI</button>
+          <button className="ai-trigger-sm" onClick={() => setShowAdd(s => !s)}>+ Add Prospect</button>
+          <button
+            className="ai-trigger"
+            onClick={() =>
+              openAI(
+                `Pipeline: ${pipeline
+                  .map(p => `${p.name} at ${p.org} — ${p.stage}${p.valueUSD > 0 ? ` ($${p.valueUSD.toLocaleString()})` : ''}`)
+                  .join('; ')}`
+              )
+            }
+          >
+            ✦ Ask AI
+          </button>
         </div>
       </div>
 
-      {/* Add deal form */}
       {showAdd && (
-        <div style={{ margin: '0 28px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
-          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Add Pipeline Deal</div>
+        <div style={{ margin: '0 28px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 14, marginBottom: 12 }}>New Prospect</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {[['name', 'Deal / project name *'], ['org', 'Organisation *'], ['contact', 'Contact person'], ['valueUSD', 'Value (USD)', 'number']].map(([k, ph, type]) => (
-              <input key={k} type={type || 'text'} value={newDeal[k]} onChange={e => set(k, e.target.value)} placeholder={ph}
-                style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }} />
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <select value={newDeal.stage} onChange={e => set('stage', e.target.value)}
-              style={{ flex: 1, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }}>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Opportunity name *" style={inputStyle} />
+            <input value={form.org} onChange={e => setForm(f => ({ ...f, org: e.target.value }))} placeholder="Organization *" style={inputStyle} />
+            <input value={form.valueUSD} onChange={e => setForm(f => ({ ...f, valueUSD: e.target.value }))} placeholder="Value USD" type="number" style={inputStyle} />
+            <input value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} placeholder="Type" style={inputStyle} />
+            <select value={form.stage} onChange={e => setForm(f => ({ ...f, stage: e.target.value }))} style={inputStyle}>
               {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            <select value={newDeal.type} onChange={e => set('type', e.target.value)}
-              style={{ flex: 1, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }}>
-              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input type="date" value={newDeal.deadline} onChange={e => set('deadline', e.target.value)}
-              style={{ flex: 1, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }} />
+            <input value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} type="date" style={inputStyle} />
           </div>
-          <textarea value={newDeal.notes} onChange={e => set('notes', e.target.value)} placeholder="Notes…"
-            style={{ width: '100%', marginTop: 8, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13, minHeight: 60, resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button onClick={addDeal} style={{ flex: 1, padding: '9px', background: 'var(--accent)', color: '#07090F', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Syne,sans-serif' }}>Add to Pipeline</button>
+          <input value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} placeholder="Primary contact" style={inputStyle} />
+          <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes" style={{ ...inputStyle, minHeight: 62, resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={addProspect} style={{ flex: 1, padding: '9px', background: 'var(--accent)', color: '#07090F', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Syne,sans-serif' }}>Save</button>
             <button onClick={() => setShowAdd(false)} style={{ padding: '9px 14px', background: 'var(--surface-3)', color: 'var(--text-muted)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
           </div>
         </div>

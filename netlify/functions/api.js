@@ -20,6 +20,7 @@ const radar          = require('../../server/radar');
 const app = express();
 app.use(express.json({ limit: '512kb' }));
 app.use(express.urlencoded({ extended: false }));
+const uid = (prefix = 'id') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 // Helmet (without CSP — Netlify headers handle that)
 app.use(helmet({ contentSecurityPolicy: false, hsts: false }));
@@ -210,6 +211,61 @@ app.post('/crm/clients/:id/interactions', async (req, res) => {
 app.post('/crm/clients/:id/followup', async (req, res) => {
   await crm.scheduleFollowup(req.params.id, req.body);
   res.json({ ok:true });
+});
+
+// ── PROJECTS ──
+app.get('/projects', async (_, res) => {
+  res.json({ projects: await db.all('projects', { order: { col: 'name' } }) });
+});
+
+app.post('/projects', async (req, res) => {
+  const payload = {
+    id: req.body.id || uid('proj'),
+    name: String(req.body.name || '').trim(),
+    emoji: req.body.emoji || '🚀',
+    description: req.body.description || '',
+    tech: req.body.tech || '',
+    status: req.body.status || 'Planning',
+    priority: req.body.priority || 'Medium',
+    color: req.body.color || '#5E6AD2',
+    progress: Number(req.body.progress || 0),
+    tasks: Array.isArray(req.body.tasks) ? req.body.tasks : [],
+  };
+  if (!payload.name) return res.status(400).json({ error: 'Project name is required' });
+  const project = await db.insert('projects', payload, true);
+  res.json({ ok: true, project: project || payload });
+});
+
+app.patch('/projects/:id', async (req, res) => {
+  await db.update('projects', req.params.id, {
+    tasks: Array.isArray(req.body.tasks) ? req.body.tasks : [],
+    progress: Number(req.body.progress || 0),
+  });
+  res.json({ ok: true });
+});
+
+// ── PIPELINE / PROSPECTS ──
+app.get('/pipeline', async (_, res) => {
+  res.json({ pipeline: await db.all('pipeline', { order: { col: 'created_at', asc: false } }) });
+});
+
+app.post('/pipeline', async (req, res) => {
+  const valueUSD = Number(req.body.valueUSD || 0);
+  const payload = {
+    id: req.body.id || uid('pipe'),
+    name: String(req.body.name || '').trim(),
+    org: String(req.body.org || '').trim(),
+    valueUSD,
+    value: req.body.value || (valueUSD > 0 ? `$${valueUSD.toLocaleString()}` : 'TBD'),
+    stage: req.body.stage || 'Prospect',
+    type: req.body.type || 'Partnership',
+    deadline: req.body.deadline || null,
+    contact: req.body.contact || '',
+    notes: req.body.notes || '',
+  };
+  if (!payload.name || !payload.org) return res.status(400).json({ error: 'Name and organization are required' });
+  const item = await db.insert('pipeline', payload, true);
+  res.json({ ok: true, item: item || payload });
 });
 
 // ── OPPORTUNITY RADAR ──
