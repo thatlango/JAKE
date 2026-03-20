@@ -8,6 +8,7 @@ const NAV = [
   { id: 'cashflow',         label: 'Cash Flow',           icon: '💰' },
   { id: 'radar',            label: 'Opportunity Radar',   icon: '📡' },
   { id: 'DIVIDER' },
+  { id: 'claude-sync',      label: 'Claude Sync',         icon: '🧠' },
   { id: 'personal-finance', label: 'Personal Finance',    icon: '📱' },
   { id: 'integrations',     label: 'Integrations',        icon: '⬡' },
   { id: 'finance',          label: 'Revenue',             icon: '◆' },

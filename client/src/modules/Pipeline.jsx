@@ -1,20 +1,60 @@
-const STAGES = ['Prospect', 'Applied', 'In Delivery', 'Active Partner'];
+import { useState } from 'react';
 
+const STAGES = ['Prospect', 'Applied', 'In Delivery', 'Active Partner'];
 const STAGE_COLORS = {
-  'Prospect':      '#5A6480',
-  'Applied':       '#F0B429',
-  'In Delivery':   '#0ECB81',
+  'Prospect':       '#5A6480',
+  'Applied':        '#F0B429',
+  'In Delivery':    '#0ECB81',
   'Active Partner': '#5E6AD2',
 };
+const TYPES = ['Consulting', 'Program', 'Partnership', 'Systems', 'Training', 'Academic', 'Other'];
 
-export default function Pipeline({ pipeline, openAI }) {
+const DEFAULT_DEAL = {
+  name: '', org: '', valueUSD: '', stage: 'Prospect', type: 'Consulting',
+  deadline: '', contact: '', notes: '',
+};
+
+export default function Pipeline({ pipeline, setPipeline, openAI }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newDeal, setNewDeal] = useState(DEFAULT_DEAL);
+  const [expanded, setExpanded] = useState(null);
+
   const totalConfirmed = pipeline
     .filter(p => p.stage === 'In Delivery' && p.valueUSD > 0)
     .reduce((sum, p) => sum + p.valueUSD, 0);
-
   const totalPending = pipeline
     .filter(p => p.stage === 'Applied' && p.valueUSD > 0)
     .reduce((sum, p) => sum + p.valueUSD, 0);
+
+  const addDeal = () => {
+    if (!newDeal.name.trim() || !newDeal.org.trim()) return;
+    const id = `deal_${Date.now()}`;
+    const valueUSD = parseFloat(newDeal.valueUSD) || 0;
+    setPipeline(prev => [...prev, {
+      ...newDeal,
+      id,
+      valueUSD,
+      value: valueUSD > 0 ? `$${valueUSD.toLocaleString()}` : 'TBD',
+    }]);
+    setNewDeal(DEFAULT_DEAL);
+    setShowAdd(false);
+  };
+
+  const moveStage = (id, direction) => {
+    setPipeline(prev => prev.map(p => {
+      if (p.id !== id) return p;
+      const idx = STAGES.indexOf(p.stage);
+      const newIdx = Math.max(0, Math.min(STAGES.length - 1, idx + direction));
+      return { ...p, stage: STAGES[newIdx] };
+    }));
+  };
+
+  const deleteDeal = (id) => {
+    if (!confirm('Remove this deal from the pipeline?')) return;
+    setPipeline(prev => prev.filter(p => p.id !== id));
+  };
+
+  const set = (k, v) => setNewDeal(f => ({ ...f, [k]: v }));
 
   return (
     <div className="module">
@@ -25,19 +65,44 @@ export default function Pipeline({ pipeline, openAI }) {
             ${totalConfirmed.toLocaleString()} in delivery · ${totalPending.toLocaleString()} applied
           </p>
         </div>
-        <button
-          className="ai-trigger"
-          onClick={() =>
-            openAI(
-              `Pipeline: ${pipeline
-                .map(p => `${p.name} at ${p.org} — ${p.stage}${p.valueUSD > 0 ? ` ($${p.valueUSD.toLocaleString()})` : ''}`)
-                .join('; ')}`
-            )
-          }
-        >
-          ✦ Ask AI
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="ai-trigger-sm" onClick={() => setShowAdd(s => !s)}>+ Add Deal</button>
+          <button className="ai-trigger" onClick={() =>
+            openAI(`Pipeline: ${pipeline.map(p => `${p.name} at ${p.org} — ${p.stage}${p.valueUSD > 0 ? ` ($${p.valueUSD.toLocaleString()})` : ''}`).join('; ')}`)
+          }>✦ Ask AI</button>
+        </div>
       </div>
+
+      {/* Add deal form */}
+      {showAdd && (
+        <div style={{ margin: '0 28px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Add Pipeline Deal</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {[['name', 'Deal / project name *'], ['org', 'Organisation *'], ['contact', 'Contact person'], ['valueUSD', 'Value (USD)', 'number']].map(([k, ph, type]) => (
+              <input key={k} type={type || 'text'} value={newDeal[k]} onChange={e => set(k, e.target.value)} placeholder={ph}
+                style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <select value={newDeal.stage} onChange={e => set('stage', e.target.value)}
+              style={{ flex: 1, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }}>
+              {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={newDeal.type} onChange={e => set('type', e.target.value)}
+              style={{ flex: 1, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }}>
+              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input type="date" value={newDeal.deadline} onChange={e => set('deadline', e.target.value)}
+              style={{ flex: 1, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13 }} />
+          </div>
+          <textarea value={newDeal.notes} onChange={e => set('notes', e.target.value)} placeholder="Notes…"
+            style={{ width: '100%', marginTop: 8, background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13, minHeight: 60, resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button onClick={addDeal} style={{ flex: 1, padding: '9px', background: 'var(--accent)', color: '#07090F', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Syne,sans-serif' }}>Add to Pipeline</button>
+            <button onClick={() => setShowAdd(false)} style={{ padding: '9px 14px', background: 'var(--surface-3)', color: 'var(--text-muted)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className="pipeline-kanban">
         {STAGES.map(stage => {
@@ -52,40 +117,40 @@ export default function Pipeline({ pipeline, openAI }) {
 
               <div className="kanban-items">
                 {items.length === 0 && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--text-dim)',
-                      padding: '8px 0',
-                      textAlign: 'center',
-                    }}
-                  >
-                    Empty
-                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '8px 0', textAlign: 'center' }}>Empty</div>
                 )}
                 {items.map(item => (
-                  <div key={item.id} className="kanban-card">
+                  <div key={item.id} className="kanban-card" style={{ cursor: 'pointer' }} onClick={() => setExpanded(expanded === item.id ? null : item.id)}>
                     <div className="kanban-card-org">{item.org}</div>
                     <div className="kanban-card-name">{item.name}</div>
-                    {item.valueUSD > 0 && (
-                      <div className="kanban-card-value">
-                        ${item.valueUSD.toLocaleString()}
-                      </div>
-                    )}
+                    {item.valueUSD > 0 && <div className="kanban-card-value">${item.valueUSD.toLocaleString()}</div>}
                     {item.deadline && (
                       <div className="kanban-card-deadline">
-                        Due{' '}
-                        {new Date(item.deadline).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: '2-digit',
-                        })}
+                        Due {new Date(item.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
                       </div>
                     )}
                     <div className="kanban-card-notes">{item.notes}</div>
-                    <div className={`kanban-type kanban-type--${item.type.toLowerCase()}`}>
-                      {item.type}
-                    </div>
+                    <div className={`kanban-type kanban-type--${item.type?.toLowerCase()}`}>{item.type}</div>
+
+                    {/* Stage move + delete (visible on expand) */}
+                    {expanded === item.id && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); moveStage(item.id, -1); }}
+                          disabled={STAGES.indexOf(item.stage) === 0}
+                          style={{ flex: 1, padding: '4px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}
+                        >← Back</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); moveStage(item.id, 1); }}
+                          disabled={STAGES.indexOf(item.stage) === STAGES.length - 1}
+                          style={{ flex: 1, padding: '4px', background: 'var(--accent)', border: 'none', borderRadius: 4, fontSize: 11, color: '#07090F', fontWeight: 700, cursor: 'pointer' }}
+                        >Advance →</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteDeal(item.id); }}
+                          style={{ padding: '4px 8px', background: 'var(--red-dim)', border: '1px solid rgba(255,71,87,.2)', borderRadius: 4, fontSize: 11, color: 'var(--red)', cursor: 'pointer' }}
+                        >✕</button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

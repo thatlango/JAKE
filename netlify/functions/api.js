@@ -70,6 +70,14 @@ app.post('/sync', async (req, res) => {
     }));
     await db.insertMany('calendar_events', rows);
   }
+  if (Array.isArray(req.body.pipeline)) {
+    const rows = req.body.pipeline.slice(0,200).map(p => ({
+      id:p.id, name:p.name||'', org:p.org||'', value:p.value||'', value_usd:p.valueUSD||0,
+      stage:p.stage||'Prospect', type:p.type||'Consulting', deadline:p.deadline||null,
+      contact:p.contact||'', notes:p.notes||''
+    }));
+    await db.insertMany('pipeline', rows);
+  }
   res.json({ ok: true });
 });
 
