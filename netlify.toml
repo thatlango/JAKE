@@ -1,0 +1,63 @@
+[build]
+  command   = "cd client && npm install && npm run build"
+  publish   = "client/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# ── API routes → serverless function ──
+[[redirects]]
+  from   = "/api/*"
+  to     = "/.netlify/functions/api/:splat"
+  status = 200
+  force  = true
+
+# ── Google OAuth callback ──
+[[redirects]]
+  from   = "/auth/google/callback"
+  to     = "/.netlify/functions/auth-callback"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/auth/google"
+  to     = "/.netlify/functions/auth-start"
+  status = 200
+  force  = true
+
+# ── PWA Share Target ──
+[[redirects]]
+  from   = "/share-target"
+  to     = "/.netlify/functions/share-target"
+  status = 200
+  force  = true
+
+# ── SPA fallback — all other routes → React app ──
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[functions]
+  node_bundler          = "esbuild"
+  external_node_modules = ["better-sqlite3"]
+
+# Security headers on all responses
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options         = "DENY"
+    X-Content-Type-Options  = "nosniff"
+    Referrer-Policy         = "strict-origin-when-cross-origin"
+    Permissions-Policy      = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
