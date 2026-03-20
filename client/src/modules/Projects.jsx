@@ -1,9 +1,25 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-export default function Projects({ projects, setProjects, openAI }) {
+const STATUS_OPTIONS = ['Planning', 'In Development', 'Active', 'Paused', 'Completed'];
+const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
+
+export default function Projects({ projects, setProjects, openAI, onCreateProject, onToggleTask }) {
   const [selected, setSelected] = useState(projects[0]?.id ?? null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newProject, setNewProject] = useState({
+    name: '',
+    emoji: '🚀',
+    description: '',
+    tech: '',
+    status: 'Planning',
+    priority: 'Medium',
+    color: '#5E6AD2',
+    tasks: '',
+  });
+  const inputStyle = { width: '100%', background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13, marginBottom: 8 };
 
   const toggleTask = (projectId, taskId) => {
+    if (onToggleTask) return onToggleTask(projectId, taskId);
     setProjects(prev =>
       prev.map(p =>
         p.id === projectId
@@ -13,9 +29,32 @@ export default function Projects({ projects, setProjects, openAI }) {
     );
   };
 
-  const proj = projects.find(p => p.id === selected);
+  const addProject = async () => {
+    if (!newProject.name.trim()) return;
+    const tasks = newProject.tasks.split(',').map(t => t.trim()).filter(Boolean).map((text, idx) => ({ id: idx + 1, text, done: false }));
+    const project = {
+      ...newProject,
+      name: newProject.name.trim(),
+      description: newProject.description.trim(),
+      tech: newProject.tech.trim(),
+      progress: 0,
+      tasks,
+    };
+
+    if (onCreateProject) {
+      await onCreateProject(project);
+    } else {
+      setProjects(prev => [project, ...prev]);
+    }
+
+    setShowAdd(false);
+    setNewProject({ name: '', emoji: '🚀', description: '', tech: '', status: 'Planning', priority: 'Medium', color: '#5E6AD2', tasks: '' });
+  };
+
+  const proj = projects.find(p => p.id === selected) || projects[0];
 
   const completedCount = proj ? proj.tasks.filter(t => t.done).length : 0;
+  const activeCount = useMemo(() => projects.filter(p => p.status === 'Active').length, [projects]);
 
   return (
     <div className="module">
@@ -23,25 +62,53 @@ export default function Projects({ projects, setProjects, openAI }) {
         <div>
           <h1 className="module-title">Projects</h1>
           <p className="module-sub">
-            {projects.length} workstreams · {projects.filter(p => p.status === 'Active').length} active
+            {projects.length} workstreams · {activeCount} active
           </p>
         </div>
-        <button
-          className="ai-trigger"
-          onClick={() =>
-            openAI(
-              `Projects summary: ${projects
-                .map(p => `${p.name} (${p.status}, ${p.progress}%, ${p.tasks.filter(t => !t.done).length} tasks remaining)`)
-                .join(' | ')}`
-            )
-          }
-        >
-          ✦ Ask AI
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="ai-trigger-sm" onClick={() => setShowAdd(s => !s)}>+ Add Project</button>
+          <button
+            className="ai-trigger"
+            onClick={() =>
+              openAI(
+                `Projects summary: ${projects
+                  .map(p => `${p.name} (${p.status}, ${p.progress}%, ${p.tasks.filter(t => !t.done).length} tasks remaining)`)
+                  .join(' | ')}`
+              )
+            }
+          >
+            ✦ Ask AI
+          </button>
+        </div>
       </div>
 
+      {showAdd && (
+        <div style={{ margin: '0 28px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 14, marginBottom: 12 }}>New Project</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input value={newProject.name} onChange={e => setNewProject(f => ({ ...f, name: e.target.value }))} placeholder="Project name *" style={inputStyle} />
+            <input value={newProject.emoji} onChange={e => setNewProject(f => ({ ...f, emoji: e.target.value }))} placeholder="Emoji" style={inputStyle} />
+            <input value={newProject.tech} onChange={e => setNewProject(f => ({ ...f, tech: e.target.value }))} placeholder="Stack / area" style={inputStyle} />
+            <input value={newProject.color} onChange={e => setNewProject(f => ({ ...f, color: e.target.value }))} placeholder="#5E6AD2" style={inputStyle} />
+          </div>
+          <textarea value={newProject.description} onChange={e => setNewProject(f => ({ ...f, description: e.target.value }))} placeholder="Description" style={{ ...inputStyle, width: '100%', minHeight: 62, resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }} />
+          <input value={newProject.tasks} onChange={e => setNewProject(f => ({ ...f, tasks: e.target.value }))} placeholder="Tasks separated by commas" style={inputStyle} />
+          <div style={{ display: 'flex', gap: 8, margin: '8px 0 10px' }}>
+            <select value={newProject.status} onChange={e => setNewProject(f => ({ ...f, status: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }}>
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={newProject.priority} onChange={e => setNewProject(f => ({ ...f, priority: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }}>
+              {PRIORITY_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={addProject} style={{ flex: 1, padding: '9px', background: 'var(--accent)', color: '#07090F', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Syne,sans-serif' }}>Save</button>
+            <button onClick={() => setShowAdd(false)} style={{ padding: '9px 14px', background: 'var(--surface-3)', color: 'var(--text-muted)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div className="projects-layout">
-        {/* Left — project list */}
         <div className="projects-list">
           {projects.map(p => (
             <div
@@ -77,7 +144,6 @@ export default function Projects({ projects, setProjects, openAI }) {
           ))}
         </div>
 
-        {/* Right — task detail panel */}
         {proj && (
           <div className="project-detail">
             <div className="detail-header" style={{ borderBottomColor: proj.color }}>

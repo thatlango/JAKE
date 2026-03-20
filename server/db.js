@@ -7,17 +7,46 @@ const { createClient } = require('@supabase/supabase-js');
 
 let _client = null;
 
+function deriveSupabaseUrlFromConnectionString(connectionString) {
+  if (!connectionString) return null;
+  try {
+    const parsed = new URL(connectionString);
+    const match = parsed.hostname.match(/^db\.([a-z0-9-]+)\.supabase\.co$/i);
+    if (!match) return null;
+    return `https://${match[1]}.supabase.co`;
+  } catch {
+    return null;
+  }
+}
+
 function getClient() {
   if (_client) return _client;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) { console.warn('[DB] SUPABASE_URL or SUPABASE_SERVICE_KEY not set'); return null; }
+  const url = process.env.SUPABASE_URL
+    || deriveSupabaseUrlFromConnectionString(process.env.SUPABASE_CONNECTION_STRING || process.env.DATABASE_URL);
+  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    console.warn('[DB] Missing Supabase credentials. Set SUPABASE_URL + SUPABASE_SERVICE_KEY (or SUPABASE_ANON_KEY fallback).');
+    if (!process.env.SUPABASE_URL && (process.env.SUPABASE_CONNECTION_STRING || process.env.DATABASE_URL)) {
+      const derived = deriveSupabaseUrlFromConnectionString(process.env.SUPABASE_CONNECTION_STRING || process.env.DATABASE_URL);
+      if (!derived) {
+        console.warn('[DB] Could not derive SUPABASE_URL from connection string.');
+      } else {
+        console.warn(`[DB] Derived project URL from connection string: ${derived}`);
+      }
+    }
+    if (process.env.SUPABASE_DB_PASSWORD) {
+      console.warn('[DB] SUPABASE_DB_PASSWORD is set but unused by this app (it uses the Supabase API client, not direct Postgres auth).');
+    }
+    return null;
+  }
   _client = createClient(url, key, { auth: { persistSession: false } });
   return _client;
 }
 
 function isReady() {
-  return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY);
+  const resolvedUrl = process.env.SUPABASE_URL
+    || deriveSupabaseUrlFromConnectionString(process.env.SUPABASE_CONNECTION_STRING || process.env.DATABASE_URL);
+  return !!(resolvedUrl && (process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY));
 }
 
 async function all(table, opts = {}) {

@@ -25,6 +25,8 @@ function usePersistedState(key, seedValue) {
   return [state, setState];
 }
 
+const uid = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
 export default function App() {
   const [module, setModule] = useState(() => new URLSearchParams(window.location.search).get('module') || 'dashboard');
   const [aiOpen, setAiOpen] = useState(false);
@@ -38,7 +40,80 @@ export default function App() {
     try { await fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ calendar: cal, finance: fin }) }); } catch {}
   }, []);
 
+  const loadCoreData = useCallback(async () => {
+    try {
+      const [projectsRes, pipelineRes] = await Promise.all([
+        fetch('/api/projects'),
+        fetch('/api/pipeline'),
+      ]);
+
+      if (projectsRes.ok) {
+        const p = await projectsRes.json();
+        if (Array.isArray(p.projects) && p.projects.length) setProjects(p.projects);
+      }
+
+      if (pipelineRes.ok) {
+        const p = await pipelineRes.json();
+        if (Array.isArray(p.pipeline) && p.pipeline.length) setPipeline(p.pipeline);
+      }
+    } catch {}
+  }, [setPipeline, setProjects]);
+
+  useEffect(() => { loadCoreData(); }, [loadCoreData]);
   useEffect(() => { syncToServer(calendar, finance); }, [calendar, finance, syncToServer]);
+
+  const addProject = useCallback(async (projectInput) => {
+    const payload = { ...projectInput, id: uid('proj') };
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data?.project) {
+        setProjects(prev => [data.project, ...prev]);
+        return;
+      }
+    } catch {}
+    setProjects(prev => [payload, ...prev]);
+  }, [setProjects]);
+
+  const toggleProjectTask = useCallback(async (projectId, taskId) => {
+    setProjects(prev => prev.map(p => p.id === projectId
+      ? { ...p, tasks: p.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t) }
+      : p
+    ));
+
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    const updatedTasks = project.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
+    const progress = updatedTasks.length ? Math.round((updatedTasks.filter(t => t.done).length / updatedTasks.length) * 100) : 0;
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks: updatedTasks, progress }),
+      });
+    } catch {}
+  }, [projects, setProjects]);
+
+  const addProspect = useCallback(async (prospectInput) => {
+    const payload = { ...prospectInput, id: uid('pipe') };
+    try {
+      const res = await fetch('/api/pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data?.item) {
+        setPipeline(prev => [data.item, ...prev]);
+        return;
+      }
+    } catch {}
+    setPipeline(prev => [payload, ...prev]);
+  }, [setPipeline]);
 
   const openAI = (context = '') => { setAiContext(context); setAiOpen(true); };
   const navigate = (m) => { setModule(m); setAiOpen(false); };
@@ -53,8 +128,8 @@ export default function App() {
 
       <main className="main-content">
         {module === 'dashboard'        && <Dashboard         {...moduleProps} />}
-        {module === 'projects'         && <Projects          {...moduleProps} />}
-        {module === 'pipeline'         && <Pipeline          {...moduleProps} />}
+        {module === 'projects'         && <Projects          {...moduleProps} onCreateProject={addProject} onToggleTask={toggleProjectTask} />}
+        {module === 'pipeline'         && <Pipeline          {...moduleProps} onAddProspect={addProspect} />}
         {module === 'calendar'         && <CalendarModule    {...moduleProps} />}
         {module === 'finance'          && <Finance           {...moduleProps} />}
         {module === 'crm'              && <CRM               openAI={openAI} />}
