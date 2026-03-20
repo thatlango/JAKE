@@ -74,6 +74,20 @@ ALERT_FROM_EMAIL       = jake@yourdomain.com
 ALERT_TO_EMAIL         = you@gmail.com
 ```
 
+### WhatsApp via Callmebot (optional, free)
+```
+WHATSAPP_PHONE         = 256712345678      (your number, country code, no +)
+WHATSAPP_APIKEY        = 1234567           (key from Callmebot — see setup below)
+```
+
+**Callmebot setup (takes 2 minutes):**
+1. Save **+34 644 72 56 82** in your phone contacts as "Callmebot"
+2. Send this exact message on WhatsApp to that number:
+   `I allow callmebot to send me messages`
+3. You'll receive your API key back via WhatsApp within seconds
+4. Add `WHATSAPP_PHONE` (your number with country code, no +) and `WHATSAPP_APIKEY` to Netlify env vars
+5. Redeploy → visit Alerts settings in JAKE → click "Test WhatsApp"
+
 ### Google Calendar (optional)
 ```
 GOOGLE_CLIENT_ID       = xxx.apps.googleusercontent.com

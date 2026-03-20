@@ -61,7 +61,7 @@ export default function App() {
   }, [setPipeline, setProjects]);
 
   useEffect(() => { loadCoreData(); }, [loadCoreData]);
-  useEffect(() => { syncToServer(calendar, finance); }, [calendar, finance, syncToServer]);
+  useEffect(() => { syncToServer(calendar, finance, pipeline); }, [calendar, finance, pipeline, syncToServer]);
 
   const addProject = useCallback(async (projectInput) => {
     const payload = { ...projectInput, id: uid('proj') };

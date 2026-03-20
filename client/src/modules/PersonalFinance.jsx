@@ -309,7 +309,7 @@ export default function PersonalFinance({ openAI }) {
           <div className="card" style={{ maxWidth: 560 }}>
             <div className="card-header">🔑 Webhook Secret</div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-              Set <code>SMS_WEBHOOK_SECRET</code> in Replit Secrets to change the secret. Default: <code>jake-sms</code>
+              Set <code>SMS_WEBHOOK_SECRET</code> in Netlify environment variables to change the secret. Default: <code>jake-sms</code>
             </p>
             <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--accent)' }}>
               SMS_WEBHOOK_SECRET = {webhookInfo.secret}

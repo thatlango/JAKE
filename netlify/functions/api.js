@@ -94,7 +94,7 @@ app.post('/alerts/send', async (req, res) => {
 });
 
 app.post('/alerts/test', async (req, res) => {
-  const channel = req.body.channel === 'email' ? 'email' : 'telegram';
+  const channel = ['email','telegram','whatsapp'].includes(req.body.channel) ? req.body.channel : 'telegram';
   try {
     const r = await sendAlert({ message:`✅ JAKE test — ${new Date().toLocaleString('en-GB')}`, subject:'JAKE — Test Alert', channels:[channel] });
     res.json(r[channel]||{ok:false});
