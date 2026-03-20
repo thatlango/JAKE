@@ -15,6 +15,7 @@ import AlertsSettings from './modules/AlertsSettings';
 import CRM from './modules/CRM';
 import CashFlow from './modules/CashFlow';
 import OpportunityRadar from './modules/OpportunityRadar';
+import ClaudeSync from './modules/ClaudeSync';
 import { SEED_DATA } from './data/seed';
 
 function usePersistedState(key, seedValue) {
@@ -36,8 +37,8 @@ export default function App() {
   const [calendar,  setCalendar]  = usePersistedState('jake_calendar',  SEED_DATA.calendar);
   const [finance,   setFinance]   = usePersistedState('jake_finance',   SEED_DATA.finance);
 
-  const syncToServer = useCallback(async (cal, fin) => {
-    try { await fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ calendar: cal, finance: fin }) }); } catch {}
+  const syncToServer = useCallback(async (cal, fin, pipe) => {
+    try { await fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ calendar: cal, finance: fin, pipeline: pipe }) }); } catch {}
   }, []);
 
   const loadCoreData = useCallback(async () => {
@@ -138,6 +139,7 @@ export default function App() {
         {module === 'integrations'     && <Integrations      openAI={openAI} />}
         {module === 'personal-finance' && <PersonalFinance   openAI={openAI} />}
         {module === 'alerts'           && <AlertsSettings    calendar={calendar} finance={finance} openAI={openAI} />}
+        {module === 'claude-sync'      && <ClaudeSync        openAI={openAI} projects={projects} />}
       </main>
 
       {aiOpen && <AIPanel context={aiContext} module={module} onClose={() => setAiOpen(false)} data={allData} />}

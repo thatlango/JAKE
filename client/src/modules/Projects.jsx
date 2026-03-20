@@ -123,23 +123,16 @@ export default function Projects({ projects, setProjects, openAI, onCreateProjec
                   <div className="project-card-name">{p.name}</div>
                   <div className="project-card-tech">{p.tech}</div>
                 </div>
-                <span className={`priority priority--${p.priority.toLowerCase()}`}>
-                  {p.priority}
-                </span>
+                <span className={`priority priority--${p.priority.toLowerCase()}`}>{p.priority}</span>
               </div>
               <p className="project-card-desc">{p.description}</p>
               <div className="project-card-footer">
                 <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${p.progress}%`, background: p.color }}
-                  />
+                  <div className="progress-fill" style={{ width: `${p.progress}%`, background: p.color }} />
                 </div>
                 <span className="progress-label">{p.progress}%</span>
               </div>
-              <div className="task-summary">
-                {p.tasks.filter(t => t.done).length}/{p.tasks.length} tasks done
-              </div>
+              <div className="task-summary">{p.tasks.filter(t => t.done).length}/{p.tasks.length} tasks done</div>
             </div>
           ))}
         </div>
@@ -152,73 +145,50 @@ export default function Projects({ projects, setProjects, openAI, onCreateProjec
                 <div className="detail-name">{proj.name}</div>
                 <div className="detail-tech">{proj.tech}</div>
               </div>
-              <button
-                className="ai-trigger-sm"
-                onClick={() =>
-                  openAI(
-                    `Project: ${proj.name}. Status: ${proj.status}. Priority: ${proj.priority}. ${proj.description} Open tasks: ${proj.tasks.filter(t => !t.done).map(t => t.text).join(', ')}`
-                  )
-                }
-              >
-                ✦ AI
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="ai-trigger-sm" onClick={() =>
+                  openAI(`Project: ${proj.name}. Status: ${proj.status}. Priority: ${proj.priority}. ${proj.description} Open tasks: ${proj.tasks.filter(t => !t.done).map(t => t.text).join(', ')}`)
+                }>✦ AI</button>
+                <button onClick={() => deleteProject(proj.id)} style={{ padding: '5px 8px', background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid rgba(255,71,87,.2)', borderRadius: 4, fontSize: 11, cursor: 'pointer' }} title="Delete project">✕</button>
+              </div>
             </div>
 
-            <div
-              style={{
-                padding: '8px 16px',
-                fontSize: 11,
-                color: 'var(--text-muted)',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span>Tasks</span>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {completedCount}/{proj.tasks.length}
-              </span>
+            <div style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span className={`badge ${proj.status === 'Active' ? 'badge--active' : ''}`}>{proj.status}</span>
+              </div>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{completedCount}/{proj.tasks.length}</span>
             </div>
 
             <div className="task-list">
               {proj.tasks.map(t => (
-                <label key={t.id} className={`task-item ${t.done ? 'task-item--done' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={t.done}
-                    onChange={() => toggleTask(proj.id, t.id)}
-                  />
-                  <span>{t.text}</span>
-                </label>
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label className={`task-item ${t.done ? 'task-item--done' : ''}`} style={{ flex: 1, margin: 0 }}>
+                    <input type="checkbox" checked={t.done} onChange={() => toggleTask(proj.id, t.id)} />
+                    <span>{t.text}</span>
+                  </label>
+                  <button onClick={() => deleteTask(proj.id, t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12, padding: '2px 4px', opacity: 0.5 }} title="Remove task">✕</button>
+                </div>
               ))}
+
+              {/* Add task inline */}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <input
+                  value={newTaskText}
+                  onChange={e => setNewTaskText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addTask()}
+                  placeholder="Add a task… (Enter to save)"
+                  style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12 }}
+                />
+                <button onClick={addTask} style={{ padding: '7px 12px', background: 'var(--accent)', color: '#07090F', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>+</button>
+              </div>
             </div>
 
-            <div
-              style={{
-                padding: '12px 16px',
-                borderTop: '1px solid var(--border)',
-                background: 'var(--surface-2)',
-              }}
-            >
+            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
               <div className="progress-bar progress-bar--lg">
-                <div
-                  className="progress-fill"
-                  style={{
-                    width: `${proj.progress}%`,
-                    background: proj.color,
-                  }}
-                />
+                <div className="progress-fill" style={{ width: `${proj.progress}%`, background: proj.color }} />
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginTop: 6,
-                  fontSize: 11,
-                  color: 'var(--text-muted)',
-                  fontFamily: 'JetBrains Mono, monospace',
-                }}
-              >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
                 <span>Progress</span>
                 <span>{proj.progress}%</span>
               </div>

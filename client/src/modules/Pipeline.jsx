@@ -2,12 +2,24 @@ import { useState } from 'react';
 
 const STAGES = ['Prospect', 'Applied', 'In Delivery', 'Active Partner'];
 
+const STAGES = ['Prospect', 'Applied', 'In Delivery', 'Active Partner'];
 const STAGE_COLORS = {
   Prospect: '#5A6480',
   Applied: '#F0B429',
   'In Delivery': '#0ECB81',
   'Active Partner': '#5E6AD2',
 };
+const TYPES = ['Consulting', 'Program', 'Partnership', 'Systems', 'Training', 'Academic', 'Other'];
+
+const DEFAULT_DEAL = {
+  name: '', org: '', valueUSD: '', stage: 'Prospect', type: 'Consulting',
+  deadline: '', contact: '', notes: '',
+};
+
+export default function Pipeline({ pipeline, setPipeline, openAI }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newDeal, setNewDeal] = useState(DEFAULT_DEAL);
+  const [expanded, setExpanded] = useState(null);
 
 export default function Pipeline({ pipeline, openAI, onAddProspect }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -27,7 +39,6 @@ export default function Pipeline({ pipeline, openAI, onAddProspect }) {
   const totalConfirmed = pipeline
     .filter(p => p.stage === 'In Delivery' && p.valueUSD > 0)
     .reduce((sum, p) => sum + p.valueUSD, 0);
-
   const totalPending = pipeline
     .filter(p => p.stage === 'Applied' && p.valueUSD > 0)
     .reduce((sum, p) => sum + p.valueUSD, 0);
@@ -111,40 +122,40 @@ export default function Pipeline({ pipeline, openAI, onAddProspect }) {
 
               <div className="kanban-items">
                 {items.length === 0 && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--text-dim)',
-                      padding: '8px 0',
-                      textAlign: 'center',
-                    }}
-                  >
-                    Empty
-                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '8px 0', textAlign: 'center' }}>Empty</div>
                 )}
                 {items.map(item => (
-                  <div key={item.id} className="kanban-card">
+                  <div key={item.id} className="kanban-card" style={{ cursor: 'pointer' }} onClick={() => setExpanded(expanded === item.id ? null : item.id)}>
                     <div className="kanban-card-org">{item.org}</div>
                     <div className="kanban-card-name">{item.name}</div>
-                    {item.valueUSD > 0 && (
-                      <div className="kanban-card-value">
-                        ${item.valueUSD.toLocaleString()}
-                      </div>
-                    )}
+                    {item.valueUSD > 0 && <div className="kanban-card-value">${item.valueUSD.toLocaleString()}</div>}
                     {item.deadline && (
                       <div className="kanban-card-deadline">
-                        Due{' '}
-                        {new Date(item.deadline).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: '2-digit',
-                        })}
+                        Due {new Date(item.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
                       </div>
                     )}
                     <div className="kanban-card-notes">{item.notes}</div>
-                    <div className={`kanban-type kanban-type--${item.type.toLowerCase()}`}>
-                      {item.type}
-                    </div>
+                    <div className={`kanban-type kanban-type--${item.type?.toLowerCase()}`}>{item.type}</div>
+
+                    {/* Stage move + delete (visible on expand) */}
+                    {expanded === item.id && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); moveStage(item.id, -1); }}
+                          disabled={STAGES.indexOf(item.stage) === 0}
+                          style={{ flex: 1, padding: '4px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}
+                        >← Back</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); moveStage(item.id, 1); }}
+                          disabled={STAGES.indexOf(item.stage) === STAGES.length - 1}
+                          style={{ flex: 1, padding: '4px', background: 'var(--accent)', border: 'none', borderRadius: 4, fontSize: 11, color: '#07090F', fontWeight: 700, cursor: 'pointer' }}
+                        >Advance →</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteDeal(item.id); }}
+                          style={{ padding: '4px 8px', background: 'var(--red-dim)', border: '1px solid rgba(255,71,87,.2)', borderRadius: 4, fontSize: 11, color: 'var(--red)', cursor: 'pointer' }}
+                        >✕</button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
