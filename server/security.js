@@ -35,12 +35,6 @@ function buildCors() {
     'http://0.0.0.0:5173',
   ];
 
-  // In Replit the webview URL is injected as REPL_SLUG / REPL_OWNER
-  if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
-    allowedOrigins.push(`https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
-    allowedOrigins.push(`https://${process.env.REPL_SLUG}--${process.env.REPL_OWNER}.repl.co`);
-  }
-
   const cors = require('cors');
   return cors({
     origin(origin, cb) {

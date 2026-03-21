@@ -19,14 +19,14 @@ async function getClient(id) {
 async function createClient(data) {
   const id = data.id || uid();
   return db.insert('clients', { id, name:data.name, org:data.org||'', role:data.role||'',
-    email:data.email||'', phone:data.phone||'', whatsapp:data.whatsapp||'', location:data.location||'',
+    email:data.email||'', phone:data.phone||'', whatsapp:data.whatsapp||data.phone||'', location:data.location||'',
     type:data.type||'Partner', status:data.status||'Active', notes:data.notes||'',
     avatar_emoji:data.avatar_emoji||'👤', pipeline_id:data.pipeline_id||null,
     last_contact:data.last_contact||null, next_followup:data.next_followup||null });
 }
 
 async function updateClient(id, data) {
-  const allowed = ['name','org','role','email','phone','whatsapp','location','type','status','notes','avatar_emoji','last_contact','next_followup','pipeline_id'];
+  const allowed = ['name','org','role','email','phone','whatsapp','location','type','status','notes','avatar_emoji','last_contact','next_followup','pipeline_id','contract_value','contract_currency'];
   const clean = Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k)));
   if (Object.keys(clean).length) await db.update('clients', id, clean);
 }

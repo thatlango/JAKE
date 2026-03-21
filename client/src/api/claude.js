@@ -2,7 +2,7 @@
 
 const BASE_SYSTEM = `You are Jacob's personal operating system assistant. Jacob (Odur Lango) is the Founder and Lead Consultant at Tuku-Tuku Labs, a Uganda-based MSME capacity building and consulting firm operating in Northern Uganda — primarily Gulu and Lira. 
 
-His active digital products: Radar (AI job opportunity platform for African job seekers, Next.js/Prisma/Supabase/GPT-4/Stripe), Synced (couples financial management app, East Africa, mobile money), and Ajura Clothes (faith-driven African fashion brand with AjuraFit line — website in Replit).
+His active digital products: Radar (AI job opportunity platform for African job seekers, Next.js/Prisma/Supabase/GPT-4/Stripe), Synced (couples financial management app, East Africa, mobile money), and Ajura Clothes (faith-driven African fashion brand with AjuraFit line — React/Netlify storefront).
 
 His consulting programs: 4Africa Innovation Incubator (12-week agricultural program, March–June 2026, for Lead4Africa), MSME Capacity Building workshops (Social Media, Digital Literacy, TOT Modules 1–10) in Gulu and Lira, FEMINATURE FMS Framework (financial management system, RBAC frontend).
 
@@ -43,7 +43,7 @@ export async function askClaude(messages, module = 'dashboard', extraContext = '
     if (data.error) return `⚠️ ${data.error}`;
     if (data.content?.[0]?.text) return data.content[0].text;
 
-    return 'No response from AI. Check that ANTHROPIC_API_KEY is set in Replit Secrets.';
+    return 'No response from AI. Check that ANTHROPIC_API_KEY is set in Netlify environment variables.';
   } catch (err) {
     return `⚠️ Connection error: ${err.message}. Make sure the server is running on port 3001.`;
   }

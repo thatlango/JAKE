@@ -2,10 +2,10 @@
 // ── JAKE Google Calendar Integration ──
 // Uses Google OAuth2 (free — 1M requests/day)
 //
-// Replit Secrets required:
+// Netlify env vars required:
 //   GOOGLE_CLIENT_ID      — from Google Cloud Console
 //   GOOGLE_CLIENT_SECRET  — from Google Cloud Console
-//   GOOGLE_REDIRECT_URI   — your Replit URL + /auth/google/callback
+//   GOOGLE_REDIRECT_URI   — your Netlify URL + /auth/google/callback
 //   GOOGLE_REFRESH_TOKEN  — auto-saved after first auth (you don't set this manually)
 
 const SCOPES = [
