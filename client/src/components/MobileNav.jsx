@@ -9,13 +9,14 @@ const PRIMARY = [
 ];
 
 const MORE = [
-  { id: 'projects',    label: 'Projects',    icon: '◈' },
-  { id: 'pipeline',    label: 'Pipeline',    icon: '⟳' },
-  { id: 'calendar',    label: 'Calendar',    icon: '▦' },
-  { id: 'cashflow',    label: 'Cash Flow',   icon: '💰' },
-  { id: 'claude-sync', label: 'Claude Sync', icon: '🧠' },
-  { id: 'integrations',label: 'Integrations',icon: '⬡' },
-  { id: 'alerts',      label: 'Alerts',      icon: '🔔' },
+  { id: 'projects',        label: 'Projects',    icon: '◈' },
+  { id: 'pipeline',        label: 'Pipeline',    icon: '⟳' },
+  { id: 'calendar',        label: 'Calendar',    icon: '▦' },
+  { id: 'cashflow',        label: 'Cash Flow',   icon: '💰' },
+  { id: 'finance',         label: 'Revenue',     icon: '◆' },
+  { id: 'claude-sync',     label: 'Claude Sync', icon: '🧠' },
+  { id: 'integrations',    label: 'Integrations',icon: '⬡' },
+  { id: 'alerts',          label: 'Alerts',      icon: '🔔' },
 ];
 
 export default function MobileNav({ active, onChange }) {

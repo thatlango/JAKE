@@ -93,9 +93,9 @@ export default function Pipeline({ pipeline, setPipeline, openAI, onAddProspect 
 
       {/* Add deal form */}
       {showAdd && (
-        <div style={{ margin: '0 28px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+        <div className="pipeline-add-form">
           <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Add Pipeline Deal</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div className="pipeline-form-grid">
             <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Deal / project name *" style={inputStyle} />
             <input value={form.org} onChange={e => set('org', e.target.value)} placeholder="Organisation *" style={inputStyle} />
             <input type="number" value={form.valueUSD} onChange={e => set('valueUSD', e.target.value)} placeholder="Value (USD)" style={inputStyle} />
