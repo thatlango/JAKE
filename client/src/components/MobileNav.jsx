@@ -16,6 +16,7 @@ const MORE = [
   { id: 'cashflow',        label: 'Cash Flow',      icon: '💰' },
   { id: 'finance',         label: 'Revenue',        icon: '◆' },
   { id: 'radar',           label: 'Radar',          icon: '📡' },
+  { id: 'platforms',       label: 'Platforms',      icon: '🚀' },
   { id: 'voice-memo',      label: 'Voice Memo',     icon: '🎙' },
   { id: 'personal-finance',label: 'Personal Fin.',  icon: '📱' },
   { id: 'export',          label: 'Export',         icon: '📤' },
