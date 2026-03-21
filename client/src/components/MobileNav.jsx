@@ -1,22 +1,27 @@
 import { useState } from 'react';
 
 const PRIMARY = [
-  { id: 'dashboard',        label: 'Home',     icon: '⊞' },
-  { id: 'crm',              label: 'CRM',      icon: '🤝' },
-  { id: 'personal-finance', label: 'Finance',  icon: '📱' },
-  { id: 'radar',            label: 'Radar',    icon: '📡' },
-  { id: 'more',             label: 'More',     icon: '⋯' },
+  { id: 'dashboard',  label: 'Home',    icon: '⊞' },
+  { id: 'crm',        label: 'CRM',     icon: '🤝' },
+  { id: 'ai-search',  label: 'Search',  icon: '🔍' },
+  { id: 'pipeline',   label: 'Pipeline',icon: '⟳' },
+  { id: 'more',       label: 'More',    icon: '⋯' },
 ];
 
 const MORE = [
-  { id: 'projects',        label: 'Projects',    icon: '◈' },
-  { id: 'pipeline',        label: 'Pipeline',    icon: '⟳' },
-  { id: 'calendar',        label: 'Calendar',    icon: '▦' },
-  { id: 'cashflow',        label: 'Cash Flow',   icon: '💰' },
-  { id: 'finance',         label: 'Revenue',     icon: '◆' },
-  { id: 'claude-sync',     label: 'Claude Sync', icon: '🧠' },
-  { id: 'integrations',    label: 'Integrations',icon: '⬡' },
-  { id: 'alerts',          label: 'Alerts',      icon: '🔔' },
+  { id: 'projects',        label: 'Projects',       icon: '◈' },
+  { id: 'proposals',       label: 'Proposals',      icon: '📋' },
+  { id: 'grants',          label: 'Grants & Bids',  icon: '🏆' },
+  { id: 'calendar',        label: 'Calendar',       icon: '▦' },
+  { id: 'cashflow',        label: 'Cash Flow',      icon: '💰' },
+  { id: 'finance',         label: 'Revenue',        icon: '◆' },
+  { id: 'radar',           label: 'Radar',          icon: '📡' },
+  { id: 'voice-memo',      label: 'Voice Memo',     icon: '🎙' },
+  { id: 'personal-finance',label: 'Personal Fin.',  icon: '📱' },
+  { id: 'export',          label: 'Export',         icon: '📤' },
+  { id: 'claude-sync',     label: 'Claude Sync',    icon: '🧠' },
+  { id: 'integrations',    label: 'Integrations',   icon: '⬡' },
+  { id: 'alerts',          label: 'Alerts',         icon: '🔔' },
 ];
 
 export default function MobileNav({ active, onChange }) {

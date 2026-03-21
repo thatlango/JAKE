@@ -1,4 +1,72 @@
 import { useState, useEffect, useCallback } from 'react';
+import { askClaude } from '../api/claude';
+
+function FollowUpDraft({ client, interactions, onClose }) {
+  const [draft,   setDraft]   = useState('');
+  const [busy,    setBusy]    = useState(false);
+  const [copied,  setCopied]  = useState(false);
+
+  const generate = async () => {
+    setBusy(true);
+    const last = (interactions||[]).filter(i=>i.type!=='payment').slice(0,3)
+      .map(i=>`[${i.date}] ${i.type}: ${i.title||i.type} — ${i.content?.slice(0,120)||''}`).join('\n');
+    const daysSince = client.last_contact
+      ? Math.floor((new Date()-new Date(client.last_contact))/86400000) : 'unknown';
+    const msg = await askClaude([{ role:'user', content:
+      `Draft a short, warm follow-up message for Jacob to send to ${client.name} at ${client.org||''}.\n\nContext:\n- Last contact: ${daysSince} days ago\n- Recent interactions:\n${last||'No recent interactions'}\n- Role: ${client.role||'—'}\n- Next followup note: ${client.next_followup||'—'}\n\nMessage should be:\n- 3-4 sentences max\n- Professional but personal tone\n- Reference the relationship or last conversation if relevant\n- End with a clear next step or question\n- No subject line needed (this is for WhatsApp/direct message)\n\nWrite only the message body, nothing else.`
+    }], 'crm');
+    setDraft(typeof msg === 'string' ? msg : '');
+    setBusy(false);
+  };
+
+  useEffect(() => { generate(); }, []); // eslint-disable-line
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(draft).then(() => { setCopied(true); setTimeout(()=>setCopied(false), 2000); });
+  };
+
+  const waLink = client.phone
+    ? `https://wa.me/${client.phone.replace(/[^0-9]/g,'')}?text=${encodeURIComponent(draft)}`
+    : null;
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:500, background:'rgba(0,0,0,.6)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, maxWidth:460, width:'100%', maxHeight:'80vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
+          <div style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:15 }}>✦ Smart Follow-Up</div>
+          <button onClick={onClose} style={{ color:'var(--text-muted)', background:'none', border:'none', fontSize:18, cursor:'pointer' }}>✕</button>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:12 }}>
+          Drafted for <strong style={{ color:'var(--text)' }}>{client.name}</strong> · {client.org}
+        </div>
+        {busy ? (
+          <div style={{ padding:'24px 0', textAlign:'center', color:'var(--blue)', fontSize:13 }}>✦ Drafting with AI…</div>
+        ) : (
+          <>
+            <textarea value={draft} onChange={e=>setDraft(e.target.value)}
+              style={{ width:'100%', minHeight:140, background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:8, padding:12, color:'var(--text)', fontSize:13, lineHeight:1.75, resize:'vertical', fontFamily:'DM Sans,sans-serif', marginBottom:12 }} />
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <button onClick={copyToClipboard}
+                style={{ flex:1, padding:9, background: copied?'var(--green-dim)':'var(--surface-3)', color: copied?'var(--green)':'var(--text-muted)', border:`1px solid ${copied?'rgba(14,203,129,.3)':'var(--border)'}`, borderRadius:6, fontWeight:600, fontSize:12, cursor:'pointer' }}>
+                {copied ? '✓ Copied!' : '📋 Copy'}
+              </button>
+              {waLink && (
+                <a href={waLink} target="_blank" rel="noreferrer"
+                  style={{ flex:2, padding:9, background:'#25D366', color:'#fff', border:'none', borderRadius:6, fontWeight:700, fontSize:12, cursor:'pointer', textAlign:'center', display:'block', textDecoration:'none' }}>
+                  📱 Open in WhatsApp
+                </a>
+              )}
+              <button onClick={generate} disabled={busy}
+                style={{ flex:1, padding:9, background:'var(--blue-dim)', color:'var(--blue)', border:'1px solid rgba(94,106,210,.25)', borderRadius:6, fontWeight:600, fontSize:12, cursor:'pointer' }}>
+                ↺ Regenerate
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const TYPE_COLORS = {
   note: '#5E6AD2', call: '#0ECB81', email: '#F0B429',
@@ -239,7 +307,8 @@ export default function CRM({ openAI }) {
   const [stats, setStats] = useState({});
   const [selected, setSelected] = useState(null);
   const [clientDetail, setClientDetail] = useState(null);
-  const [logging, setLogging] = useState(false);
+  const [logging,    setLogging]    = useState(false);
+  const [followUpClient, setFollowUpClient] = useState(null);
   const [filter, setFilter] = useState('All');
   const [detailTab, setDetailTab] = useState('interactions'); // 'interactions' | 'payments'
   const [showAdd, setShowAdd] = useState(false);
@@ -419,9 +488,13 @@ export default function CRM({ openAI }) {
               contract={parseContract(clientDetail.notes)}
             />
 
-            <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-              <button onClick={() => setLogging(l => !l)} style={{ background: 'var(--blue-dim)', color: 'var(--blue)', border: '1px solid rgba(94,106,210,.25)', borderRadius: 6, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
-                {logging ? '× Cancel' : '+ Log Interaction / Payment'}
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display:'flex', gap:8 }}>
+              <button onClick={() => setLogging(l => !l)} style={{ flex:1, background: 'var(--blue-dim)', color: 'var(--blue)', border: '1px solid rgba(94,106,210,.25)', borderRadius: 6, padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                {logging ? '× Cancel' : '+ Log Interaction'}
+              </button>
+              <button onClick={() => setFollowUpClient(clientDetail)}
+                style={{ flex:1, background:'var(--accent-dim)', color:'var(--accent)', border:'1px solid rgba(240,180,41,.25)', borderRadius:6, padding:'7px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                ✦ Smart Follow-Up
               </button>
             </div>
 
@@ -497,6 +570,14 @@ export default function CRM({ openAI }) {
           </div>
         )}
       </div>
+
+      {followUpClient && (
+        <FollowUpDraft
+          client={followUpClient}
+          interactions={clientDetail?.interactions}
+          onClose={() => setFollowUpClient(null)}
+        />
+      )}
     </div>
   );
 }

@@ -326,6 +326,52 @@ app.get('/fetch-stats', async (req, res) => {
   } catch { res.status(502).json({ error:'Could not fetch URL' }); }
 });
 
+// ── GROQ AI (Whisper transcription — free tier) ──
+app.post('/groq/transcribe', async (req, res) => {
+  if (!process.env.GROQ_API_KEY)
+    return res.status(503).json({ error: 'Add GROQ_API_KEY to Netlify env vars — free at console.groq.com' });
+  const { audio, mimeType, filename } = req.body;
+  if (!audio) return res.status(400).json({ error: 'No audio data' });
+  try {
+    const buffer = Buffer.from(audio, 'base64');
+    const formData = new FormData();
+    formData.append('file', new Blob([buffer], { type: mimeType || 'audio/webm' }), filename || 'memo.webm');
+    formData.append('model', 'whisper-large-v3');
+    formData.append('response_format', 'json');
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+      body: formData,
+    });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); return res.status(r.status).json({ error: e.error?.message || 'Transcription failed' }); }
+    res.json(await r.json());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── FX RATES (open.er-api.com — no key required) ──
+app.get('/fx-rates', async (req, res) => {
+  const base = ['USD','UGX','KES','EUR','GBP'].includes(req.query.base) ? req.query.base : 'USD';
+  try {
+    const r = await fetch(`https://open.er-api.com/v6/latest/${base}`, { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    res.json({ rates: d.rates, updated: d.time_last_update_utc, base });
+  } catch {
+    res.json({ rates: { UGX: 3680, KES: 130, EUR: 0.92, GBP: 0.79, USD: 1, TZS: 2650, RWF: 1380 }, updated: null, fallback: true, base });
+  }
+});
+
+// ── WEEKLY DIGEST DATA (used by scheduled function) ──
+app.get('/digest-data', async (req, res) => {
+  try {
+    const [events, pipe, clients] = await Promise.all([
+      db.all('calendar_events', { eq:{done:false}, gte:{date: new Date().toISOString().slice(0,10)}, order:{col:'date'}, limit:10 }),
+      db.all('pipeline', { order:{col:'created_at',asc:false}, limit:10 }),
+      db.all('crm_clients', { order:{col:'name'}, limit:20 }),
+    ]);
+    res.json({ events, pipeline: pipe, clients });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Seed DB on first function invocation
 let seeded = false;
 async function ensureSeeded() {
