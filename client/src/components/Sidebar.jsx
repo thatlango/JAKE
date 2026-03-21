@@ -13,6 +13,7 @@ const NAV = [
   { id: 'DIVIDER' },
   { id: 'ai-search',        label: 'AI Search',           icon: '🔍' },
   { id: 'voice-memo',       label: 'Voice Memo',          icon: '🎙' },
+  { id: 'platforms',        label: 'Platforms',           icon: '🚀' },
   { id: 'claude-sync',      label: 'Claude Sync',         icon: '🧠' },
   { id: 'personal-finance', label: 'Personal Finance',    icon: '📱' },
   { id: 'export',           label: 'Export Centre',       icon: '📤' },

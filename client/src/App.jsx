@@ -21,6 +21,7 @@ import Grants from './modules/Grants';
 import VoiceMemo from './modules/VoiceMemo';
 import ExportCentre from './modules/ExportCentre';
 import AISearch from './modules/AISearch';
+import Platforms from './modules/Platforms';
 import { SEED_DATA } from './data/seed';
 
 function usePersistedState(key, seedValue) {
@@ -129,6 +130,7 @@ export default function App() {
         {module === 'ai-search'        && <AISearch          {...allData} />}
         {module === 'voice-memo'       && <VoiceMemo         projects={projects} pipeline={pipeline} setCalendar={setCalendar} openAI={openAI} />}
         {module === 'export'           && <ExportCentre      {...allData} />}
+        {module === 'platforms'        && <Platforms         openAI={openAI} />}
       </main>
 
       {aiOpen && <AIPanel context={aiContext} module={module} onClose={() => setAiOpen(false)} data={allData} />}
