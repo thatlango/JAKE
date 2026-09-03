@@ -62,18 +62,20 @@ BEGIN
       version = work_items.version + 1;
   END LOOP;
 
-  -- A legacy/project-projected task removed in JakeOS should not remain actionable in Momentum.
+  -- Only legacy JSON-origin tasks may be cancelled merely because they disappear from
+  -- a browser's serialized project array. This prevents a stale JakeOS tab from
+  -- cancelling a newer Momentum-origin task.
   IF COALESCE(array_length(current_ids, 1), 0) = 0 THEN
     UPDATE work_items
       SET status='cancelled', updated_at=NOW(), last_touched_at=NOW(), version=version+1
       WHERE project_id=NEW.id
-        AND metadata ? 'project_json_id'
+        AND source='project-json'
         AND status <> 'cancelled';
   ELSE
     UPDATE work_items
       SET status='cancelled', updated_at=NOW(), last_touched_at=NOW(), version=version+1
       WHERE project_id=NEW.id
-        AND metadata ? 'project_json_id'
+        AND source='project-json'
         AND NOT (id = ANY(current_ids))
         AND status <> 'cancelled';
   END IF;
