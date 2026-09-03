@@ -1,5 +1,6 @@
 const NAV = [
   { id: 'dashboard',        label: 'Dashboard',          icon: '⊞' },
+  { id: 'estate',           label: 'Tuku Estate',        icon: '◉' },
   { id: 'projects',         label: 'Projects',            icon: '◈' },
   { id: 'pipeline',         label: 'Pipeline',            icon: '⟳' },
   { id: 'proposals',        label: 'Proposals',           icon: '📋' },
@@ -25,10 +26,10 @@ export default function Sidebar({ active, onChange }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="brand-mark">JK</span>
+        <span className="brand-mark">JO</span>
         <div>
-          <div className="brand-name">JAKE</div>
-          <div className="brand-sub">Tuku-Tuku Labs</div>
+          <div className="brand-name">JakeOS</div>
+          <div className="brand-sub">Command Center</div>
         </div>
       </div>
       <nav className="sidebar-nav">
@@ -43,7 +44,7 @@ export default function Sidebar({ active, onChange }) {
         })}
       </nav>
       <div className="sidebar-footer">
-        <div className="sidebar-footer-text">Gulu · Lira · 2026</div>
+        <div className="sidebar-footer-text">Personal operating system</div>
       </div>
     </aside>
   );
