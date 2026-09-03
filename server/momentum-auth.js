@@ -12,8 +12,9 @@ function parseJwt(token){const parts=String(token||'').split('.');if(parts.lengt
 async function firebaseCerts(){if(certCache.certs&&certCache.expiresAt>Date.now())return certCache.certs;const response=await fetch('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com',{signal:AbortSignal.timeout(5000)});if(!response.ok)throw new Error('Firebase certificate lookup failed');const cacheControl=response.headers.get('cache-control')||'',maxAge=Number(cacheControl.match(/max-age=(\d+)/)?.[1]||3600);certCache={certs:await response.json(),expiresAt:Date.now()+Math.max(300,maxAge-60)*1000};return certCache.certs;}
 async function verifyFirebaseIdToken(token,projectId){const{header,payload,signed,signature}=parseJwt(token);if(header.alg!=='RS256'||!header.kid)throw new Error('Unsupported Firebase token');const now=Math.floor(Date.now()/1000);if(payload.aud!==projectId)throw new Error('Wrong Firebase audience');if(payload.iss!==`https://securetoken.google.com/${projectId}`)throw new Error('Wrong Firebase issuer');if(!payload.sub||typeof payload.sub!=='string')throw new Error('Missing Firebase subject');if(Number(payload.exp||0)<=now)throw new Error('Firebase token expired');if(Number(payload.iat||now+1)>now+60)throw new Error('Firebase token issued in the future');const cert=(await firebaseCerts())[header.kid];if(!cert)throw new Error('Unknown Firebase signing key');const verifier=crypto.createVerify('RSA-SHA256');verifier.update(signed);verifier.end();if(!verifier.verify(cert,signature))throw new Error('Invalid Firebase signature');return payload;}
 
+function tukuCoreBase(){return String(process.env.TUKU_CORE_BASE_URL||process.env.TUKU_CORE_URL||'').replace(/\/$/,'');}
 async function verifyTukuCoreAccessToken(token){
-  const base=String(process.env.TUKU_CORE_BASE_URL||'').replace(/\/$/,'');
+  const base=tukuCoreBase();
   if(!base)throw new Error('Tuku Core authentication is not configured');
   const key=tokenCacheKey(token),cached=coreTokenCache.get(key);
   if(cached&&cached.expiresAt>Date.now())return cached.user;
@@ -44,7 +45,7 @@ function allowedMomentumUser(user){
 function momentumAuth(){return async(req,res,next)=>{
   const bearer=String(req.get('authorization')||'').match(/^Bearer\s+(.+)$/i)?.[1];
   if(!bearer)return res.status(401).json({error:'Momentum authentication required'});
-  const coreBase=process.env.TUKU_CORE_BASE_URL;
+  const coreBase=tukuCoreBase();
   const projectId=process.env.MOMENTUM_FIREBASE_PROJECT_ID||process.env.FIREBASE_PROJECT_ID;
   const fallback=process.env.MOMENTUM_API_TOKEN;
   try{
