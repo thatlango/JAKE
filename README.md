@@ -1,80 +1,125 @@
-# JAKE — Personal Operating System
-### Tuku-Tuku Innovation Labs · Northern Uganda
+# JakeOS — Personal Command Center
 
-A living workspace that tracks everything: projects, business pipeline, program calendar, and finances — with Claude AI embedded in every section.
+JakeOS is Jacob's **system of record and cross-work command center**. It is designed to see the full operating picture across projects, consulting and program delivery, business development, calendar, finances, research, opportunities, relationships and the wider Tuku product estate.
 
----
+JakeOS is not the lightweight task app. **Momentum** is the companion execution app that consumes JakeOS priorities and lets Jacob work, capture tasks, manage the day and update progress on the go.
 
-## Quick start (Netlify + Supabase)
+## Product boundary
 
-See **[DEPLOY.md](./DEPLOY.md)** for the full step-by-step guide. Summary:
+### JakeOS — see and understand everything
 
-1. **Supabase** — create a free project, run `supabase-schema.sql` in SQL Editor, grab `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
-2. **Netlify** — import your GitHub repo, set build command `cd client && npm install && npm run build`, publish dir `client/dist`
-3. **Env vars** — add `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` in Netlify → Site settings → Environment variables
-4. **Deploy** — trigger a deploy and your site is live at `https://your-site.netlify.app`
+JakeOS owns the canonical view of:
 
----
+- Dashboard / command center
+- Projects and workstreams
+- Tasks, milestones, dependencies and deadlines
+- Program and consulting delivery
+- Business-development pipeline
+- CRM and relationships
+- Calendar and schedule context
+- Finance, invoices, cash-flow and revenue signals
+- Opportunity intelligence
+- Research and weekly evidence briefs
+- Alerts, risks and follow-ups
+- Connected-work data and AI context
 
-## Local development
+JakeOS should answer questions such as:
 
-```bash
-npm run setup   # install all deps
-npm run dev     # runs Express (port 3001) + Vite (port 5173) together
+- What is happening across all my work?
+- What is at risk?
+- What deadlines are approaching?
+- What decisions do I need to make?
+- What work is blocked?
+- Where should my attention go this week?
+- Which opportunities, clients, projects or payments need action?
+- What should Momentum put in front of me next?
+
+### Momentum — execute the day
+
+Momentum is a separate companion product. It should receive a focused, ranked slice of JakeOS rather than reproducing the full command center.
+
+Momentum is responsible for:
+
+- Today / Inbox / Focus views
+- Fast capture
+- Task creation and editing
+- Completing, deferring and rescheduling work
+- Day planning
+- Calendar-aware task execution
+- Mobile notifications
+- Lightweight project and JakeOS monitoring
+- Offline-first behavior
+
+See `thatlango/Momentum` for the companion app contract.
+
+## Data architecture
+
+**JakeOS is the canonical data authority.**
+
+Target production architecture:
+
+```text
+Connected sources / manual capture
+             ↓
+          JakeOS
+             ↓
+     PostgreSQL database
+             ↓
+Dashboards + intelligence + priority engine
+             ↓
+      JakeOS Momentum API
+             ↓
+          Momentum
 ```
 
-Set env vars in a `.env` file at the root:
+The production direction is a VPS-hosted application with PostgreSQL. Netlify and Supabase are legacy dependencies to be removed from the production architecture rather than extended.
+
+Momentum may use Firebase for its mobile concerns, but Firebase must not become a second canonical JakeOS database.
+
+## Core modules
+
+| Module | Purpose |
+|---|---|
+| **Command Center** | Cross-work operating picture, decisions and attention signals |
+| **Projects** | Workstreams, tasks, milestones, owners, status and dependencies |
+| **Pipeline** | Consulting, partnerships, proposals and business development |
+| **Calendar** | Meetings, deadlines, delivery dates and available execution windows |
+| **Finance** | Revenue, expenses, invoices, payments and cash-flow visibility |
+| **CRM** | Client/contact relationships, commitments and follow-ups |
+| **Opportunity Radar** | Grants, tenders, consulting and strategic opportunities |
+| **Research** | MSME/BDS/incubation evidence briefs and saved analysis |
+| **Alerts** | Deadline, risk, payment, project and priority alerts |
+| **Integrations** | Calendar, email and other approved data connections |
+| **AI / Search** | Ask questions across the full JakeOS context |
+
+## Momentum API boundary
+
+JakeOS should expose a narrow execution API for Momentum, beginning with:
+
+```text
+GET    /api/momentum/today
+GET    /api/momentum/inbox
+GET    /api/momentum/pulse
+GET    /api/momentum/schedule
+POST   /api/momentum/tasks
+PATCH  /api/momentum/tasks/:id
+POST   /api/momentum/tasks/:id/complete
+POST   /api/momentum/tasks/:id/defer
+POST   /api/momentum/capture
+POST   /api/momentum/plan-day
 ```
-ANTHROPIC_API_KEY=...
-SUPABASE_URL=...
-SUPABASE_SERVICE_KEY=...
-```
+
+`/today` should not simply return all open tasks. JakeOS should rank candidate work using deadlines, impact, strategic importance, dependencies, schedule availability, workload, carry-over and explicit user priorities, and return an explanation for each recommendation.
+
+## Domains
+
+Recommended separation:
+
+- `jakeos.tukutuku.org` — full JakeOS command center
+- `momentum.tukutuku.org` — Momentum companion surface
+
+Both products should share identity and data contracts while remaining distinct user experiences.
 
 ---
 
-## Modules
-
-| Module | What it does |
-|--------|-------------|
-| **Dashboard** | Live overview — projects, upcoming deadlines, pipeline spotlight, key stats |
-| **Projects** | All workstreams with task checklists and progress tracking |
-| **Pipeline** | Kanban board — Prospect → Applied → In Delivery → Active Partner |
-| **Calendar** | Month grid + timeline of all program events, milestones, and deadlines |
-| **Finance** | Revenue streams, expenses, quarterly target with progress bar |
-| **CRM** | Client management with payment tracking and contract value totals |
-| **Cash Flow** | 3-month projection from income streams and invoices |
-| **Opportunity Radar** | Auto-scanned grant and tender opportunities |
-| **Alerts** | Telegram · WhatsApp · Email daily digest at 07:00 EAT |
-| **Claude Sync** | Import and search your Claude project contexts |
-| **Integrations** | Connect Telegram, Resend, Stripe, Google Calendar, and more |
-| **Personal Finance** | SMS-based M-Pesa / Airtel Money transaction tracker |
-
-Each module has a **✦ Ask AI** button that opens a context-aware Claude chat panel pre-loaded with your data.
-
----
-
-## Updating your data
-
-All seed data lives in `client/src/data/seed.js`. Edit it to:
-- Add new projects
-- Update pipeline deals
-- Add calendar events
-- Change financial targets
-
-Data is also persisted to **localStorage** so your changes survive page refreshes, and synced to Supabase for cross-device persistence.
-
----
-
-## Extending
-
-### Add a new module
-1. Create `client/src/modules/YourModule.jsx`
-2. Add a nav item in `Sidebar.jsx`
-3. Add the route in `App.jsx`
-
-### Adjust AI context
-The AI knows your full background from `client/src/api/claude.js`. Edit `BASE_SYSTEM` and `MODULE_CONTEXT` to update what Claude knows.
-
----
-
-*Built for Jacob Odur · Tuku-Tuku Innovation Labs · Gulu / Lira, Northern Uganda*
+Built as a personal operating layer for managing work across multiple roles, projects and ventures.
