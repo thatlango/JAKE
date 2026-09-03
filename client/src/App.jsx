@@ -36,15 +36,56 @@ function usePersistedState(key, seedValue) {
 const uid = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 function AuthGate({ checking }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+
+  const signIn = async (event) => {
+    event.preventDefault();
+    if (!email.trim() || !password || submitting) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const response = await fetch('/auth/tuku/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.authenticated !== true) {
+        throw new Error(data.error || 'Tuku sign-in failed.');
+      }
+      window.location.replace(window.location.pathname + window.location.search);
+    } catch (err) {
+      setError(err?.message || 'Tuku sign-in failed.');
+      setSubmitting(false);
+    }
+  };
+
   return (
     <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:24,background:'linear-gradient(145deg,#f7f9fc,#eef3fb)',color:'#142033'}}>
       <section style={{width:'min(460px,100%)',background:'#fff',border:'1px solid #e4eaf2',borderRadius:28,padding:'32px 30px',boxShadow:'0 24px 70px rgba(32,48,74,.10)'}}>
         <div style={{width:52,height:52,borderRadius:17,display:'grid',placeItems:'center',background:'#eef2ff',fontSize:25,marginBottom:24}}>🧭</div>
         <div style={{fontSize:12,fontWeight:800,letterSpacing:'.12em',textTransform:'uppercase',color:'#667085',marginBottom:8}}>JakeOS</div>
         <h1 style={{fontSize:31,lineHeight:1.08,margin:'0 0 12px',letterSpacing:'-.04em'}}>Your command center.</h1>
-        <p style={{fontSize:15,lineHeight:1.6,color:'#667085',margin:'0 0 26px'}}>Use your Tuku account to access projects, pipeline, finances, Estate performance and the work that flows into Momentum.</p>
-        {checking ? <div style={{fontWeight:700,color:'#667085'}}>Checking your Tuku session…</div> : <button onClick={()=>window.location.assign(`/auth/tuku/start?return_to=${encodeURIComponent(window.location.pathname+window.location.search)}`)} style={{width:'100%',border:0,borderRadius:15,padding:'14px 18px',background:'#1f2937',color:'#fff',fontSize:15,fontWeight:800,cursor:'pointer'}}>Continue with Tuku Auth</button>}
-        <p style={{fontSize:12,lineHeight:1.5,color:'#98a2b3',margin:'18px 0 0'}}>The same Tuku email and password are used. JakeOS does not keep a separate password.</p>
+        <p style={{fontSize:15,lineHeight:1.6,color:'#667085',margin:'0 0 24px'}}>Sign in with the same Tuku account you use across the estate. JakeOS verifies the credentials with Tuku Core and does not keep a separate password.</p>
+        {checking ? <div style={{fontWeight:700,color:'#667085'}}>Checking your Tuku session…</div> : (
+          <form onSubmit={signIn} style={{display:'grid',gap:13}}>
+            <label style={{display:'grid',gap:6,fontSize:12,fontWeight:800,color:'#475467'}}>Tuku email
+              <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required style={{width:'100%',boxSizing:'border-box',border:'1px solid #d0d5dd',borderRadius:13,padding:'13px 14px',fontSize:15,color:'#101828',background:'#fff'}} />
+            </label>
+            <label style={{display:'grid',gap:6,fontSize:12,fontWeight:800,color:'#475467'}}>Password
+              <input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required style={{width:'100%',boxSizing:'border-box',border:'1px solid #d0d5dd',borderRadius:13,padding:'13px 14px',fontSize:15,color:'#101828',background:'#fff'}} />
+            </label>
+            {error && <div role="alert" style={{borderRadius:12,padding:'10px 12px',background:'#fef3f2',color:'#b42318',fontSize:13,lineHeight:1.45}}>{error}</div>}
+            <button type="submit" disabled={submitting} style={{width:'100%',border:0,borderRadius:15,padding:'14px 18px',background:'#1f2937',color:'#fff',fontSize:15,fontWeight:800,cursor:submitting?'wait':'pointer',opacity:submitting ? .72 : 1}}>{submitting ? 'Signing in…' : 'Sign in to JakeOS'}</button>
+            <a href={`/auth/tuku/start?return_to=${returnTo}`} style={{display:'block',textAlign:'center',padding:'9px 10px',fontSize:12,fontWeight:800,color:'#667085',textDecoration:'none'}}>Use Tuku SSO redirect instead</a>
+          </form>
+        )}
+        <p style={{fontSize:12,lineHeight:1.5,color:'#98a2b3',margin:'16px 0 0'}}>Your password is sent over HTTPS to Tuku Core for verification and is not stored by JakeOS.</p>
       </section>
     </main>
   );
