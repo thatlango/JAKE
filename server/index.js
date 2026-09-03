@@ -3,6 +3,7 @@ const path=require('path');
 const express=require('express');
 const {app:api,ensureSeeded}=require('./app');
 const {momentumRouter,integrationsRouter}=require('./momentum');
+const {momentumProjectsRouter}=require('./momentum-projects');
 const {estateRouter,momentumEstateRouter}=require('./estate');
 const {startJobs}=require('./jobs');
 const {requireJakeAuth,webAuthRouter,momentumAuthRouter}=require('./tuku-auth');
@@ -19,6 +20,7 @@ app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'5.3'
 app.use('/auth',webAuthRouter());
 app.use('/api/momentum/v1/auth',momentumAuthRouter());
 app.use('/api/momentum/v1/estate',momentumEstateRouter);
+app.use('/api/momentum/v1/projects',momentumProjectsRouter);
 app.use('/api/momentum/v1',momentumRouter);
 app.use('/api/integrations/v1',integrationsRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
