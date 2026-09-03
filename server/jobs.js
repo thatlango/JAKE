@@ -68,6 +68,9 @@ async function runWeeklyReview(){
   return withJobLock('weekly-review',async()=>{
     const overview=await commandCenterOverview();
     const topSignals=(overview.attention_signals||[]).slice(0,5);
+    const estate=overview.estate||{};
+    const estateTotals=estate.totals||{};
+    const fastest=(estate.products||[]).filter(p=>Number(p.growth7dPercent)>0).sort((a,b)=>Number(b.growth7dPercent)-Number(a.growth7dPercent)).slice(0,3);
     const lines=[
       '🧭 *JakeOS Weekly Review*',
       '',
@@ -75,6 +78,8 @@ async function runWeeklyReview(){
       `Active pipeline: ${overview.pipeline.active||0} · upcoming deadlines: ${overview.pipeline.deadlines_14d||0}`,
       `Receivables: ${overview.invoices.receivables||0} · overdue invoices: ${overview.invoices.overdue_count||0}`,
       `Open opportunities: ${overview.opportunities.open||0} · high relevance: ${overview.opportunities.high_relevance||0}`,
+      estate.available?`Tuku estate: ${estateTotals.activeUsers7d||0} active users (7d) · ${estateTotals.ordersActive||0} live orders · UGX ${Number(estateTotals.realizedRevenueUGX||0).toLocaleString('en-UG')} realized`:'Tuku estate telemetry unavailable',
+      fastest.length?`Fastest 7d growth: ${fastest.map(p=>`${p.name} +${Number(p.growth7dPercent).toFixed(1)}%`).join(' · ')}`:'',
       topSignals.length?'':'No unresolved attention signals.',
       ...topSignals.map((s,i)=>`${i+1}. ${s.title}${s.summary?` — ${s.summary}`:''}`),
       '',
