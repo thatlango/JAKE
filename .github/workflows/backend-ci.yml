@@ -65,6 +65,27 @@ jobs:
           grep -q 'CI task' /tmp/today.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/pulse > /tmp/pulse.json
           grep -q 'generated_at' /tmp/pulse.json
+      - name: Exercise JakeOS-Momentum task bridge
+        run: |
+          curl -fsS -H 'Content-Type: application/json' \
+            -d '{"id":"ci-project","name":"CI Project","priority":"High","tasks":[{"id":1,"text":"Legacy project task","done":false}]}' \
+            http://127.0.0.1:3100/api/projects > /tmp/project.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/today-bridge.json
+          grep -q 'Legacy project task' /tmp/today-bridge.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
+            -d '{"title":"Momentum project task","project_id":"ci-project","priority":"high"}' \
+            http://127.0.0.1:3100/api/momentum/v1/tasks > /tmp/momentum-project-task.json
+          MOMENTUM_TASK_ID="$(jq -r '.item.id' /tmp/momentum-project-task.json)"
+          curl -fsS http://127.0.0.1:3100/api/projects > /tmp/projects-after-create.json
+          jq -e 'any(.projects[] | select(.id=="ci-project") | .tasks[]; .text=="Momentum project task" and .done==false)' /tmp/projects-after-create.json
+          curl -fsS -X POST -H 'Authorization: Bearer ci_momentum_token' \
+            "http://127.0.0.1:3100/api/momentum/v1/tasks/${MOMENTUM_TASK_ID}/complete" > /tmp/completed.json
+          curl -fsS http://127.0.0.1:3100/api/projects > /tmp/projects-after-complete.json
+          jq -e 'any(.projects[] | select(.id=="ci-project") | .tasks[]; .text=="Momentum project task" and .done==true)' /tmp/projects-after-complete.json
+          curl -fsS -X POST -H 'Authorization: Bearer ci_momentum_token' \
+            'http://127.0.0.1:3100/api/momentum/v1/tasks/legacy:ci-project:1/complete' > /tmp/legacy-completed.json
+          curl -fsS http://127.0.0.1:3100/api/projects > /tmp/projects-after-legacy-complete.json
+          jq -e 'any(.projects[] | select(.id=="ci-project") | .tasks[]; .text=="Legacy project task" and .done==true)' /tmp/projects-after-legacy-complete.json
       - name: Exercise integration API
         run: |
           curl -fsS -H 'Authorization: Bearer ci_ingest_token' -H 'Content-Type: application/json' \
