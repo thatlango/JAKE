@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 const PRIMARY = [
   { id: 'dashboard',  label: 'Home',    icon: '⊞' },
-  { id: 'crm',        label: 'CRM',     icon: '🤝' },
+  { id: 'estate',     label: 'Estate',  icon: '◉' },
   { id: 'ai-search',  label: 'Search',  icon: '🔍' },
   { id: 'pipeline',   label: 'Pipeline',icon: '⟳' },
   { id: 'more',       label: 'More',    icon: '⋯' },
@@ -10,6 +10,7 @@ const PRIMARY = [
 
 const MORE = [
   { id: 'projects',        label: 'Projects',       icon: '◈' },
+  { id: 'crm',             label: 'CRM',            icon: '🤝' },
   { id: 'proposals',       label: 'Proposals',      icon: '📋' },
   { id: 'grants',          label: 'Grants & Bids',  icon: '🏆' },
   { id: 'calendar',        label: 'Calendar',       icon: '▦' },
