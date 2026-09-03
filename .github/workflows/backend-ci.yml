@@ -1,0 +1,105 @@
+name: JakeOS Backend CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feat/jakeos-momentum-api]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: jakeos
+          POSTGRES_USER: jakeos
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jakeos -d jakeos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      PORT: 3100
+      DATABASE_URL: postgresql://jakeos:ci_password@127.0.0.1:5432/jakeos
+      MOMENTUM_API_TOKEN: ci_momentum_token
+      JAKEOS_INGEST_TOKEN: ci_ingest_token
+      SMS_WEBHOOK_SECRET: ci_sms_token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax and priority tests
+        run: npm run check
+      - name: Migrate PostgreSQL
+        run: npm run migrate
+      - name: Build client
+        run: cd client && npm ci --no-audit --no-fund && npm run build
+      - name: Start JakeOS
+        run: |
+          npm start > /tmp/jakeos.log 2>&1 &
+          echo $! > /tmp/jakeos.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:3100/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3100/health
+      - name: Exercise Momentum API
+        run: |
+          test "$(curl -s -o /tmp/unauth -w '%{http_code}' http://127.0.0.1:3100/api/momentum/v1/today)" = "401"
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
+            -d '{"title":"CI task","priority":"high","impact":5,"strategic_weight":4,"estimated_minutes":25}' \
+            http://127.0.0.1:3100/api/momentum/v1/tasks > /tmp/task.json
+          grep -q 'CI task' /tmp/task.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/today.json
+          grep -q 'CI task' /tmp/today.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/pulse > /tmp/pulse.json
+          grep -q 'generated_at' /tmp/pulse.json
+      - name: Exercise JakeOS-Momentum task bridge
+        run: |
+          curl -fsS -H 'Content-Type: application/json' \
+            -d '{"id":"ci-project","name":"CI Project","priority":"High","tasks":[{"id":1,"text":"Legacy project task","done":false}]}' \
+            http://127.0.0.1:3100/api/projects > /tmp/project.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/today-bridge.json
+          grep -q 'Legacy project task' /tmp/today-bridge.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
+            -d '{"title":"Momentum project task","project_id":"ci-project","priority":"high"}' \
+            http://127.0.0.1:3100/api/momentum/v1/tasks > /tmp/momentum-project-task.json
+          MOMENTUM_TASK_ID="$(jq -r '.item.id' /tmp/momentum-project-task.json)"
+          curl -fsS http://127.0.0.1:3100/api/projects > /tmp/projects-after-create.json
+          jq -e 'any(.projects[] | select(.id=="ci-project") | .tasks[]; .text=="Momentum project task" and .done==false)' /tmp/projects-after-create.json
+          curl -fsS -X POST -H 'Authorization: Bearer ci_momentum_token' \
+            "http://127.0.0.1:3100/api/momentum/v1/tasks/${MOMENTUM_TASK_ID}/complete" > /tmp/completed.json
+          curl -fsS http://127.0.0.1:3100/api/projects > /tmp/projects-after-complete.json
+          jq -e 'any(.projects[] | select(.id=="ci-project") | .tasks[]; .text=="Momentum project task" and .done==true)' /tmp/projects-after-complete.json
+          curl -fsS -X POST -H 'Authorization: Bearer ci_momentum_token' \
+            'http://127.0.0.1:3100/api/momentum/v1/tasks/legacy:ci-project:1/complete' > /tmp/legacy-completed.json
+          curl -fsS http://127.0.0.1:3100/api/projects > /tmp/projects-after-legacy-complete.json
+          jq -e 'any(.projects[] | select(.id=="ci-project") | .tasks[]; .text=="Legacy project task" and .done==true)' /tmp/projects-after-legacy-complete.json
+      - name: Exercise integration API
+        run: |
+          curl -fsS -H 'Authorization: Bearer ci_ingest_token' -H 'Content-Type: application/json' \
+            -d '{"source":"ci","source_ref":"external-1","title":"External work item","priority":"medium"}' \
+            http://127.0.0.1:3100/api/integrations/v1/work-items > /tmp/external.json
+          grep -q 'External work item' /tmp/external.json
+          curl -fsS -H 'Authorization: Bearer ci_ingest_token' -H 'Content-Type: application/json' \
+            -d '{"source":"ci","source_ref":"signal-1","title":"CI attention signal","severity":"high"}' \
+            http://127.0.0.1:3100/api/integrations/v1/signals > /tmp/signal.json
+          grep -q 'CI attention signal' /tmp/signal.json
+      - name: Exercise SMS security
+        run: |
+          test "$(curl -s -o /tmp/sms-unauth -w '%{http_code}' -H 'Content-Type: application/json' -d '{"text":"test"}' http://127.0.0.1:3100/api/sms/receive)" = "401"
+          test "$(curl -s -o /tmp/sms-auth -w '%{http_code}' -H 'Content-Type: application/json' -d '{"text":"test"}' 'http://127.0.0.1:3100/api/sms/receive?secret=ci_sms_token')" = "204"
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/jakeos.log || true

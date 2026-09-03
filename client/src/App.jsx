@@ -22,6 +22,7 @@ import VoiceMemo from './modules/VoiceMemo';
 import ExportCentre from './modules/ExportCentre';
 import AISearch from './modules/AISearch';
 import Platforms from './modules/Platforms';
+import Estate from './modules/Estate';
 import { SEED_DATA } from './data/seed';
 
 function usePersistedState(key, seedValue) {
@@ -102,7 +103,7 @@ export default function App() {
   }, [setPipeline]);
 
   const openAI = (context = '') => { setAiContext(context); setAiOpen(true); };
-  const navigate = (m) => { setModule(m); setAiOpen(false); };
+  const navigate = (m) => { setModule(m); setAiOpen(false); window.history.replaceState({},'',`?module=${encodeURIComponent(m)}`); };
 
   const allData    = { projects, pipeline, calendar, finance };
   const moduleProps = { projects, setProjects, pipeline, setPipeline, calendar, setCalendar, finance, setFinance, openAI };
@@ -114,6 +115,7 @@ export default function App() {
 
       <main className="main-content">
         {module === 'dashboard'        && <Dashboard         {...moduleProps} />}
+        {module === 'estate'           && <Estate />}
         {module === 'projects'         && <Projects          {...moduleProps} onCreateProject={addProject} onToggleTask={toggleProjectTask} />}
         {module === 'pipeline'         && <Pipeline          {...moduleProps} onAddProspect={addProspect} />}
         {module === 'proposals'        && <Proposals         pipeline={pipeline} openAI={openAI} />}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Estate from './Estate';
 
 function HealthScore({ projects, pipeline, finance }) {
   const allTasks     = (projects||[]).flatMap(p => p.tasks||[]);
@@ -90,7 +91,7 @@ function FXRates() {
         {pairs.map(([cur, dp]) => rates[cur] && (
           <div key={cur} style={{ background:'var(--surface-3)', borderRadius:6, padding:'8px 10px' }}>
             <div style={{ fontFamily:'JetBrains Mono,monospace', fontSize:13, fontWeight:700, color:'var(--text)' }}>
-              {rates[cur].toFixed(dp).toLocaleString()}
+              {Number(rates[cur]).toFixed(dp)}
             </div>
             <div style={{ fontSize:10, color:'var(--text-muted)' }}>1 USD = {cur}</div>
           </div>
@@ -120,7 +121,7 @@ export default function Dashboard({ projects, pipeline, calendar, finance, openA
       <div className="module-header">
         <div>
           <h1 className="module-title">Good morning, Jacob.</h1>
-          <p className="module-sub">Tuku-Tuku Labs · Northern Uganda</p>
+          <p className="module-sub">Your work, products and commitments in one view</p>
         </div>
         <button className="ai-trigger" onClick={() => openAI('Dashboard overview — give a prioritised briefing for today')}>
           ✦ Ask AI
@@ -147,7 +148,6 @@ export default function Dashboard({ projects, pipeline, calendar, finance, openA
       </div>
 
       <div className="dashboard-grid">
-        {/* Projects */}
         <div className="card">
           <div className="card-header">Projects</div>
           <div className="project-list">
@@ -166,7 +166,6 @@ export default function Dashboard({ projects, pipeline, calendar, finance, openA
           </div>
         </div>
 
-        {/* Upcoming */}
         <div className="card">
           <div className="card-header">Next Up</div>
           <div className="event-list">
@@ -183,7 +182,6 @@ export default function Dashboard({ projects, pipeline, calendar, finance, openA
           </div>
         </div>
 
-        {/* Pipeline spotlight */}
         <div className="card">
           <div className="card-header">Pipeline Spotlight</div>
           {hotDeals.length === 0 && <div style={{ color:'var(--text-muted)', fontSize:12 }}>No active deals</div>}
@@ -199,11 +197,12 @@ export default function Dashboard({ projects, pipeline, calendar, finance, openA
           ))}
         </div>
 
-        {/* Business Health Score */}
         <HealthScore projects={projects} pipeline={pipeline} finance={finance} />
-
-        {/* FX Rates */}
         <FXRates />
+      </div>
+
+      <div style={{marginTop:18}}>
+        <Estate compact />
       </div>
     </div>
   );
