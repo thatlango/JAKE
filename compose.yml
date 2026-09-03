@@ -28,6 +28,7 @@ services:
         condition: service_healthy
     networks:
       - jakeos-internal
+      - tuku-bridge
       - tuku-edge
 
 volumes:
@@ -36,5 +37,9 @@ volumes:
 networks:
   jakeos-internal:
     internal: true
+  tuku-bridge:
+    external: true
+    name: tuku-bridge
   tuku-edge:
     external: true
+    name: tuku-edge
