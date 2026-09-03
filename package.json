@@ -11,7 +11,7 @@
     "build": "cd client && npm run build",
     "migrate": "node server/migrate.js",
     "test": "node --test test/*.test.js",
-    "check": "node --check server/index.js && node --check server/app.js && node --check server/tuku-auth.js && node --check server/momentum.js && node --check server/momentum-auth.js && node --check server/priority.js && node --check server/estate.js && node --check server/jobs.js && node --test test/*.test.js"
+    "check": "node --check server/index.js && node --check server/app.js && node --check server/tuku-auth.js && node --check server/momentum.js && node --check server/momentum-projects.js && node --check server/momentum-auth.js && node --check server/priority.js && node --check server/estate.js && node --check server/jobs.js && node --test test/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
