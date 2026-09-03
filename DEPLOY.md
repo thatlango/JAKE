@@ -7,6 +7,7 @@ JakeOS runs as a long-running Node/Express application with a private PostgreSQL
 - `jakeos-web` — React build + Express API
 - `jakeos-db` — PostgreSQL 17, internal Docker network only
 - Caddy/shared edge — HTTPS and domain routing
+- Tuku Core — human identity authority and estate telemetry source
 
 ## Required production configuration
 
@@ -20,15 +21,17 @@ PUBLIC_URL=https://jakeos.tukutuku.org
 POSTGRES_PASSWORD=<strong-password>
 DATABASE_URL=postgresql://jakeos:<password>@jakeos-db:5432/jakeos
 JAKEOS_INGEST_TOKEN=<strong-random-token>
-MOMENTUM_FIREBASE_PROJECT_ID=<firebase-project-id>
+
+# Human authentication
+TUKU_CORE_INTERNAL_URL=http://tuku-core-api:3000
+TUKU_AUTH_PUBLIC_URL=https://core.tukutuku.org
+JAKEOS_TUKU_REDIRECT_URI=https://jakeos.tukutuku.org/auth/tuku/callback
+JAKEOS_ALLOWED_CORE_USER_IDS=<authorized-core-user-id>
+JAKEOS_SESSION_SECRET=<strong-random-secret>
+JAKEOS_SESSION_TTL_SECONDS=43200
 ```
 
-Recommended for this personal deployment:
-
-```env
-MOMENTUM_ALLOWED_UIDS=<firebase-uid>
-# or MOMENTUM_ALLOWED_EMAILS=<authorized-email>
-```
+Momentum uses the same Tuku identity. Its login/refresh endpoints delegate to Tuku Core, and protected Momentum APIs validate the Tuku access token against Core. Firebase may still be configured separately for FCM/mobile telemetry, but it is not the human identity authority.
 
 Optional integrations:
 
@@ -45,6 +48,8 @@ Google refresh tokens are stored in JakeOS PostgreSQL after OAuth rather than co
 
 ## Deploy
 
+**Always pass the production env file to Compose.** Compose variable interpolation happens before a service-level `env_file` is read; omitting `--env-file` can therefore substitute a blank PostgreSQL password into `DATABASE_URL`.
+
 ```bash
 docker compose --env-file /opt/tuku/secrets/jakeos.env -f compose.yml build
 docker compose --env-file /opt/tuku/secrets/jakeos.env -f compose.yml up -d
@@ -52,13 +57,19 @@ docker compose --env-file /opt/tuku/secrets/jakeos.env -f compose.yml up -d
 
 The container runs `server/migrate.js` before `server/index.js`; `database/schema.sql` is idempotent.
 
-Route Caddy/edge traffic for `jakeos.tukutuku.org` to `jakeos-web:3000` on the shared `tuku-edge` network.
+Route Caddy/edge traffic for `jakeos.tukutuku.org` to `jakeos-web:3000` on the shared edge network. Do not put HTTP Basic Auth in front of JakeOS; the application presents the Tuku Auth gate itself. Keep `/api/sms/receive` protected by its dedicated webhook secret.
 
-## Health checks
+## Health and auth checks
 
-- `/health` — application/database health
-- `/api/health` — JakeOS API health
+- `/health` — public application/database health
+- `/auth/tuku/start` — starts JakeOS PKCE handoff to Tuku Auth
+- `/auth/session` — current JakeOS Tuku-derived browser session
+- `/api/momentum/v1/auth/login` — Momentum login via Tuku Core
+- `/api/momentum/v1/auth/refresh` — Momentum token refresh via Tuku Core
+- `/api/momentum/v1/auth/me` — authenticated Momentum identity
 - `/api/momentum/v1/health` — authenticated Momentum API health
+
+Unauthenticated JakeOS data APIs and Momentum data APIs must return HTTP 401.
 
 ## Momentum
 
