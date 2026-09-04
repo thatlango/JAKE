@@ -4,19 +4,30 @@ import { Button, EmptyState, Icon, LoadingRows, PageHeader, Panel, Pill, StateBa
 const DEFAULT_TASK={title:'',description:'',project_id:'',status:'inbox',priority:'medium',impact:3,strategic_weight:3,estimated_minutes:30,due_at:'',pinned:false,blocked:false,blocked_reason:''};
 const toneForPriority=p=>p==='critical'?'danger':p==='high'?'warning':p==='low'?'neutral':'info';
 
-function TaskRow({item,onComplete,onEdit,onDefer}){
+function guidanceFor(item,rank){
+  if(item.blocked||item.status==='waiting')return 'Waiting';
+  if(item.due_at&&new Date(item.due_at)<new Date())return 'Overdue';
+  if(rank===0)return 'Best next';
+  if(item.due_at&&new Date(item.due_at).getTime()-Date.now()<86400000)return 'Due soon';
+  if(Number(item.estimated_minutes||0)<=20)return 'Quick win';
+  if(item.priority==='critical'||item.priority==='high')return 'High priority';
+  return null;
+}
+
+function TaskRow({item,onComplete,onEdit,onDefer,rank=null}){
   const overdue=item.due_at&&new Date(item.due_at)<new Date();
+  const guidance=guidanceFor(item,rank);
   return <div className="px-task">
     <button className="px-check" onClick={()=>onComplete(item)} title="Complete"><Icon name="check" size={15}/></button>
     <div>
       <div className="px-task-title">{item.title}</div>
       {item.why_now&&<div className="px-task-reason">{item.why_now}</div>}
       <div className="px-task-meta">
-        {item.project_name&&<Pill tone="brand">{item.project_emoji||'•'} {item.project_name}</Pill>}
+        {guidance&&<span className="px-guidance">{guidance}</span>}
+        {item.project_name&&<Pill tone="brand">{item.project_name}</Pill>}
         <Pill tone={toneForPriority(item.priority)}>{item.priority}</Pill>
         {item.due_at&&<Pill tone={overdue?'danger':'neutral'}>{relativeDate(item.due_at)}</Pill>}
         {item.estimated_minutes&&<span className="px-kicker">{item.estimated_minutes} min</span>}
-        {item.priority_score!=null&&<span className="px-priority-score">score {Math.round(item.priority_score)}</span>}
       </div>
     </div>
     <div className="px-row">
@@ -26,7 +37,7 @@ function TaskRow({item,onComplete,onEdit,onDefer}){
   </div>;
 }
 
-export default function Work({openAI}){
+export default function Work(){
   const[tab,setTab]=useState('today');
   const[today,setToday]=useState({priorities:[],events:[]});
   const[inbox,setInbox]=useState([]);
@@ -72,23 +83,25 @@ export default function Work({openAI}){
   const focus=useMemo(()=>today.priorities?.[0]||null,[today]);
 
   return <div className="module">
-    <PageHeader eyebrow="Execution" title="Work" subtitle="One canonical queue shared with Momentum. JakeOS decides what deserves attention; you decide what gets done." actions={<><Button variant="secondary" icon="refresh" onClick={load}>Refresh</Button><Button icon="plus" onClick={()=>openNew()}>New task</Button></>}/>
+    <PageHeader eyebrow="Execution" title="Work" subtitle="One canonical queue shared with Momentum. Jake ranks what deserves attention; you decide what gets done." actions={<><Button variant="secondary" icon="refresh" onClick={load}>Refresh</Button><Button icon="plus" onClick={()=>openNew()}>New task</Button></>}/>
     {error&&<StateBanner tone="danger" title="Work needs attention">{error}</StateBanner>}
-    <div className="px-metrics">
-      <div className="px-metric"><div className="px-metric-value">{today.priorities?.length||0}</div><div className="px-metric-label">Priorities now</div><div className="px-metric-helper">Ranked by deadlines, impact and strategy</div></div>
-      <div className="px-metric"><div className="px-metric-value">{inbox.length}</div><div className="px-metric-label">Inbox</div><div className="px-metric-helper">Unprocessed capture</div></div>
-      <div className={`px-metric ${overdue?'px-metric--danger':''}`}><div className="px-metric-value">{overdue}</div><div className="px-metric-label">Overdue</div><div className="px-metric-helper">Needs a decision</div></div>
-      <div className="px-metric"><div className="px-metric-value">{completed}</div><div className="px-metric-label">Completed</div><div className="px-metric-helper">All recorded work</div></div>
+
+    <div className="px-status-ribbon" aria-label="Work status">
+      <div className="px-status-ribbon-item"><strong>{today.priorities?.length||0}</strong><span>priorities now</span></div>
+      <div className="px-status-ribbon-item"><strong>{inbox.length}</strong><span>in inbox</span></div>
+      <div className="px-status-ribbon-item" data-alert={overdue>0}><strong>{overdue}</strong><span>overdue</span></div>
+      <div className="px-status-ribbon-item"><strong>{blocked}</strong><span>blocked / waiting</span></div>
+      <div className="px-status-ribbon-item"><strong>{completed}</strong><span>completed</span></div>
     </div>
 
     <div className="px-grid-2">
-      <Panel title="Your queue" subtitle="Use Today for the ranked shortlist; Inbox to triage; All for the full open system." action={<div className="px-row">{['today','inbox','all'].map(x=><Button key={x} variant={tab===x?'tonal':'ghost'} onClick={()=>setTab(x)}>{x[0].toUpperCase()+x.slice(1)}</Button>)}</div>}>
+      <Panel title="Your queue" subtitle="Today is the ranked shortlist. Inbox is unprocessed capture. All is the complete open system." action={<div className="px-row">{['today','inbox','all'].map(x=><Button key={x} variant={tab===x?'tonal':'ghost'} onClick={()=>setTab(x)}>{x[0].toUpperCase()+x.slice(1)}</Button>)}</div>}>
         <div className="px-row" style={{marginBottom:12}}><input className="px-input" value={capture} onChange={e=>setCapture(e.target.value)} onKeyDown={e=>e.key==='Enter'&&quickCapture()} placeholder="Capture a task, follow-up or commitment…"/><Button icon="plus" onClick={quickCapture}>Capture</Button></div>
-        {loading?<LoadingRows/>:items.length===0?<EmptyState icon="check" title={tab==='today'?'Nothing urgent right now':tab==='inbox'?'Inbox is clear':'No open work'} body="Capture something when it arrives. JakeOS will keep it in the canonical work queue." action={<Button variant="tonal" icon="plus" onClick={()=>openNew()}>Add work</Button>}/>:<div>{items.map(item=><TaskRow key={item.id} item={item} onComplete={complete} onEdit={openEdit} onDefer={defer}/>)}</div>}
+        {loading?<LoadingRows/>:items.length===0?<EmptyState icon="check" title={tab==='today'?'Nothing urgent right now':tab==='inbox'?'Inbox is clear':'No open work'} body="Capture something when it arrives. JakeOS will keep it in the canonical work queue." action={<Button variant="tonal" icon="plus" onClick={()=>openNew()}>Add work</Button>}/>:<div>{items.map((item,index)=><TaskRow key={item.id} item={item} rank={tab==='today'?index:null} onComplete={complete} onEdit={openEdit} onDefer={defer}/>)}</div>}
       </Panel>
       <div className="px-stack">
-        <Panel title="Focus" subtitle="The highest-ranked actionable item right now.">
-          {focus?<div><div className="px-eyebrow">Why this now</div><h3 style={{fontSize:20,lineHeight:1.25,letterSpacing:'-.02em',margin:'0 0 8px'}}>{focus.title}</h3><p className="px-muted" style={{fontSize:13,lineHeight:1.55,margin:'0 0 14px'}}>{focus.why_now||'This is the strongest currently actionable item.'}</p><div className="px-row" style={{flexWrap:'wrap'}}><Pill tone={toneForPriority(focus.priority)}>{focus.priority}</Pill>{focus.project_name&&<Pill tone="brand">{focus.project_name}</Pill>}<Pill>{focus.estimated_minutes||30} min</Pill></div><div className="px-form-actions" style={{justifyContent:'flex-start'}}><Button icon="check" onClick={()=>complete(focus)}>Complete</Button><Button variant="secondary" icon="clock" onClick={()=>defer(focus)}>Defer 1h</Button></div></div>:<EmptyState icon="check" title="Focus is clear" body="When actionable work exists, JakeOS will explain why it should be next."/>}
+        <Panel title="Focus" subtitle="The strongest currently actionable item, translated into plain language.">
+          {focus?<div><div className="px-brief-label">Why this now</div><h3 className="px-focus-title">{focus.title}</h3><p className="px-muted" style={{fontSize:12.5,lineHeight:1.58,margin:'0 0 14px'}}>{focus.why_now||'This is the strongest currently actionable item.'}</p><div className="px-row" style={{flexWrap:'wrap'}}><span className="px-guidance">Best next</span><Pill tone={toneForPriority(focus.priority)}>{focus.priority}</Pill>{focus.project_name&&<Pill tone="brand">{focus.project_name}</Pill>}<Pill>{focus.estimated_minutes||30} min</Pill>{focus.due_at&&<Pill tone={new Date(focus.due_at)<new Date()?'danger':'neutral'}>{relativeDate(focus.due_at)}</Pill>}</div><div className="px-form-actions" style={{justifyContent:'flex-start'}}><Button icon="check" onClick={()=>complete(focus)}>Complete</Button><Button variant="secondary" icon="clock" onClick={()=>defer(focus)}>Defer 1h</Button></div></div>:<EmptyState icon="check" title="Focus is clear" body="When actionable work exists, JakeOS will explain why it should be next."/>}
         </Panel>
         <Panel title="Today’s commitments" subtitle="Calendar blocks already competing for your attention.">
           {(today.events||[]).length?<div className="px-list">{today.events.map(event=><div className="px-list-row" key={event.id}><div className="px-metric-icon" style={{margin:0,width:36,height:36}}><Icon name="calendar" size={17}/></div><div className="px-list-main"><div className="px-list-title">{event.title}</div><div className="px-list-sub">{event.project||event.source||'Calendar'}</div></div><div className="px-list-meta">{event.starts_at?formatDate(event.starts_at,{time:true}):'Today'}</div></div>)}</div>:<EmptyState icon="calendar" title="No calendar blocks today" body="Your work queue has the day to itself unless device or Google calendar events are added."/>}
