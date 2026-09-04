@@ -1,0 +1,12 @@
+/* Global shell layout correction.
+   The sidebar already occupies space in the flex app layout, so main content
+   must not apply the sidebar width a second time as a left margin. */
+.main-content {
+  margin-left: 0 !important;
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+.module {
+  width: 100% !important;
+}
