@@ -14,7 +14,7 @@ import Finance from './modules/Finance';
 import Integrations from './modules/Integrations';
 import PersonalFinance from './modules/PersonalFinance';
 import AlertsSettings from './modules/AlertsSettings';
-import CRM from './modules/CRM';
+import CRM from './modules/CRMNext';
 import CashFlow from './modules/CashFlow';
 import OpportunityRadar from './modules/OpportunityRadar';
 import Proposals from './modules/Proposals';
