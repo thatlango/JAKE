@@ -6,7 +6,7 @@ export async function askClaude(messages,module='dashboard',extraContext=''){
     const response=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages,systemPrompt})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok){
-      if(response.status===503)return 'AI is not configured on JakeOS yet. The rest of this screen remains fully usable without it.';
+      if(response.status===503)return 'Jake local AI is not available right now. The rest of this screen remains fully usable without it.';
       return `AI could not complete this request: ${data.error||response.statusText}`;
     }
     if(data.content?.[0]?.text)return data.content[0].text;

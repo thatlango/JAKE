@@ -99,7 +99,7 @@ router.get('/integrations/status',async(_,res)=>res.json({integrations:[
   {id:'tuku-core',name:'Tuku Core',category:'identity',configured:true,status:'connected',detail:'Identity and estate telemetry'},
   {id:'estate',name:'Tuku Estate telemetry',category:'data',configured:!!process.env.TUKU_ESTATE_INSIGHTS_SECRET,status:process.env.TUKU_ESTATE_INSIGHTS_SECRET?'connected':'action_required'},
   {id:'google-calendar',name:'Google Calendar',category:'calendar',configured:!!(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET),status:(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET)?'available':'action_required'},
-  {id:'anthropic',name:'AI assistant',category:'ai',configured:!!process.env.ANTHROPIC_API_KEY,status:process.env.ANTHROPIC_API_KEY?'available':'action_required'},
+  {id:'local-ai',name:'Jake local AI',category:'ai',configured:String(process.env.JAKEOS_AI_ENABLED||'true').toLowerCase()!=='false',status:String(process.env.JAKEOS_AI_ENABLED||'true').toLowerCase()!=='false'?'connected':'action_required',detail:process.env.JAKEOS_AI_MODEL||'qwen3:1.7b'},
   {id:'groq',name:'Voice transcription',category:'ai',configured:!!process.env.GROQ_API_KEY,status:process.env.GROQ_API_KEY?'available':'action_required'},
   {id:'resend',name:'Email alerts',category:'alerts',configured:!!(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL),status:(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL)?'available':'action_required'},
   {id:'telegram',name:'Telegram alerts',category:'alerts',configured:!!(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID),status:(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID)?'available':'action_required'},
