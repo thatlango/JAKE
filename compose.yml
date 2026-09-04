@@ -30,8 +30,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-jakeos}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jakeos}
       JAKEOS_AI_ENABLED: ${JAKEOS_AI_ENABLED:-true}
-      JAKEOS_AI_BASE_URL: ${JAKEOS_AI_BASE_URL:-http://tuku-local-llm:11434}
-      JAKEOS_AI_MODEL: ${JAKEOS_AI_MODEL:-qwen3:1.7b}
+      TUKU_CORE_INTERNAL_URL: ${TUKU_CORE_INTERNAL_URL:-http://tuku-core-api:3000}
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +38,6 @@ services:
       - jakeos-internal
       - tuku-bridge
       - tuku-edge
-      - tuku-llm
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
@@ -59,6 +57,3 @@ networks:
   tuku-edge:
     external: true
     name: tuku-edge
-  tuku-llm:
-    external: true
-    name: tuku-llm
