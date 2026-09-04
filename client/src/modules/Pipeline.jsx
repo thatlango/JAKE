@@ -1,184 +1,28 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, EmptyState, LoadingRows, PageHeader, Pill, StateBanner, formatMoney, relativeDate } from '../components/ProductUI';
 
-const STAGES = ['Prospect', 'Applied', 'In Delivery', 'Active Partner'];
+const STAGES=['Prospect','Applied','In Delivery','Active Partner','Closed','Lost'];
+const ACTIVE_STAGES=new Set(['Prospect','Applied','In Delivery','Active Partner']);
+const TYPES=['Consulting','Program','Partnership','Systems','Training','Academic','Other'];
+const EMPTY={name:'',org:'',valueUSD:'',stage:'Prospect',type:'Consulting',deadline:'',contact:'',notes:''};
+const tone=s=>s==='In Delivery'||s==='Active Partner'?'success':s==='Applied'?'warning':s==='Lost'?'danger':'neutral';
 
-const STAGE_COLORS = {
-  'Prospect':       '#5A6480',
-  'Applied':        '#F0B429',
-  'In Delivery':    '#0ECB81',
-  'Active Partner': '#5E6AD2',
-};
-
-const TYPES = ['Consulting', 'Program', 'Partnership', 'Systems', 'Training', 'Academic', 'Other'];
-
-const DEFAULT_FORM = {
-  name: '', org: '', valueUSD: '', stage: 'Prospect', type: 'Consulting',
-  deadline: '', contact: '', notes: '',
-};
-
-const inputStyle = {
-  width: '100%', background: 'var(--surface-3)', border: '1px solid var(--border)',
-  borderRadius: 6, padding: '8px 10px', color: 'var(--text)', fontSize: 13, marginBottom: 8,
-};
-
-export default function Pipeline({ pipeline, setPipeline, openAI, onAddProspect }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState(DEFAULT_FORM);
-  const [expanded, setExpanded] = useState(null);
-
-  const totalConfirmed = pipeline
-    .filter(p => p.stage === 'In Delivery' && p.valueUSD > 0)
-    .reduce((sum, p) => sum + p.valueUSD, 0);
-  const totalPending = pipeline
-    .filter(p => p.stage === 'Applied' && p.valueUSD > 0)
-    .reduce((sum, p) => sum + p.valueUSD, 0);
-
-  const addDeal = async () => {
-    if (!form.name.trim() || !form.org.trim()) return;
-    const valueUSD = Number(form.valueUSD) || 0;
-    const item = {
-      ...form,
-      name: form.name.trim(),
-      org: form.org.trim(),
-      valueUSD,
-      value: valueUSD > 0 ? `$${valueUSD.toLocaleString()}` : 'TBD',
-      deadline: form.deadline || null,
-      notes: form.notes.trim(),
-      contact: form.contact.trim(),
-    };
-    if (onAddProspect) {
-      await onAddProspect(item);
-    } else if (setPipeline) {
-      setPipeline(prev => [...prev, { ...item, id: `deal_${Date.now()}` }]);
-    }
-    setShowAdd(false);
-    setForm(DEFAULT_FORM);
-  };
-
-  const moveStage = (id, direction) => {
-    if (!setPipeline) return;
-    setPipeline(prev => prev.map(p => {
-      if (p.id !== id) return p;
-      const idx = STAGES.indexOf(p.stage);
-      const newIdx = Math.max(0, Math.min(STAGES.length - 1, idx + direction));
-      return { ...p, stage: STAGES[newIdx] };
-    }));
-  };
-
-  const deleteDeal = (id) => {
-    if (!setPipeline) return;
-    if (!confirm('Remove this deal from the pipeline?')) return;
-    setPipeline(prev => prev.filter(p => p.id !== id));
-    if (expanded === id) setExpanded(null);
-  };
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  return (
-    <div className="module">
-      <div className="module-header">
-        <div>
-          <h1 className="module-title">Business Pipeline</h1>
-          <p className="module-sub">
-            ${totalConfirmed.toLocaleString()} in delivery · ${totalPending.toLocaleString()} applied
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="ai-trigger-sm" onClick={() => setShowAdd(s => !s)}>+ Add Deal</button>
-          <button className="ai-trigger" onClick={() =>
-            openAI(`Pipeline: ${pipeline.map(p => `${p.name} at ${p.org} — ${p.stage}${p.valueUSD > 0 ? ` ($${p.valueUSD.toLocaleString()})` : ''}`).join('; ')}`)
-          }>✦ Ask AI</button>
-        </div>
-      </div>
-
-      {/* Add deal form */}
-      {showAdd && (
-        <div className="pipeline-add-form">
-          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Add Pipeline Deal</div>
-          <div className="pipeline-form-grid">
-            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Deal / project name *" style={inputStyle} />
-            <input value={form.org} onChange={e => set('org', e.target.value)} placeholder="Organisation *" style={inputStyle} />
-            <input type="number" value={form.valueUSD} onChange={e => set('valueUSD', e.target.value)} placeholder="Value (USD)" style={inputStyle} />
-            <input value={form.contact} onChange={e => set('contact', e.target.value)} placeholder="Primary contact" style={inputStyle} />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <select value={form.stage} onChange={e => set('stage', e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-              {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={form.type} onChange={e => set('type', e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input type="date" value={form.deadline} onChange={e => set('deadline', e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-          </div>
-          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Notes…"
-            style={{ ...inputStyle, minHeight: 60, resize: 'vertical', fontFamily: 'DM Sans, sans-serif' }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <button onClick={addDeal} style={{ flex: 1, padding: '9px', background: 'var(--accent)', color: '#07090F', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Syne,sans-serif' }}>Add to Pipeline</button>
-            <button onClick={() => setShowAdd(false)} style={{ padding: '9px 14px', background: 'var(--surface-3)', color: 'var(--text-muted)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      <div className="pipeline-kanban">
-        {STAGES.map(stage => {
-          const items = pipeline.filter(p => p.stage === stage);
-          return (
-            <div key={stage} className="kanban-col">
-              <div className="kanban-col-header">
-                <span className="kanban-dot" style={{ background: STAGE_COLORS[stage] }} />
-                <span>{stage}</span>
-                <span className="kanban-count">{items.length}</span>
-              </div>
-
-              <div className="kanban-items">
-                {items.length === 0 && (
-                  <div style={{ fontSize: 11, color: 'var(--text-dim)', padding: '8px 0', textAlign: 'center' }}>Empty</div>
-                )}
-                {items.map(item => (
-                  <div
-                    key={item.id}
-                    className="kanban-card"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setExpanded(expanded === item.id ? null : item.id)}
-                  >
-                    <div className="kanban-card-org">{item.org}</div>
-                    <div className="kanban-card-name">{item.name}</div>
-                    {item.valueUSD > 0 && (
-                      <div className="kanban-card-value">${item.valueUSD.toLocaleString()}</div>
-                    )}
-                    {item.deadline && (
-                      <div className="kanban-card-deadline">
-                        Due {new Date(item.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}
-                      </div>
-                    )}
-                    {item.notes && <div className="kanban-card-notes">{item.notes}</div>}
-                    <div className={`kanban-type kanban-type--${item.type?.toLowerCase()}`}>{item.type}</div>
-
-                    {expanded === item.id && (
-                      <div style={{ display: 'flex', gap: 4, marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-                        <button
-                          onClick={e => { e.stopPropagation(); moveStage(item.id, -1); }}
-                          disabled={STAGES.indexOf(item.stage) === 0}
-                          style={{ flex: 1, padding: '4px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer' }}
-                        >← Back</button>
-                        <button
-                          onClick={e => { e.stopPropagation(); moveStage(item.id, 1); }}
-                          disabled={STAGES.indexOf(item.stage) === STAGES.length - 1}
-                          style={{ flex: 1, padding: '4px', background: 'var(--accent)', border: 'none', borderRadius: 4, fontSize: 11, color: '#07090F', fontWeight: 700, cursor: 'pointer' }}
-                        >Advance →</button>
-                        <button
-                          onClick={e => { e.stopPropagation(); deleteDeal(item.id); }}
-                          style={{ padding: '4px 8px', background: 'var(--red-dim)', border: '1px solid rgba(255,71,87,.2)', borderRadius: 4, fontSize: 11, color: 'var(--red)', cursor: 'pointer' }}
-                        >✕</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+export default function Pipeline({openAI}){
+  const[items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[drawer,setDrawer]=useState(null),[form,setForm]=useState(EMPTY),[saving,setSaving]=useState(false);
+  const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await fetch('/api/pipeline');if(!r.ok)throw new Error('Pipeline could not be loaded.');const d=await r.json();setItems(d.pipeline||[]);}catch(e){setError(e.message);}setLoading(false);},[]);useEffect(()=>{load();},[load]);
+  const active=items.filter(x=>ACTIVE_STAGES.has(x.stage)),inDelivery=items.filter(x=>x.stage==='In Delivery'),applied=items.filter(x=>x.stage==='Applied');
+  const totalActive=active.reduce((s,x)=>s+Number(x.valueUSD||x.value_usd||0),0),deliveryValue=inDelivery.reduce((s,x)=>s+Number(x.valueUSD||0),0),appliedValue=applied.reduce((s,x)=>s+Number(x.valueUSD||0),0);
+  const dueSoon=useMemo(()=>active.filter(x=>x.deadline&&new Date(x.deadline)<=new Date(Date.now()+14*86400000)).length,[items]);
+  const edit=item=>{setForm({...EMPTY,...item,valueUSD:item.valueUSD??item.value_usd??0,deadline:item.deadline?String(item.deadline).slice(0,10):''});setDrawer(item.id);};
+  const create=()=>{setForm(EMPTY);setDrawer('new');};
+  const save=async()=>{if(!form.name.trim()||!form.org.trim())return;setSaving(true);const body={...form,valueUSD:Number(form.valueUSD)||0,deadline:form.deadline||null};const r=await fetch(drawer==='new'?'/api/pipeline':`/api/pipeline/${encodeURIComponent(drawer)}`,{method:drawer==='new'?'POST':'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)setError(d.error||'Could not save pipeline item.');else{setDrawer(null);setForm(EMPTY);await load();}setSaving(false);};
+  const move=async(item,dir)=>{const i=STAGES.indexOf(item.stage),next=STAGES[Math.max(0,Math.min(STAGES.length-1,i+dir))];if(next===item.stage)return;await fetch(`/api/pipeline/${encodeURIComponent(item.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage:next})});await load();};
+  const remove=async item=>{if(!confirm(`Remove ${item.name} from the pipeline?`))return;await fetch(`/api/pipeline/${encodeURIComponent(item.id)}`,{method:'DELETE'});await load();};
+  return <div className="module">
+    <PageHeader eyebrow="Business development" title="Pipeline" subtitle="Track live pursuits from first conversation through delivery, partnership or closure." actions={<><Button variant="secondary" icon="spark" onClick={()=>openAI(`Pipeline: ${active.length} active pursuits worth ${formatMoney(totalActive,'USD')}. ${inDelivery.length} in delivery, ${applied.length} applied, ${dueSoon} deadlines in 14 days. Identify the three commercial actions with highest leverage.`)}>Review</Button><Button icon="plus" onClick={create}>Add pursuit</Button></>}/>
+    {error&&<StateBanner tone="danger" title="Pipeline needs attention">{error}</StateBanner>}
+    <div className="px-metrics"><div className="px-metric"><div className="px-metric-value">{active.length}</div><div className="px-metric-label">Active pursuits</div><div className="px-metric-helper">{formatMoney(totalActive,'USD')} potential</div></div><div className="px-metric px-metric--success"><div className="px-metric-value">{formatMoney(deliveryValue,'USD')}</div><div className="px-metric-label">In delivery</div><div className="px-metric-helper">Current contracted/delivery value</div></div><div className="px-metric px-metric--warning"><div className="px-metric-value">{formatMoney(appliedValue,'USD')}</div><div className="px-metric-label">Applied</div><div className="px-metric-helper">Waiting on decisions</div></div><div className={`px-metric ${dueSoon?'px-metric--warning':''}`}><div className="px-metric-value">{dueSoon}</div><div className="px-metric-label">Deadlines / 14d</div><div className="px-metric-helper">Requires follow-through</div></div></div>
+    {loading?<LoadingRows count={6}/>:items.length===0?<EmptyState icon="target" title="Pipeline is empty" body="Add consulting, programme, partnership, systems or training pursuits. JakeOS will surface deadlines in the command center." action={<Button variant="tonal" onClick={create}>Add first pursuit</Button>}/>:<div className="pipeline-kanban">{STAGES.filter(s=>s!=='Lost').map(stage=>{const rows=items.filter(x=>x.stage===stage);return <section className="kanban-col" key={stage}><div className="kanban-col-header"><Pill tone={tone(stage)}>{stage}</Pill><span className="kanban-count">{rows.length}</span></div><div className="kanban-items">{rows.length===0?<div className="px-empty" style={{padding:'24px 8px'}}><span className="px-kicker">No items</span></div>:rows.map(item=><article className="kanban-card" key={item.id} onClick={()=>edit(item)}><div className="kanban-card-org">{item.org}</div><div className="kanban-card-name">{item.name}</div>{Number(item.valueUSD||0)>0&&<div className="kanban-card-value">{formatMoney(item.valueUSD,'USD')}</div>}{item.deadline&&<div className="kanban-card-deadline">{relativeDate(item.deadline)} · {String(item.deadline).slice(0,10)}</div>}{item.notes&&<div className="kanban-card-notes">{item.notes}</div>}<div className="px-between" style={{marginTop:10}}><Pill>{item.type}</Pill><div className="px-row"><button className="px-icon-button" onClick={e=>{e.stopPropagation();move(item,-1)}} title="Move back">←</button><button className="px-icon-button" onClick={e=>{e.stopPropagation();move(item,1)}} title="Advance">→</button></div></div></article>)}</div></section>})}</div>}
+    {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card"><PageHeader eyebrow={drawer==='new'?'New pursuit':'Edit pursuit'} title={drawer==='new'?'Add to pipeline':form.name||'Pipeline item'} subtitle="Keep the next commercial decision visible: stage, deadline, value and who you need to move." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/><div className="px-stack"><div className="px-form-grid"><div className="px-field"><label>Name</label><input autoFocus value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/></div><div className="px-field"><label>Organisation</label><input value={form.org} onChange={e=>setForm(f=>({...f,org:e.target.value}))}/></div></div><div className="px-form-grid"><div className="px-field"><label>Stage</label><select value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{STAGES.map(x=><option key={x}>{x}</option>)}</select></div><div className="px-field"><label>Type</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>{TYPES.map(x=><option key={x}>{x}</option>)}</select></div></div><div className="px-form-grid"><div className="px-field"><label>Value (USD)</label><input type="number" min="0" value={form.valueUSD} onChange={e=>setForm(f=>({...f,valueUSD:e.target.value}))}/></div><div className="px-field"><label>Deadline</label><input type="date" value={form.deadline||''} onChange={e=>setForm(f=>({...f,deadline:e.target.value}))}/></div></div><div className="px-field"><label>Primary contact</label><input value={form.contact||''} onChange={e=>setForm(f=>({...f,contact:e.target.value}))}/></div><div className="px-field"><label>Notes / next move</label><textarea value={form.notes||''} onChange={e=>setForm(f=>({...f,notes:e.target.value}))}/></div></div><div className="px-form-actions">{drawer!=='new'&&<Button variant="danger" onClick={()=>remove(form)}>Remove</Button>}<span style={{flex:1}}/><Button variant="secondary" onClick={()=>setDrawer(null)}>Cancel</Button><Button onClick={save} disabled={saving}>{saving?'Saving…':'Save'}</Button></div></div></div>}
+  </div>;
 }

@@ -13,6 +13,7 @@ const invoices=require('./invoices');
 const crm=require('./crm');
 const radar=require('./radar');
 const {commandCenterOverview}=require('./overview');
+const {desktopRouter}=require('./desktop-routes');
 
 const app=express();
 app.use(express.json({limit:'15mb'}));
@@ -29,6 +30,7 @@ async function assertExternalUrl(raw){let url;try{url=new URL(raw);}catch{throw 
 
 app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'5.1',db:await db.ping(),time:new Date().toISOString()}));
 app.get('/overview',async(_,res)=>res.json(await commandCenterOverview()));
+app.use(desktopRouter);
 
 app.post('/claude',validate([body('messages').isArray({min:1,max:50}),body('messages.*.role').isIn(['user','assistant']),body('messages.*.content').isString().trim().isLength({min:1,max:8000})]),async(req,res)=>{if(!process.env.ANTHROPIC_API_KEY)return res.status(503).json({error:'AI unavailable — configure ANTHROPIC_API_KEY'});try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:process.env.ANTHROPIC_MODEL||'claude-sonnet-4-20250514',max_tokens:1500,system:req.body.systemPrompt,messages:req.body.messages}),signal:AbortSignal.timeout(30000)});const d=await r.json().catch(()=>({}));if(!r.ok)return res.status(r.status).json({error:d.error?.message||'AI failed'});res.json(d);}catch(e){res.status(502).json({error:'Could not reach AI',detail:process.env.NODE_ENV==='development'?e.message:undefined});}});
 
@@ -38,7 +40,7 @@ app.post('/alerts/send',async(req,res)=>{try{const events=await db.all('calendar
 app.post('/alerts/test',async(req,res)=>{const channel=['email','telegram','whatsapp'].includes(req.body.channel)?req.body.channel:'telegram';try{const r=await sendAlert({message:`✅ JakeOS test — ${new Date().toLocaleString('en-GB')}`,subject:'JakeOS — Test Alert',channels:[channel]});res.json(r[channel]||{ok:false});}catch(e){res.status(500).json({ok:false,error:'Test failed'});}});
 
 app.post('/sms/receive',requireSmsSecret,async(req,res)=>{const text=String(req.body.text||req.body.Body||req.body.message||req.body.sms||'').trim().slice(0,2000),from=String(req.body.from||req.body.From||req.body.sender||'').trim().slice(0,50);if(!text)return res.status(400).json({error:'No SMS body'});const entry=parseSMS(text,from,req.body.date||new Date().toISOString())||{id:uid('sms'),type:'unparsed',raw:text,sender:from,timestamp:new Date().toISOString()};await db.insert('sms_transactions',{id:entry.id,type:entry.type||'unparsed',flow:entry.flow||'',amount:entry.amount||0,party:entry.party||'',provider:entry.provider||'',category:entry.category||'Other',timestamp:entry.timestamp,raw:entry.raw||text,sender:entry.sender||from,note:'',currency:'UGX'},true);res.status(204).send();});
-app.get('/sms/webhook-info',(req,res)=>{const origin=process.env.PUBLIC_URL||`${req.protocol}://${req.get('host')}`,secret=process.env.SMS_WEBHOOK_SECRET||'';res.json({configured:!!secret,url:secret?`${origin}/api/sms/receive?secret=${encodeURIComponent(secret)}`:null});});
+app.get('/sms/webhook-info',(req,res)=>{const origin=process.env.PUBLIC_URL||`${req.protocol}://${req.get('host')}`,secret=process.env.SMS_WEBHOOK_SECRET||'';res.json({configured:!!secret,endpoint:secret?`${origin}/api/sms/receive`:null});});
 app.get('/sms/transactions',async(req,res)=>res.json({transactions:await db.all('sms_transactions',{order:{col:'timestamp',asc:false},limit:Math.min(parseInt(req.query.limit)||100,500)})}));
 app.patch('/sms/transactions/:id',async(req,res)=>{await db.update('sms_transactions',req.params.id.slice(0,100),{note:String(req.body.note||'').slice(0,500),category:String(req.body.category||'').slice(0,50)});res.json({ok:true});});
 app.delete('/sms/transactions/:id',async(req,res)=>{await db.del('sms_transactions',req.params.id.slice(0,100));res.json({ok:true});});
@@ -87,5 +89,5 @@ app.post('/research/briefs',async(req,res)=>{const b={id:req.body.id||uid('brief
 
 app.get('/digest-data',async(_,res)=>{const[events,pipeline,clients]=await Promise.all([db.all('calendar_events',{eq:{done:false},gte:{date:new Date().toISOString().slice(0,10)},order:{col:'date'},limit:10}),db.all('pipeline',{order:{col:'created_at',asc:false},limit:10}),db.all('clients',{order:{col:'name'},limit:20})]);res.json({events,pipeline,clients});});
 
-let seeded=false;async function ensureSeeded(){if(seeded||!db.isReady())return;await db.seedIfEmpty().catch(()=>{});seeded=true;}ensureSeeded();
+let seeded=false;async function ensureSeeded(){seeded=true;}ensureSeeded();
 module.exports={app,ensureSeeded};

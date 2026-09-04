@@ -1,0 +1,132 @@
+'use strict';
+const express=require('express');
+const db=require('./db');
+const {rankItems,buildReason}=require('./priority');
+
+const router=express.Router();
+const statuses=new Set(['inbox','ready','doing','waiting','done','cancelled']);
+const priorities=new Set(['low','medium','high','critical']);
+const id=(prefix)=>`${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
+const text=(value,max=1000)=>String(value??'').trim().slice(0,max);
+const bool=(value)=>value===true||value==='true'||value===1||value==='1';
+const int=(value,fallback,min,max)=>{const n=Number(value);return Number.isFinite(n)?Math.max(min,Math.min(max,Math.round(n))):fallback;};
+const dateOrNull=(value)=>{if(!value)return null;const d=new Date(value);return Number.isNaN(d.getTime())?null:d.toISOString();};
+
+function normalizeWork(body={},existing={}){
+  const status=statuses.has(String(body.status||existing.status||'inbox').toLowerCase())?String(body.status||existing.status||'inbox').toLowerCase():'inbox';
+  const priority=priorities.has(String(body.priority||existing.priority||'medium').toLowerCase())?String(body.priority||existing.priority||'medium').toLowerCase():'medium';
+  return {
+    id:existing.id||text(body.id,120)||id('work'),
+    project_id:body.project_id===null?null:(body.project_id!==undefined?text(body.project_id,120)||null:(existing.project_id||null)),
+    parent_id:body.parent_id===null?null:(body.parent_id!==undefined?text(body.parent_id,120)||null:(existing.parent_id||null)),
+    title:text(body.title??existing.title,500),
+    description:text(body.description??existing.description,6000),
+    status,
+    priority,
+    impact:int(body.impact,Number(existing.impact||3),1,5),
+    strategic_weight:int(body.strategic_weight??body.strategicWeight,Number(existing.strategic_weight||3),1,5),
+    estimated_minutes:int(body.estimated_minutes??body.estimatedMinutes,Number(existing.estimated_minutes||30),5,480),
+    due_at:body.due_at===null?null:(body.due_at!==undefined?dateOrNull(body.due_at):existing.due_at||null),
+    scheduled_start:body.scheduled_start===null?null:(body.scheduled_start!==undefined?dateOrNull(body.scheduled_start):existing.scheduled_start||null),
+    scheduled_end:body.scheduled_end===null?null:(body.scheduled_end!==undefined?dateOrNull(body.scheduled_end):existing.scheduled_end||null),
+    deferred_until:body.deferred_until===null?null:(body.deferred_until!==undefined?dateOrNull(body.deferred_until):existing.deferred_until||null),
+    blocked:body.blocked!==undefined?bool(body.blocked):!!existing.blocked,
+    blocked_reason:text(body.blocked_reason??existing.blocked_reason,1000),
+    pinned:body.pinned!==undefined?bool(body.pinned):!!existing.pinned,
+    context_url:text(body.context_url??existing.context_url,2000),
+    source:text(existing.source||body.source||'jakeos',80)||'jakeos',
+    source_ref:body.source_ref===null?null:(body.source_ref!==undefined?text(body.source_ref,200):existing.source_ref||null),
+    tags:Array.isArray(body.tags)?body.tags.slice(0,30).map(x=>text(x,80)).filter(Boolean):(Array.isArray(existing.tags)?existing.tags:[]),
+    metadata:body.metadata&&typeof body.metadata==='object'&&!Array.isArray(body.metadata)?body.metadata:(existing.metadata||{}),
+  };
+}
+
+async function getWorkItem(workId){return (await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.id=$1 LIMIT 1`,[text(workId,120)])).rows[0]||null;}
+async function recordEvent(workId,eventType,payload={}){await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[workId,eventType,JSON.stringify(payload)]);}
+
+router.get('/work/today',async(req,res)=>{
+  const now=new Date(),limit=int(req.query.limit,7,1,20);
+  const result=await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status NOT IN ('done','cancelled') AND (wi.deferred_until IS NULL OR wi.deferred_until<=NOW()) ORDER BY wi.updated_at DESC LIMIT 300`);
+  const ranked=rankItems(result.rows,{now,limit}).map(item=>({...item,why_now:buildReason(item)}));
+  const events=(await db.query(`SELECT id,title,date,project,type,done,starts_at,ends_at,all_day,source FROM calendar_events WHERE done=FALSE AND (starts_at::date=CURRENT_DATE OR (starts_at IS NULL AND LEFT(date,10)=CURRENT_DATE::text)) ORDER BY COALESCE(starts_at,NOW()) LIMIT 20`)).rows;
+  res.json({generated_at:now.toISOString(),priorities:ranked,events});
+});
+
+router.get('/work/inbox',async(req,res)=>{
+  const rows=(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status='inbox' ORDER BY wi.created_at DESC LIMIT $1`,[int(req.query.limit,100,1,300)])).rows;
+  res.json({items:rows});
+});
+
+router.get('/work/items',async(req,res)=>{
+  const clauses=['1=1'],values=[];
+  if(req.query.project_id){values.push(text(req.query.project_id,120));clauses.push(`wi.project_id=$${values.length}`);}
+  if(req.query.status&&statuses.has(String(req.query.status).toLowerCase())){values.push(String(req.query.status).toLowerCase());clauses.push(`wi.status=$${values.length}`);}
+  if(req.query.q){values.push(`%${text(req.query.q,200)}%`);clauses.push(`(wi.title ILIKE $${values.length} OR wi.description ILIKE $${values.length})`);}
+  values.push(int(req.query.limit,200,1,500));
+  const rows=(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE ${clauses.join(' AND ')} ORDER BY wi.pinned DESC,wi.due_at NULLS LAST,wi.updated_at DESC LIMIT $${values.length}`,values)).rows;
+  res.json({items:rows});
+});
+
+router.get('/work/items/:id',async(req,res)=>{const item=await getWorkItem(req.params.id);if(!item)return res.status(404).json({error:'Work item not found'});const history=(await db.query('SELECT event_type,payload,created_at FROM work_item_events WHERE work_item_id=$1 ORDER BY created_at DESC LIMIT 60',[item.id])).rows;res.json({item,history});});
+router.post('/work/items',async(req,res)=>{const item=normalizeWork(req.body);if(!item.title)return res.status(422).json({error:'Title is required'});const row=await db.insert('work_items',{...item,last_touched_at:new Date().toISOString()},false);if(!row)return res.status(500).json({error:'Could not create work item'});await recordEvent(row.id,'created',{actor:'jakeos-web'});res.status(201).json({item:await getWorkItem(row.id)});});
+router.patch('/work/items/:id',async(req,res)=>{const existing=await getWorkItem(req.params.id);if(!existing)return res.status(404).json({error:'Work item not found'});if(req.body.version&&Number(req.body.version)!==Number(existing.version))return res.status(409).json({error:'Work item changed elsewhere',current:existing});const item=normalizeWork(req.body,existing);if(!item.title)return res.status(422).json({error:'Title is required'});const result=await db.query(`UPDATE work_items SET project_id=$2,parent_id=$3,title=$4,description=$5,status=$6,priority=$7,impact=$8,strategic_weight=$9,estimated_minutes=$10,due_at=$11,scheduled_start=$12,scheduled_end=$13,deferred_until=$14,blocked=$15,blocked_reason=$16,pinned=$17,context_url=$18,tags=$19::jsonb,metadata=$20::jsonb,updated_at=NOW(),last_touched_at=NOW(),version=version+1,completed_at=CASE WHEN $6='done' THEN COALESCE(completed_at,NOW()) ELSE NULL END WHERE id=$1 RETURNING id`,[existing.id,item.project_id,item.parent_id,item.title,item.description,item.status,item.priority,item.impact,item.strategic_weight,item.estimated_minutes,item.due_at,item.scheduled_start,item.scheduled_end,item.deferred_until,item.blocked,item.blocked_reason,item.pinned,item.context_url,JSON.stringify(item.tags),JSON.stringify(item.metadata)]);await recordEvent(existing.id,'updated',{actor:'jakeos-web',fields:Object.keys(req.body).slice(0,30)});res.json({item:await getWorkItem(result.rows[0].id)});});
+router.post('/work/items/:id/complete',async(req,res)=>{const result=await db.query(`UPDATE work_items SET status='done',completed_at=NOW(),scheduled_start=NULL,scheduled_end=NULL,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING id`,[text(req.params.id,120)]);if(!result.rows[0])return res.status(404).json({error:'Work item not found'});await recordEvent(req.params.id,'completed',{actor:'jakeos-web'});res.json({item:await getWorkItem(req.params.id)});});
+router.post('/work/items/:id/defer',async(req,res)=>{const until=dateOrNull(req.body.until||req.body.deferred_until);if(!until)return res.status(422).json({error:'Valid defer time required'});const result=await db.query(`UPDATE work_items SET deferred_until=$2,scheduled_start=NULL,scheduled_end=NULL,status=CASE WHEN status='doing' THEN 'ready' ELSE status END,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING id`,[text(req.params.id,120),until]);if(!result.rows[0])return res.status(404).json({error:'Work item not found'});await recordEvent(req.params.id,'deferred',{actor:'jakeos-web',until});res.json({item:await getWorkItem(req.params.id)});});
+router.delete('/work/items/:id',async(req,res)=>{const result=await db.query(`UPDATE work_items SET status='cancelled',updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING id`,[text(req.params.id,120)]);if(!result.rows[0])return res.status(404).json({error:'Work item not found'});await recordEvent(req.params.id,'cancelled',{actor:'jakeos-web'});res.json({ok:true});});
+
+router.get('/work/projects',async(_,res)=>{const rows=(await db.query(`SELECT p.id,p.name,p.emoji,p.description,p.tech,p.status,p.priority,p.color,p.progress,p.created_at,p.updated_at,COUNT(wi.id) FILTER(WHERE wi.status NOT IN('done','cancelled'))::int AS open_tasks,COUNT(wi.id) FILTER(WHERE wi.status='doing')::int AS doing_tasks,COUNT(wi.id) FILTER(WHERE wi.status NOT IN('done','cancelled') AND (wi.blocked=TRUE OR wi.status='waiting'))::int AS blocked_tasks,COUNT(wi.id) FILTER(WHERE wi.status='done')::int AS completed_tasks,COUNT(wi.id)::int AS total_tasks,MIN(wi.due_at) FILTER(WHERE wi.status NOT IN('done','cancelled') AND wi.due_at IS NOT NULL) AS next_due_at FROM projects p LEFT JOIN work_items wi ON wi.project_id=p.id GROUP BY p.id ORDER BY CASE lower(p.priority) WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,blocked_tasks DESC,p.name`)).rows;res.json({projects:rows});});
+router.get('/work/projects/:id',async(req,res)=>{const project=(await db.query('SELECT * FROM projects WHERE id=$1 LIMIT 1',[text(req.params.id,120)])).rows[0];if(!project)return res.status(404).json({error:'Project not found'});const items=(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.project_id=$1 ORDER BY CASE wi.status WHEN 'doing' THEN 0 WHEN 'ready' THEN 1 WHEN 'inbox' THEN 2 WHEN 'waiting' THEN 3 WHEN 'done' THEN 4 ELSE 5 END,wi.pinned DESC,wi.due_at NULLS LAST,wi.updated_at DESC`,[project.id])).rows;const summary=items.reduce((a,x)=>{a.total++;if(x.status==='done')a.completed++;else if(x.status!=='cancelled')a.open++;if(x.status==='doing')a.doing++;if(x.blocked||x.status==='waiting')a.blocked++;return a;},{total:0,open:0,doing:0,blocked:0,completed:0});res.json({project,summary,items});});
+router.delete('/work/projects/:id',async(req,res)=>{const projectId=text(req.params.id,120);await db.query('UPDATE work_items SET project_id=NULL,updated_at=NOW(),version=version+1 WHERE project_id=$1',[projectId]);const result=await db.query('DELETE FROM projects WHERE id=$1 RETURNING id',[projectId]);if(!result.rows[0])return res.status(404).json({error:'Project not found'});res.json({ok:true});});
+
+router.get('/calendar/events',async(req,res)=>{const from=req.query.from&&/^\d{4}-\d{2}-\d{2}/.test(req.query.from)?req.query.from.slice(0,10):null,to=req.query.to&&/^\d{4}-\d{2}-\d{2}/.test(req.query.to)?req.query.to.slice(0,10):null;const values=[],clauses=[];if(from){values.push(from);clauses.push(`LEFT(date,10)>=$${values.length}`);}if(to){values.push(to);clauses.push(`LEFT(date,10)<=$${values.length}`);}const rows=(await db.query(`SELECT * FROM calendar_events${clauses.length?` WHERE ${clauses.join(' AND ')}`:''} ORDER BY COALESCE(starts_at,CASE WHEN date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN date::timestamptz ELSE NOW() END)`,values)).rows;res.json({events:rows});});
+router.post('/calendar/events',async(req,res)=>{const date=text(req.body.date,40),title=text(req.body.title,500);if(!title||!date)return res.status(422).json({error:'Title and date are required'});const startsAt=req.body.starts_at||req.body.startsAt||((req.body.time&&/^\d{4}-\d{2}-\d{2}$/.test(date))?`${date}T${req.body.time}:00+03:00`:null);const row=await db.insert('calendar_events',{id:text(req.body.id,120)||id('event'),title,date,project:text(req.body.project,200),type:text(req.body.type,60)||'session',done:bool(req.body.done),source:'jakeos',notes:text(req.body.notes,4000),starts_at:dateOrNull(startsAt),ends_at:dateOrNull(req.body.ends_at||req.body.endsAt),all_day:bool(req.body.all_day||req.body.allDay),external_id:null},false);res.status(201).json({event:row});});
+router.patch('/calendar/events/:id',async(req,res)=>{const existing=await db.get('calendar_events',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Event not found'});const data={updated_at:new Date().toISOString()};for(const key of ['title','date','project','type','notes'])if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='notes'?4000:500);if(req.body.done!==undefined)data.done=bool(req.body.done);if(req.body.all_day!==undefined||req.body.allDay!==undefined)data.all_day=bool(req.body.all_day??req.body.allDay);if(req.body.starts_at!==undefined||req.body.startsAt!==undefined)data.starts_at=dateOrNull(req.body.starts_at??req.body.startsAt);if(req.body.ends_at!==undefined||req.body.endsAt!==undefined)data.ends_at=dateOrNull(req.body.ends_at??req.body.endsAt);await db.update('calendar_events',existing.id,data);res.json({event:await db.get('calendar_events',{eq:{id:existing.id}})});});
+router.delete('/calendar/events/:id',async(req,res)=>{await db.del('calendar_events',text(req.params.id,120));res.json({ok:true});});
+
+router.patch('/pipeline/:id',async(req,res)=>{const existing=await db.get('pipeline',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Pipeline item not found'});const data={updated_at:new Date().toISOString()};for(const key of ['name','org','stage','type','deadline','contact','notes','last_contact','value'])if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='notes'?5000:500);if(req.body.valueUSD!==undefined||req.body.value_usd!==undefined)data.value_usd=Number(req.body.valueUSD??req.body.value_usd)||0;await db.update('pipeline',existing.id,data);const row=await db.get('pipeline',{eq:{id:existing.id}});res.json({item:{...row,valueUSD:Number(row.value_usd||0)}});});
+router.delete('/pipeline/:id',async(req,res)=>{await db.del('pipeline',text(req.params.id,120));res.json({ok:true});});
+
+router.get('/finance',async(_,res)=>{const[streams,expenses,target]=await Promise.all([db.all('finance_streams',{order:{col:'created_at',asc:false}}),db.all('expenses',{order:{col:'created_at',asc:false}}),db.get('settings',{eq:{key:'finance_targets'}})]);let targets={quarterly:20000,annual:100000,currency:'USD'};try{if(target?.value)targets={...targets,...JSON.parse(target.value)};}catch{}res.json({streams,expenses,targets});});
+router.post('/finance/streams',async(req,res)=>{const name=text(req.body.name,500);if(!name)return res.status(422).json({error:'Name is required'});const row=await db.insert('finance_streams',{id:text(req.body.id,120)||id('revenue'),name,type:text(req.body.type,100)||'Consulting',status:text(req.body.status,60)||'Projected',amount:Number(req.body.amount)||0,currency:text(req.body.currency,10)||'USD',month:text(req.body.month,40)},false);res.status(201).json({stream:row});});
+router.patch('/finance/streams/:id',async(req,res)=>{const existing=await db.get('finance_streams',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Revenue stream not found'});const data={updated_at:new Date().toISOString()};for(const key of ['name','type','status','currency','month'])if(req.body[key]!==undefined)data[key]=text(req.body[key],500);if(req.body.amount!==undefined)data.amount=Number(req.body.amount)||0;await db.update('finance_streams',existing.id,data);res.json({stream:await db.get('finance_streams',{eq:{id:existing.id}})});});
+router.delete('/finance/streams/:id',async(req,res)=>{await db.del('finance_streams',text(req.params.id,120));res.json({ok:true});});
+router.post('/finance/expenses',async(req,res)=>{const name=text(req.body.name,500);if(!name)return res.status(422).json({error:'Name is required'});const row=await db.insert('expenses',{id:text(req.body.id,120)||id('expense'),name,amount:Number(req.body.amount)||0,currency:text(req.body.currency,10)||'USD',monthly:req.body.monthly!==undefined?bool(req.body.monthly):true,category:text(req.body.category,100)||'Operations'},false);res.status(201).json({expense:row});});
+router.patch('/finance/expenses/:id',async(req,res)=>{const existing=await db.get('expenses',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Expense not found'});const data={updated_at:new Date().toISOString()};for(const key of ['name','currency','category'])if(req.body[key]!==undefined)data[key]=text(req.body[key],500);if(req.body.amount!==undefined)data.amount=Number(req.body.amount)||0;if(req.body.monthly!==undefined)data.monthly=bool(req.body.monthly);await db.update('expenses',existing.id,data);res.json({expense:await db.get('expenses',{eq:{id:existing.id}})});});
+router.delete('/finance/expenses/:id',async(req,res)=>{await db.del('expenses',text(req.params.id,120));res.json({ok:true});});
+router.patch('/finance/targets',async(req,res)=>{const target=await db.get('settings',{eq:{key:'finance_targets'}});let current={};try{current=target?.value?JSON.parse(target.value):{};}catch(error){current={};}const updatedTargets={...current};for(const key of ['quarterly','annual']){if(req.body[key]!==undefined)updatedTargets[key]=Number(req.body[key])||0;}if(req.body.currency!==undefined)updatedTargets.currency=text(req.body.currency,10)||'USD';await db.insert('settings',{key:'finance_targets',value:JSON.stringify(updatedTargets),updated_at:new Date().toISOString()},true);res.json({targets:updatedTargets});});
+
+router.get('/integrations/status',async(_,res)=>res.json({integrations:[
+  {id:'tuku-core',name:'Tuku Core',category:'identity',configured:true,status:'connected',detail:'Identity and estate telemetry'},
+  {id:'estate',name:'Tuku Estate telemetry',category:'data',configured:!!process.env.TUKU_ESTATE_INSIGHTS_SECRET,status:process.env.TUKU_ESTATE_INSIGHTS_SECRET?'connected':'action_required'},
+  {id:'google-calendar',name:'Google Calendar',category:'calendar',configured:!!(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET),status:(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET)?'available':'action_required'},
+  {id:'anthropic',name:'AI assistant',category:'ai',configured:!!process.env.ANTHROPIC_API_KEY,status:process.env.ANTHROPIC_API_KEY?'available':'action_required'},
+  {id:'groq',name:'Voice transcription',category:'ai',configured:!!process.env.GROQ_API_KEY,status:process.env.GROQ_API_KEY?'available':'action_required'},
+  {id:'resend',name:'Email alerts',category:'alerts',configured:!!(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL),status:(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL)?'available':'action_required'},
+  {id:'telegram',name:'Telegram alerts',category:'alerts',configured:!!(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID),status:(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID)?'available':'action_required'},
+  {id:'whatsapp',name:'WhatsApp alerts',category:'alerts',configured:!!(process.env.WHATSAPP_PHONE&&process.env.WHATSAPP_APIKEY),status:(process.env.WHATSAPP_PHONE&&process.env.WHATSAPP_APIKEY)?'available':'action_required'},
+  {id:'sms',name:'SMS ingestion',category:'finance',configured:!!process.env.SMS_WEBHOOK_SECRET,status:process.env.SMS_WEBHOOK_SECRET?'available':'action_required'}
+]}));
+
+router.get('/search',async(req,res)=>{const q=text(req.query.q,180);if(q.length<2)return res.json({query:q,results:[]});const like=`%${q}%`;const[work,projects,pipeline,clients,opportunities,briefs]=await Promise.all([
+  db.query(`SELECT id,title AS name,description AS subtitle,'work' AS type,status,project_id AS context FROM work_items WHERE title ILIKE $1 OR description ILIKE $1 ORDER BY updated_at DESC LIMIT 12`,[like]),
+  db.query(`SELECT id,name,description AS subtitle,'project' AS type,status,NULL::text AS context FROM projects WHERE name ILIKE $1 OR description ILIKE $1 ORDER BY updated_at DESC LIMIT 8`,[like]),
+  db.query(`SELECT id,name,org AS subtitle,'pipeline' AS type,stage AS status,org AS context FROM pipeline WHERE name ILIKE $1 OR org ILIKE $1 OR notes ILIKE $1 ORDER BY updated_at DESC LIMIT 8`,[like]),
+  db.query(`SELECT id,name,org AS subtitle,'client' AS type,status,org AS context FROM clients WHERE name ILIKE $1 OR org ILIKE $1 OR notes ILIKE $1 ORDER BY updated_at DESC LIMIT 8`,[like]),
+  db.query(`SELECT id,title AS name,org AS subtitle,'opportunity' AS type,status,org AS context FROM opportunities WHERE title ILIKE $1 OR org ILIKE $1 OR description ILIKE $1 ORDER BY relevance_score DESC LIMIT 8`,[like]),
+  db.query(`SELECT id,title,summary AS subtitle,'research' AS type,'brief' AS status,brief_date::text AS context FROM research_briefs WHERE title ILIKE $1 OR summary ILIKE $1 ORDER BY brief_date DESC LIMIT 5`,[like])
+]);res.json({query:q,results:[...work.rows,...projects.rows,...pipeline.rows,...clients.rows,...opportunities.rows,...briefs.rows]});});
+router.post('/personal-finance/transactions',async(req,res)=>{const amount=Number(req.body.amount)||0,party=text(req.body.party,500),flow=['in','out'].includes(req.body.flow)?req.body.flow:'out';if(amount<=0||!party)return res.status(422).json({error:'Amount and party are required'});const row=await db.insert('sms_transactions',{id:text(req.body.id,120)||id('manual'),type:'transaction',flow,amount,party,provider:text(req.body.provider,120)||'Manual',category:text(req.body.category,100)||'Other',timestamp:dateOrNull(req.body.timestamp)||new Date().toISOString(),raw:'Manual JakeOS entry',sender:'jakeos-web',note:text(req.body.note,1000),currency:text(req.body.currency,10)||'UGX'},false);res.status(201).json({transaction:row});});
+
+router.get('/proposals',async(_,res)=>res.json({proposals:await db.all('proposals',{order:{col:'updated_at',asc:false},limit:300})}));
+router.post('/proposals',async(req,res)=>{const title=text(req.body.title,500);if(!title)return res.status(422).json({error:'Title is required'});const row=await db.insert('proposals',{id:text(req.body.id,120)||id('proposal'),title,type:text(req.body.type,100)||'Consulting Proposal',client:text(req.body.client,300),value:text(req.body.value,100),deal_id:text(req.body.dealId||req.body.deal_id,120)||null,content:text(req.body.content,100000),status:text(req.body.status,60)||'Draft'},false);res.status(201).json({proposal:row});});
+router.patch('/proposals/:id',async(req,res)=>{const existing=await db.get('proposals',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Proposal not found'});const data={updated_at:new Date().toISOString()};for(const key of ['title','type','client','value','content','status'])if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='content'?100000:500);if(req.body.dealId!==undefined||req.body.deal_id!==undefined)data.deal_id=text(req.body.dealId??req.body.deal_id,120)||null;await db.update('proposals',existing.id,data);res.json({proposal:await db.get('proposals',{eq:{id:existing.id}})});});
+router.delete('/proposals/:id',async(req,res)=>{await db.del('proposals',text(req.params.id,120));res.json({ok:true});});
+
+router.get('/grants',async(_,res)=>res.json({grants:await db.all('grant_items',{order:{col:'updated_at',asc:false},limit:500})}));
+router.post('/grants',async(req,res)=>{const title=text(req.body.title,500),funder=text(req.body.funder,500);if(!title||!funder)return res.status(422).json({error:'Title and funder are required'});const row=await db.insert('grant_items',{id:text(req.body.id,120)||id('grant'),title,funder,amount:Number(req.body.amount)||0,currency:text(req.body.currency,10)||'USD',type:text(req.body.type,80)||'Grant',sector:text(req.body.sector,100)||'Other',stage:text(req.body.stage,100)||'Identified',deadline:text(req.body.deadline,40)||null,contact:text(req.body.contact,500),website:text(req.body.website,2000),notes:text(req.body.notes,8000),context:text(req.body.context,30000),checklist:Array.isArray(req.body.checklist)?req.body.checklist.slice(0,50):[]},false);res.status(201).json({grant:row});});
+router.patch('/grants/:id',async(req,res)=>{const existing=await db.get('grant_items',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Grant or bid not found'});const data={updated_at:new Date().toISOString()};for(const key of ['title','funder','currency','type','sector','stage','deadline','contact','website','notes','context'])if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='context'?30000:key==='notes'?8000:2000);if(req.body.amount!==undefined)data.amount=Number(req.body.amount)||0;if(Array.isArray(req.body.checklist))data.checklist=req.body.checklist.slice(0,50);await db.update('grant_items',existing.id,data);res.json({grant:await db.get('grant_items',{eq:{id:existing.id}})});});
+router.delete('/grants/:id',async(req,res)=>{await db.del('grant_items',text(req.params.id,120));res.json({ok:true});});
+
+router.post('/signals/:id/resolve',async(req,res)=>{const result=await db.query(`UPDATE attention_signals SET resolved=TRUE,resolved_at=NOW(),updated_at=NOW() WHERE id=$1 RETURNING id`,[text(req.params.id,120)]);if(!result.rows[0])return res.status(404).json({error:'Signal not found'});res.json({ok:true});});
+
+module.exports={desktopRouter:router};

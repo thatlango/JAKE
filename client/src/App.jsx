@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import AIPanel from './components/AIPanel';
 import InstallPrompt from './components/InstallPrompt';
 import CommandCenter from './components/CommandCenter';
+import { Button } from './components/ProductUI';
 import Dashboard from './modules/Dashboard';
+import Work from './modules/Work';
 import Projects from './modules/Projects';
 import Pipeline from './modules/Pipeline';
 import CalendarModule from './modules/Calendar';
@@ -15,7 +17,6 @@ import AlertsSettings from './modules/AlertsSettings';
 import CRM from './modules/CRM';
 import CashFlow from './modules/CashFlow';
 import OpportunityRadar from './modules/OpportunityRadar';
-import ClaudeSync from './modules/ClaudeSync';
 import Proposals from './modules/Proposals';
 import Grants from './modules/Grants';
 import VoiceMemo from './modules/VoiceMemo';
@@ -23,166 +24,27 @@ import ExportCentre from './modules/ExportCentre';
 import AISearch from './modules/AISearch';
 import Platforms from './modules/Platforms';
 import Estate from './modules/Estate';
-import { SEED_DATA } from './data/seed';
 
-function usePersistedState(key, seedValue) {
-  const [state, setState] = useState(() => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : seedValue; } catch { return seedValue; }
-  });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(state)); } catch {} }, [key, state]);
-  return [state, setState];
+const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','pipeline','radar','estate','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
+
+function AuthGate({checking}){
+  const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[submitting,setSubmitting]=useState(false),[error,setError]=useState('');
+  const signIn=async event=>{event.preventDefault();if(!email.trim()||!password||submitting)return;setSubmitting(true);setError('');try{const response=await fetch('/auth/tuku/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email:email.trim(),password})});const data=await response.json().catch(()=>({}));if(!response.ok||data.authenticated!==true)throw new Error(data.error||'Tuku sign-in failed.');window.location.replace('/');}catch(err){setError(err.message||'Tuku sign-in failed.');setSubmitting(false);}};
+  return <main className="px-auth-page"><section className="px-auth-card"><div className="px-auth-mark">JO</div><div className="px-eyebrow">JakeOS</div><h1>Your command center.</h1><p>Use the same Tuku identity you use across the estate. JakeOS verifies it with Tuku Core and keeps no separate password.</p>{checking?<div className="px-kicker">Checking your Tuku session…</div>:<form onSubmit={signIn} className="px-stack"><div className="px-field"><label>Tuku email</label><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></div><div className="px-field"><label>Password</label><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></div>{error&&<div className="px-banner px-banner--danger"><div>{error}</div></div>}<Button type="submit" disabled={submitting}>{submitting?'Signing in…':'Sign in to JakeOS'}</Button><a className="px-auth-fallback" href="/auth/tuku/start?return_to=%2F">Use Tuku SSO redirect instead</a></form>}<div className="px-auth-note">Your password is sent over HTTPS to Tuku Core for verification and is not stored by JakeOS.</div></section></main>;
 }
 
-const uid = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-
-function AuthGate({ checking }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
-
-  const signIn = async (event) => {
-    event.preventDefault();
-    if (!email.trim() || !password || submitting) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      const response = await fetch('/auth/tuku/login', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.authenticated !== true) {
-        throw new Error(data.error || 'Tuku sign-in failed.');
-      }
-      window.location.replace(window.location.pathname + window.location.search);
-    } catch (err) {
-      setError(err?.message || 'Tuku sign-in failed.');
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:24,background:'linear-gradient(145deg,#f7f9fc,#eef3fb)',color:'#142033'}}>
-      <section style={{width:'min(460px,100%)',background:'#fff',border:'1px solid #e4eaf2',borderRadius:28,padding:'32px 30px',boxShadow:'0 24px 70px rgba(32,48,74,.10)'}}>
-        <div style={{width:52,height:52,borderRadius:17,display:'grid',placeItems:'center',background:'#eef2ff',fontSize:25,marginBottom:24}}>🧭</div>
-        <div style={{fontSize:12,fontWeight:800,letterSpacing:'.12em',textTransform:'uppercase',color:'#667085',marginBottom:8}}>JakeOS</div>
-        <h1 style={{fontSize:31,lineHeight:1.08,margin:'0 0 12px',letterSpacing:'-.04em'}}>Your command center.</h1>
-        <p style={{fontSize:15,lineHeight:1.6,color:'#667085',margin:'0 0 24px'}}>Sign in with the same Tuku account you use across the estate. JakeOS verifies the credentials with Tuku Core and does not keep a separate password.</p>
-        {checking ? <div style={{fontWeight:700,color:'#667085'}}>Checking your Tuku session…</div> : (
-          <form onSubmit={signIn} style={{display:'grid',gap:13}}>
-            <label style={{display:'grid',gap:6,fontSize:12,fontWeight:800,color:'#475467'}}>Tuku email
-              <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required style={{width:'100%',boxSizing:'border-box',border:'1px solid #d0d5dd',borderRadius:13,padding:'13px 14px',fontSize:15,color:'#101828',background:'#fff'}} />
-            </label>
-            <label style={{display:'grid',gap:6,fontSize:12,fontWeight:800,color:'#475467'}}>Password
-              <input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required style={{width:'100%',boxSizing:'border-box',border:'1px solid #d0d5dd',borderRadius:13,padding:'13px 14px',fontSize:15,color:'#101828',background:'#fff'}} />
-            </label>
-            {error && <div role="alert" style={{borderRadius:12,padding:'10px 12px',background:'#fef3f2',color:'#b42318',fontSize:13,lineHeight:1.45}}>{error}</div>}
-            <button type="submit" disabled={submitting} style={{width:'100%',border:0,borderRadius:15,padding:'14px 18px',background:'#1f2937',color:'#fff',fontSize:15,fontWeight:800,cursor:submitting?'wait':'pointer',opacity:submitting ? .72 : 1}}>{submitting ? 'Signing in…' : 'Sign in to JakeOS'}</button>
-            <a href={`/auth/tuku/start?return_to=${returnTo}`} style={{display:'block',textAlign:'center',padding:'9px 10px',fontSize:12,fontWeight:800,color:'#667085',textDecoration:'none'}}>Use Tuku SSO redirect instead</a>
-          </form>
-        )}
-        <p style={{fontSize:12,lineHeight:1.5,color:'#98a2b3',margin:'16px 0 0'}}>Your password is sent over HTTPS to Tuku Core for verification and is not stored by JakeOS.</p>
-      </section>
-    </main>
-  );
-}
-
-export default function App() {
-  const [authState, setAuthState] = useState({ checking:true, authenticated:false, user:null });
-  const [module, setModule] = useState(() => new URLSearchParams(window.location.search).get('module') || 'dashboard');
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiContext, setAiContext] = useState('');
-  const [projects,  setProjects]  = usePersistedState('jake_projects',  SEED_DATA.projects);
-  const [pipeline,  setPipeline]  = usePersistedState('jake_pipeline',  SEED_DATA.pipeline);
-  const [calendar,  setCalendar]  = usePersistedState('jake_calendar',  SEED_DATA.calendar);
-  const [finance,   setFinance]   = usePersistedState('jake_finance',   SEED_DATA.finance);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/auth/session', { credentials:'same-origin', headers:{Accept:'application/json'} })
-      .then(async r => ({ ok:r.ok, data:await r.json().catch(()=>({})) }))
-      .then(({ok,data}) => { if(active) setAuthState({checking:false,authenticated:ok&&data.authenticated===true,user:data.user||null}); })
-      .catch(() => { if(active) setAuthState({checking:false,authenticated:false,user:null}); });
-    return () => { active=false; };
-  }, []);
-
-  const syncToServer = useCallback(async (cal, fin, pipe) => {
-    try { await fetch('/api/sync', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ calendar: cal, finance: fin, pipeline: pipe }) }); } catch {}
-  }, []);
-
-  const loadCoreData = useCallback(async () => {
-    try {
-      const [projectsRes, pipelineRes] = await Promise.all([fetch('/api/projects'), fetch('/api/pipeline')]);
-      if (projectsRes.status === 401 || pipelineRes.status === 401) { setAuthState({checking:false,authenticated:false,user:null}); return; }
-      if (projectsRes.ok) { const p = await projectsRes.json(); if (Array.isArray(p.projects) && p.projects.length) setProjects(p.projects); }
-      if (pipelineRes.ok) { const p = await pipelineRes.json(); if (Array.isArray(p.pipeline) && p.pipeline.length) setPipeline(p.pipeline); }
-    } catch {}
-  }, [setPipeline, setProjects]);
-
-  useEffect(() => { if(authState.authenticated) loadCoreData(); }, [authState.authenticated, loadCoreData]);
-  useEffect(() => { if(authState.authenticated) syncToServer(calendar, finance, pipeline); }, [authState.authenticated, calendar, finance, pipeline, syncToServer]);
-
-  const addProject = useCallback(async (projectInput) => {
-    const payload = { ...projectInput, id: uid('proj') };
-    try { const res = await fetch('/api/projects', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await res.json(); if (data?.project) { setProjects(prev => [data.project, ...prev]); return; } } catch {}
-    setProjects(prev => [payload, ...prev]);
-  }, [setProjects]);
-
-  const toggleProjectTask = useCallback(async (projectId, taskId) => {
-    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, tasks: p.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t) } : p));
-    const project = projects.find(p => p.id === projectId); if (!project) return;
-    const updatedTasks = project.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
-    const progress = updatedTasks.length ? Math.round((updatedTasks.filter(t=>t.done).length / updatedTasks.length) * 100) : 0;
-    try { await fetch(`/api/projects/${projectId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tasks: updatedTasks, progress }) }); } catch {}
-  }, [projects, setProjects]);
-
-  const addProspect = useCallback(async (prospectInput) => {
-    const payload = { ...prospectInput, id: uid('pipe') };
-    try { const res = await fetch('/api/pipeline', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await res.json(); if (data?.item) { setPipeline(prev => [data.item, ...prev]); return; } } catch {}
-    setPipeline(prev => [payload, ...prev]);
-  }, [setPipeline]);
-
-  const signOut = useCallback(async () => { try { await fetch('/auth/logout',{method:'POST'}); } catch {} window.location.replace('/'); }, []);
-  const openAI = (context = '') => { setAiContext(context); setAiOpen(true); };
-  const navigate = (m) => { setModule(m); setAiOpen(false); window.history.replaceState({},'',`?module=${encodeURIComponent(m)}`); };
-  const allData = { projects, pipeline, calendar, finance };
-  const moduleProps = { projects, setProjects, pipeline, setPipeline, calendar, setCalendar, finance, setFinance, openAI };
-
-  if (!authState.authenticated) return <AuthGate checking={authState.checking} />;
-
-  return (
-    <div className="app-layout">
-      <Sidebar active={module} onChange={navigate} />
-      <MobileNav active={module} onChange={navigate} />
-      <button onClick={signOut} title="Sign out of JakeOS" style={{position:'fixed',top:14,right:16,zIndex:70,border:'1px solid var(--border)',borderRadius:10,padding:'7px 10px',background:'var(--surface)',color:'var(--text-muted)',fontSize:11,fontWeight:800,cursor:'pointer'}}>Tuku · Sign out</button>
-      <main className="main-content">
-        {module === 'dashboard'        && <Dashboard         {...moduleProps} />}
-        {module === 'estate'           && <Estate />}
-        {module === 'projects'         && <Projects          {...moduleProps} onCreateProject={addProject} onToggleTask={toggleProjectTask} />}
-        {module === 'pipeline'         && <Pipeline          {...moduleProps} onAddProspect={addProspect} />}
-        {module === 'proposals'        && <Proposals         pipeline={pipeline} openAI={openAI} />}
-        {module === 'grants'           && <Grants            openAI={openAI} />}
-        {module === 'calendar'         && <CalendarModule    {...moduleProps} />}
-        {module === 'finance'          && <Finance           {...moduleProps} />}
-        {module === 'crm'              && <CRM               openAI={openAI} />}
-        {module === 'cashflow'         && <CashFlow          openAI={openAI} />}
-        {module === 'radar'            && <OpportunityRadar  openAI={openAI} />}
-        {module === 'integrations'     && <Integrations      openAI={openAI} />}
-        {module === 'personal-finance' && <PersonalFinance   openAI={openAI} />}
-        {module === 'alerts'           && <AlertsSettings    calendar={calendar} finance={finance} openAI={openAI} />}
-        {module === 'claude-sync'      && <ClaudeSync        openAI={openAI} projects={projects} />}
-        {module === 'ai-search'        && <AISearch          {...allData} />}
-        {module === 'voice-memo'       && <VoiceMemo         projects={projects} pipeline={pipeline} setCalendar={setCalendar} openAI={openAI} />}
-        {module === 'export'           && <ExportCentre      {...allData} />}
-        {module === 'platforms'        && <Platforms         openAI={openAI} />}
-      </main>
-      {aiOpen && <AIPanel context={aiContext} module={module} onClose={() => setAiOpen(false)} data={allData} />}
-      <CommandCenter navigate={navigate} />
-      <InstallPrompt />
-    </div>
-  );
+export default function App(){
+  const[authState,setAuthState]=useState({checking:true,authenticated:false,user:null});
+  const initial=new URLSearchParams(window.location.search).get('module')||'dashboard';
+  const[module,setModule]=useState(KNOWN_MODULES.has(initial)?initial:'dashboard');
+  const[aiOpen,setAiOpen]=useState(false),[aiContext,setAiContext]=useState('');
+  useEffect(()=>{let active=true;fetch('/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})).then(({ok,data})=>active&&setAuthState({checking:false,authenticated:ok&&data.authenticated===true,user:data.user||null})).catch(()=>active&&setAuthState({checking:false,authenticated:false,user:null}));return()=>{active=false;};},[]);
+  const signOut=useCallback(async()=>{try{await fetch('/auth/logout',{method:'POST'});}catch{}window.location.replace('/');},[]);
+  const openAI=useCallback(context=>{setAiContext(context||'');setAiOpen(true);},[]);
+  const navigate=useCallback(next=>{const safe=KNOWN_MODULES.has(next)?next:'dashboard';setModule(safe);setAiOpen(false);window.history.replaceState({},'',safe==='dashboard'?window.location.pathname:`?module=${encodeURIComponent(safe)}`);window.scrollTo({top:0,behavior:'smooth'});},[]);
+  useEffect(()=>{const onPop=()=>{const next=new URLSearchParams(window.location.search).get('module')||'dashboard';setModule(KNOWN_MODULES.has(next)?next:'dashboard');};window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop);},[]);
+  if(!authState.authenticated)return <AuthGate checking={authState.checking}/>;
+  return <div className="app-layout"><Sidebar active={module} onChange={navigate}/><MobileNav active={module} onChange={navigate}/><button className="px-account-chip" onClick={signOut} title="Sign out of JakeOS"><span className="px-account-dot"/><span>Tuku</span><span className="px-account-hide">Sign out</span></button><main className="main-content">
+    {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='pipeline'&&<Pipeline openAI={openAI}/>} {module==='proposals'&&<Proposals/>} {module==='grants'&&<Grants/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='radar'&&<OpportunityRadar openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+  </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate}/><InstallPrompt/></div>;
 }
