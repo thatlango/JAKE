@@ -4,7 +4,7 @@ import MobileNav from './components/MobileNav';
 import AIPanel from './components/AIPanel';
 import InstallPrompt from './components/InstallPrompt';
 import CommandCenter from './components/CommandCenter';
-import { Button } from './components/ProductUI';
+import { Button, Icon } from './components/ProductUI';
 import Dashboard from './modules/Dashboard';
 import Work from './modules/Work';
 import Projects from './modules/Projects';
@@ -45,7 +45,21 @@ export default function App(){
   const openJake=useCallback(()=>window.dispatchEvent(new Event('jake:open')),[]);
   useEffect(()=>{const onPop=()=>{const next=new URLSearchParams(window.location.search).get('module')||'dashboard';setModule(KNOWN_MODULES.has(next)?next:'dashboard');};window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop);},[]);
   if(!authState.authenticated)return <AuthGate checking={authState.checking}/>;
-  return <div className="app-layout"><Sidebar active={module} onChange={navigate}/><MobileNav active={module} onChange={navigate}/><div className="px-shell-bar"><button className="px-shell-command" onClick={openJake}><span>✦</span><span>Ask Jake</span><kbd>⌘K</kbd></button><button className="px-account-chip" onClick={signOut} title="Sign out of JakeOS"><span className="px-account-dot"/><span>Tuku</span><span className="px-account-hide">Sign out</span></button></div><main className="main-content">
-    {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='pipeline'&&<Pipeline openAI={openAI}/>} {module==='proposals'&&<Proposals/>} {module==='grants'&&<Grants/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='radar'&&<OpportunityRadar openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
-  </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={module}/><InstallPrompt/></div>;
+  const userName=authState.user?.name||authState.user?.display_name||authState.user?.full_name||'Jacob Odur';
+  const userEmail=authState.user?.email||'Tuku account';
+  const initials=userName.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase()||'JO';
+  return <div className="app-layout">
+    <Sidebar active={module} onChange={navigate}/><MobileNav active={module} onChange={navigate}/>
+    <header className="jd-topbar">
+      <button className="jd-search-command" onClick={openJake}><Icon name="search" size={19}/><span>Search task, project or relationship</span><kbd>⌘F</kbd></button>
+      <div className="jd-topbar-actions">
+        <button className="jd-top-icon" onClick={()=>navigate('crm')} aria-label="Relationships"><Icon name="document" size={17}/></button>
+        <button className="jd-top-icon" onClick={()=>navigate('alerts')} aria-label="Alerts"><Icon name="bell" size={17}/></button>
+        <button className="jd-profile-chip" onClick={signOut} title="Sign out of JakeOS"><span className="jd-profile-avatar">{initials}</span><span className="jd-profile-copy"><strong>{userName}</strong><small>{userEmail}</small></span></button>
+      </div>
+    </header>
+    <main className="main-content">
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='pipeline'&&<Pipeline openAI={openAI}/>} {module==='proposals'&&<Proposals/>} {module==='grants'&&<Grants/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='radar'&&<OpportunityRadar openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+    </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={module}/><InstallPrompt/>
+  </div>;
 }
