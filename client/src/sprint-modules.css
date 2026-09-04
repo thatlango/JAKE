@@ -1,0 +1,81 @@
+/* JakeOS sprint module refinements — pipeline, estate, relationships, projects. */
+
+/* Pipeline urgency */
+.px-pipeline-attention{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin:0 0 12px;
+  padding:13px 15px;
+  border:1px solid #f1dfb9;
+  border-radius:15px;
+  background:#fff9ee;
+}
+.px-pipeline-attention>div{min-width:0;display:grid;gap:2px}
+.px-pipeline-attention strong{font-size:13px;color:var(--px-text)}
+.px-pipeline-attention span{font-size:11px;color:var(--px-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.px-pipeline-attention--danger{background:#fff5f3;border-color:#f0d3cf}
+.px-pipeline-attention--danger .px-brief-label,.px-pipeline-attention--danger strong{color:var(--px-danger)}
+.kanban-card--overdue{border:1px solid #eed1cd!important;background:#fffafa!important}
+.kanban-card--due{border:1px solid #f0dfba!important;background:#fffdf8!important}
+.px-deadline-danger{color:var(--px-danger)!important;font-weight:760!important}
+.px-deadline-warning{color:var(--px-warning)!important;font-weight:720!important}
+
+/* Estate movement and exception intelligence */
+.px-estate-brief{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.72fr);gap:14px;margin:0 0 16px}
+.px-estate-brief-main,.px-estate-brief-side{border-radius:20px;padding:20px 22px}
+.px-estate-brief-main{background:linear-gradient(135deg,#e6f1ea,#f7faf8);border:1px solid #d7e6dc}
+.px-estate-brief-main h2{font-size:21px;letter-spacing:-.025em;line-height:1.2;margin:0 0 7px;color:var(--px-text)}
+.px-estate-brief-main p,.px-estate-brief-side p{font-size:12.5px;line-height:1.58;color:var(--px-muted);margin:0}
+.px-estate-brief-side{background:#fff;box-shadow:var(--px-shadow)}
+.px-estate-brief-side--attention{background:#fffaf1;border:1px solid #f1e1c2;box-shadow:none}
+.px-estate-signal-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px}
+.px-estate-signal-row span{font-size:11px;color:var(--px-muted);background:rgba(255,255,255,.7);border:1px solid rgba(215,230,220,.85);border-radius:999px;padding:6px 9px}
+.px-estate-signal-row strong{color:var(--px-brand);font-size:12px}
+.px-estate-row--inactive td{color:var(--px-dim)!important;background:#fafbfa!important}
+.px-estate-row--inactive td:first-child strong{color:var(--px-muted)!important}
+.px-fulfillment{display:flex;align-items:stretch;overflow-x:auto;padding:5px 0 8px}
+.px-fulfillment-stage{display:flex;align-items:center;min-width:max-content}
+.px-fulfillment-stage>div{min-width:76px;text-align:center;padding:12px 9px;border-radius:13px;background:var(--px-surface-2)}
+.px-fulfillment-stage strong{display:block;font-size:20px;line-height:1;color:var(--px-text);margin-bottom:6px}
+.px-fulfillment-stage span{font-size:10px;color:var(--px-muted);font-weight:700}
+.px-fulfillment-arrow{padding:0 7px;color:var(--px-dim);font-size:12px}
+
+/* Relationships: use desktop space and surface relationship state. */
+.px-relationship-grid{display:grid;grid-template-columns:minmax(380px,.95fr) minmax(0,1.45fr);gap:14px}
+.px-relationship-list{display:grid;gap:8px}
+.px-relationship-card{width:100%;text-align:left;display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:11px;align-items:start;padding:13px 14px;border:1px solid transparent;border-radius:15px;background:#fff;color:var(--px-text);cursor:pointer;box-shadow:0 1px 2px rgba(25,35,30,.025)}
+.px-relationship-card:hover{border-color:var(--px-border)}
+.px-relationship-card--active{background:#f7fbf8;border-color:#cbded2}
+.px-relationship-avatar{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:var(--px-brand-soft);color:var(--px-brand);font-weight:800;font-size:13px}
+.px-relationship-name{font-size:13.5px;font-weight:760;line-height:1.35;color:var(--px-text)}
+.px-relationship-org{font-size:11px;color:var(--px-muted);margin-top:2px}
+.px-relationship-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px}
+.px-relationship-state{font-size:10px;font-weight:750;color:var(--px-muted)}
+.px-relationship-state--attention{color:var(--px-warning)}
+.px-relationship-state--danger{color:var(--px-danger)}
+.px-relationship-detail{background:#fff;border-radius:18px;box-shadow:var(--px-shadow);overflow:hidden;min-height:420px}
+.px-relationship-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:14px 18px;border-bottom:1px solid var(--px-border)}
+.px-relationship-summary>div{padding:10px 11px;border-radius:12px;background:var(--px-surface-2)}
+.px-relationship-summary strong{display:block;font-size:12px;color:var(--px-text);line-height:1.35}
+.px-relationship-summary span{display:block;font-size:9.5px;color:var(--px-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+
+/* Projects: health and next action are first-class. */
+.px-project-health{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:780;color:var(--px-success)}
+.px-project-health:before{content:'';width:7px;height:7px;border-radius:999px;background:currentColor}
+.px-project-health--warning{color:var(--px-warning)}
+.px-project-health--danger{color:var(--px-danger)}
+.px-project-next{margin-top:9px;padding-top:9px;border-top:1px solid var(--px-border);font-size:11px;color:var(--px-muted)}
+.px-project-next strong{color:var(--px-text);font-weight:720}
+
+@media(max-width:1100px){
+  .px-estate-brief,.px-relationship-grid{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .px-pipeline-attention{align-items:flex-start;flex-direction:column}
+  .px-estate-brief-main,.px-estate-brief-side{border-radius:17px;padding:17px}
+  .px-relationship-summary{grid-template-columns:1fr 1fr}
+  .px-relationship-grid{display:block}
+  .px-relationship-list{margin-bottom:12px}
+}
