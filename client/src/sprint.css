@@ -1,0 +1,234 @@
+/* JakeOS command-center UI sprint — 4 Sep 2026
+   Final-mile hierarchy, shell, Material 3 tonal surfaces, and desktop density. */
+:root{
+  --bg:#f4f6f3;
+  --surface:#ffffff;
+  --surface-2:#f7f8f6;
+  --surface-3:#edf2ee;
+  --border:#e0e6e1;
+  --border-strong:#c8d1ca;
+  --accent:#245c46;
+  --accent-dim:#e3efe8;
+  --green:#1f7a54;
+  --green-dim:#e8f5ee;
+  --red:#b33a3a;
+  --red-dim:#fdecec;
+  --blue:#315f87;
+  --blue-dim:#e9f2fa;
+  --purple:#6e5aa8;
+  --cyan:#287b7b;
+  --text:#17201c;
+  --text-muted:#66736d;
+  --text-dim:#8a958f;
+
+  --px-bg:#f4f6f3;
+  --px-surface:#ffffff;
+  --px-surface-2:#f7f8f6;
+  --px-surface-3:#edf2ee;
+  --px-text:#17201c;
+  --px-muted:#66736d;
+  --px-dim:#8a958f;
+  --px-border:#e0e6e1;
+  --px-border-strong:#c8d1ca;
+  --px-brand:#245c46;
+  --px-brand-strong:#174333;
+  --px-brand-soft:#e3efe8;
+  --px-warning:#a66516;
+  --px-warning-soft:#fff1d8;
+  --px-danger:#b33a3a;
+  --px-danger-soft:#fdecec;
+  --px-content:1480px;
+  --px-sidebar:256px;
+  --px-shadow:0 1px 2px rgba(25,35,30,.025),0 14px 34px rgba(25,35,30,.035);
+}
+
+html,body{overflow:auto!important;background:var(--px-bg)!important}
+body{min-width:320px}
+.main-content{padding-top:58px!important}
+.module{max-width:var(--px-content)!important;padding:28px 38px 72px!important}
+
+/* Global shell: account and command controls live outside page-level actions. */
+.px-shell-bar{
+  position:fixed;
+  z-index:90;
+  top:0;
+  left:var(--px-sidebar);
+  right:0;
+  height:58px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  padding:0 28px;
+  background:rgba(244,246,243,.88);
+  border-bottom:1px solid rgba(224,230,225,.82);
+  backdrop-filter:blur(18px);
+}
+.px-shell-command{
+  min-height:36px;
+  height:36px;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:0 12px;
+  border:1px solid transparent;
+  border-radius:12px;
+  background:var(--px-brand-soft);
+  color:var(--px-brand-strong);
+  font-size:12px;
+  font-weight:750;
+  cursor:pointer;
+}
+.px-shell-command kbd{font:inherit;font-size:10px;font-weight:700;color:var(--px-muted);background:rgba(255,255,255,.72);border:1px solid var(--px-border);border-radius:7px;padding:2px 6px}
+.px-account-chip{position:static!important;top:auto!important;right:auto!important;z-index:auto!important;height:36px!important;min-height:36px!important;box-shadow:none!important;background:rgba(255,255,255,.76)!important}
+
+/* Stronger hierarchy, fewer card outlines, more tonal differentiation. */
+.px-page-header{margin-bottom:22px!important}
+.px-page-header h1,.module-title{font-size:34px!important;font-weight:780!important}
+.px-page-header p,.module-sub{font-size:14px!important;max-width:760px}
+.px-panel,.card{border-color:transparent!important;box-shadow:var(--px-shadow)!important}
+.px-panel-head h2,.px-section-title h2,.card-header{font-size:15px!important}
+.px-panel--focus,.px-focus-surface{background:linear-gradient(145deg,#edf6f0,#f8fbf9)!important;border:1px solid #d7e8de!important}
+.px-panel--attention,.px-attention-surface{background:linear-gradient(145deg,#fff9ed,#fffdf8)!important;border:1px solid #f3e5c6!important}
+
+/* Dashboard metrics stay useful, but stop dominating the screen. */
+.px-metrics,.stats-row{gap:10px!important;margin-bottom:16px!important}
+.px-metric,.stat-card{min-height:96px!important;padding:15px 16px!important;border-color:transparent!important;background:rgba(255,255,255,.9)!important}
+.px-metric-icon{width:32px;height:32px;margin-bottom:10px}
+.px-metric-value,.stat-value{font-size:24px!important}
+.px-metric-helper{color:var(--px-muted)!important}
+
+/* Decision surfaces. */
+.px-brief{
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(290px,.75fr);
+  gap:14px;
+  margin-bottom:16px;
+}
+.px-brief-main{
+  position:relative;
+  overflow:hidden;
+  border-radius:22px;
+  padding:22px 24px;
+  background:linear-gradient(135deg,#e6f1ea 0%,#f5faf7 72%);
+  border:1px solid #d5e6dc;
+}
+.px-brief-main:after{content:'';position:absolute;width:170px;height:170px;border-radius:999px;right:-70px;top:-85px;background:rgba(36,92,70,.055)}
+.px-brief-main h2{position:relative;z-index:1;font-size:22px;line-height:1.2;letter-spacing:-.025em;margin:0 0 8px;color:var(--px-text)}
+.px-brief-main p{position:relative;z-index:1;max-width:760px;font-size:13px;line-height:1.62;color:var(--px-muted);margin:0}
+.px-brief-actions{position:relative;z-index:1;display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.px-brief-side{border-radius:22px;padding:20px;background:var(--px-surface);box-shadow:var(--px-shadow)}
+.px-brief-label{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--px-brand);margin-bottom:7px}
+.px-focus-title{font-size:22px;line-height:1.22;font-weight:780;letter-spacing:-.025em;color:var(--px-text);margin:0 0 8px}
+
+/* Status ribbons replace repetitive KPI-card rows where the numbers are operational context. */
+.px-status-ribbon{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:0;
+  margin:0 0 16px;
+  padding:11px 14px;
+  border:1px solid var(--px-border);
+  border-radius:14px;
+  background:rgba(255,255,255,.72);
+}
+.px-status-ribbon-item{display:flex;align-items:baseline;gap:6px;padding:3px 14px;border-right:1px solid var(--px-border);font-size:12px;color:var(--px-muted)}
+.px-status-ribbon-item:first-child{padding-left:0}.px-status-ribbon-item:last-child{border-right:0}
+.px-status-ribbon-item strong{font-size:15px;color:var(--px-text);font-weight:780}
+.px-status-ribbon-item[data-alert='true'] strong{color:var(--px-danger)}
+
+/* Work queue: translate ranking into human guidance. */
+.px-task{padding:13px 8px!important}
+.px-task-title{font-size:13.5px!important;font-weight:720!important}
+.px-task-reason{font-size:11.5px!important;color:var(--px-muted)!important;max-width:760px}
+.px-priority-score{display:none!important}
+.px-guidance{font-size:10px;font-weight:780;letter-spacing:.02em;color:var(--px-brand);background:var(--px-brand-soft);border-radius:999px;padding:4px 8px}
+
+/* Projects: project name is primary, status and progress are secondary. */
+.projects-layout{grid-template-columns:minmax(320px,400px) minmax(0,1fr)!important;gap:14px!important}
+.project-card{border-color:transparent!important;box-shadow:0 1px 2px rgba(25,35,30,.025)!important;padding:15px!important}
+.project-card:hover{box-shadow:0 8px 24px rgba(25,35,30,.045)!important}
+.project-card--active{background:#f7fbf8!important;border-color:#cbded2!important;box-shadow:0 0 0 1px rgba(36,92,70,.05)!important}
+.project-card-name{color:var(--px-text)!important;font-size:14px!important;font-weight:760!important;line-height:1.35!important}
+.project-card-tech{color:var(--px-muted)!important}
+.project-card-desc{color:var(--px-muted)!important;line-height:1.5!important}
+.project-detail{border-color:transparent!important;box-shadow:var(--px-shadow)!important}
+.detail-name{color:var(--px-text)!important;font-weight:780!important}
+.detail-tech{color:var(--px-muted)!important}
+
+/* Pipeline: use the full desktop canvas and make overdue state visible. */
+.pipeline-kanban{grid-template-columns:repeat(4,minmax(300px,1fr))!important;gap:14px!important}
+.kanban-col{min-width:300px!important}
+.kanban-card{border-color:transparent!important;box-shadow:0 1px 2px rgba(25,35,30,.025)!important;padding:15px!important}
+.kanban-card:hover{box-shadow:0 9px 24px rgba(25,35,30,.045)!important}
+.kanban-card-deadline{font-weight:650!important}
+
+/* CRM/legacy surfaces inherit the current light product language rather than the old dark prototype palette. */
+.filter-bar{max-width:none!important;margin-left:0!important;margin-right:0!important}
+.filter-btn{border-radius:999px!important;min-height:38px!important}
+.filter-btn--active{background:var(--px-brand)!important;color:#fff!important}
+.badge{background:var(--px-surface-3)!important;color:var(--px-muted)!important}
+
+/* Sidebar footer should read deliberately, never as clipped terminal text. */
+.sidebar{display:flex!important;flex-direction:column!important;height:100vh!important}
+.sidebar-nav{flex:1!important;min-height:0!important}
+.sidebar-footer{position:static!important;margin-top:12px!important;padding:10px 10px 4px!important;border-top:1px solid var(--px-border)!important}
+.sidebar-footer-text{line-height:1.45!important;white-space:normal!important;text-transform:none!important;letter-spacing:0!important}
+
+/* Ask Jake: explicit, contextual, and visually part of the OS. */
+.px-jake-fab{
+  position:fixed;
+  right:22px;
+  bottom:22px;
+  z-index:150;
+  min-height:46px;
+  height:46px;
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  padding:0 15px;
+  border:0;
+  border-radius:15px;
+  background:#f4b526;
+  color:#18201d;
+  font-size:12px;
+  font-weight:800;
+  box-shadow:0 12px 28px rgba(166,101,22,.22);
+  cursor:pointer;
+}
+.px-jake-overlay{position:fixed;inset:0;z-index:500;display:flex;justify-content:flex-end;background:rgba(24,32,29,.24);backdrop-filter:blur(3px)}
+.px-jake-panel{width:min(560px,100%);height:100%;display:flex;flex-direction:column;background:#fbfcfb;border-left:1px solid var(--px-border);box-shadow:-24px 0 70px rgba(25,35,30,.09);padding:20px}
+.px-jake-head{display:flex;align-items:center;gap:10px;padding:4px 0 14px;border-bottom:1px solid var(--px-border)}
+.px-jake-mark{width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:#f4b526;color:#18201d;font-weight:900}
+.px-jake-title{flex:1}.px-jake-title strong{display:block;font-size:15px;color:var(--px-text)}.px-jake-title span{display:block;font-size:11px;color:var(--px-muted);margin-top:2px}
+.px-jake-conversation{flex:1;overflow:auto;padding:16px 0;display:flex;flex-direction:column;gap:12px}
+.px-jake-suggestions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.px-jake-suggestion{min-height:72px;text-align:left;border:1px solid var(--px-border);border-radius:14px;background:#fff;padding:11px 12px;color:var(--px-text);font-size:12px;line-height:1.4;cursor:pointer}
+.px-jake-suggestion:hover{border-color:var(--px-border-strong);background:#f8faf8}
+.px-jake-role{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--px-muted);margin-bottom:4px}
+.px-jake-message{border-radius:14px;padding:11px 13px;font-size:13px;line-height:1.6;white-space:pre-wrap}
+.px-jake-message--user{background:var(--px-brand-soft);color:var(--px-brand-strong)}
+.px-jake-message--assistant{background:#fff;border:1px solid var(--px-border);color:var(--px-text)}
+.px-jake-input{display:flex;gap:8px;align-items:flex-end;background:#fff;border:1px solid var(--px-border-strong);border-radius:14px;padding:7px 7px 7px 12px}
+.px-jake-input textarea{flex:1;border:0;outline:0;background:transparent;color:var(--px-text);resize:none;font-size:13px;line-height:1.5;min-height:42px}
+.px-jake-send{width:40px;height:40px;min-height:40px;border:0;border-radius:11px;background:var(--px-brand);color:#fff;font-weight:800;cursor:pointer}.px-jake-send:disabled{background:var(--px-surface-3);color:var(--px-dim);cursor:default}
+.px-jake-foot{font-size:10px;color:var(--px-dim);text-align:center;margin-top:7px}
+
+@media(max-width:1100px){
+  .px-brief{grid-template-columns:1fr}
+  .projects-layout{grid-template-columns:1fr!important}
+  .pipeline-kanban{grid-template-columns:repeat(4,290px)!important}
+}
+@media(max-width:760px){
+  .main-content{padding-top:0!important}
+  .module{padding:20px 16px 96px!important}
+  .px-shell-bar{display:none}
+  .px-brief-main,.px-brief-side{border-radius:18px}
+  .px-status-ribbon{gap:7px;padding:10px 12px}
+  .px-status-ribbon-item{border-right:0;padding:2px 8px 2px 0}
+  .px-jake-fab{right:16px;bottom:82px;width:48px;padding:0;justify-content:center;border-radius:50%}
+  .px-jake-fab-label{display:none}
+  .px-jake-panel{padding:16px;border-left:0}
+  .px-jake-suggestions{grid-template-columns:1fr}
+}
