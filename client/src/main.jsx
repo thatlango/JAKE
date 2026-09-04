@@ -5,6 +5,7 @@ import './index.css';
 import './product.css';
 import './sprint.css';
 import './sprint-modules.css';
+import './relationships.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
