@@ -1,98 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, EmptyState, LoadingRows, Metric, PageHeader, Panel, Pill, StateBanner, formatMoney, formatDate } from '../components/ProductUI';
 
-const money = (value, currency='UGX') => new Intl.NumberFormat('en-UG', {
-  style:'currency', currency, maximumFractionDigits: currency==='UGX'?0:2
-}).format(Number(value||0));
-const number = value => Number(value||0).toLocaleString('en-UG');
-const age = value => {
-  if (!value) return 'No activity yet';
-  const ms=Date.now()-new Date(value).getTime();
-  if(ms<60000)return 'just now';
-  if(ms<3600000)return `${Math.floor(ms/60000)}m ago`;
-  if(ms<86400000)return `${Math.floor(ms/3600000)}h ago`;
-  return `${Math.floor(ms/86400000)}d ago`;
-};
-
-function Metric({label,value,sub,tone}){
-  return <div className={`stat-card ${tone?`stat-card--${tone}`:''}`}>
-    <div className="stat-value">{value}</div><div className="stat-label">{label}</div>
-    {sub&&<div style={{fontSize:10,color:'var(--text-muted)',marginTop:5}}>{sub}</div>}
-  </div>;
-}
-
-function Growth({value}){
-  const n=Number(value||0), positive=n>0;
-  return <span style={{fontFamily:'JetBrains Mono,monospace',fontSize:11,fontWeight:700,color:positive?'var(--green)':n<0?'var(--red)':'var(--text-muted)'}}>{positive?'+':''}{n.toFixed(1)}%</span>;
-}
-
+const age=value=>{if(!value)return 'No activity yet';const ms=Date.now()-new Date(value).getTime();if(ms<60000)return 'Just now';if(ms<3600000)return `${Math.floor(ms/60000)}m ago`;if(ms<86400000)return `${Math.floor(ms/3600000)}h ago`;return `${Math.floor(ms/86400000)}d ago`;};
+const growthTone=n=>Number(n)>0?'success':Number(n)<0?'danger':'neutral';
 export default function Estate({compact=false}){
-  const [state,setState]=useState({loading:true,data:null,error:null});
-  const load=useCallback(async(force=false)=>{
-    setState(s=>({...s,loading:!s.data,error:null}));
-    try{
-      const r=await fetch(`/api/estate${force?'?refresh=1':''}`);
-      const d=await r.json();
-      if(!r.ok&&!d.snapshot)throw new Error(d.error||'Estate data unavailable');
-      setState({loading:false,data:d,error:d.error||null});
-    }catch(e){setState(s=>({loading:false,data:s.data,error:e.message}));}
-  },[]);
-  useEffect(()=>{load();const timer=setInterval(()=>load(false),60000);return()=>clearInterval(timer);},[load]);
-
-  const snapshot=state.data?.snapshot;
-  const products=snapshot?.products||[],commerce=snapshot?.commerce||[],totals=snapshot?.totals||{};
-  const kela=commerce.find(x=>x.productCode==='kela');
-  const topProducts=useMemo(()=>[...products].sort((a,b)=>b.activeUsers7d-a.activeUsers7d).slice(0,compact?5:100),[products,compact]);
-
-  if(state.loading&&!snapshot)return <div className="module"><div className="card">Loading Tuku estate…</div></div>;
-  if(!snapshot)return <div className="module"><div className="card"><div className="card-header">Tuku Estate</div><div style={{color:'var(--text-muted)'}}>{state.error||'Estate telemetry is not connected yet.'}</div></div></div>;
-
-  return <div className={compact?'':'module'}>
-    {!compact&&<div className="module-header"><div><h1 className="module-title">Tuku Estate</h1><p className="module-sub">Usage, growth, orders and earnings across the portfolio</p></div><button className="ai-trigger" onClick={()=>load(true)}>↻ Refresh</button></div>}
-    {(state.data?.stale||state.error)&&<div style={{padding:'9px 12px',marginBottom:12,border:'1px solid var(--border)',borderRadius:9,color:'var(--accent)',fontSize:11}}>Showing last successful Tuku Core snapshot · {state.data?.lastSuccessfulAt?age(state.data.lastSuccessfulAt):'freshness unknown'}{state.error?` · ${state.error}`:''}</div>}
-    <div className="stats-row" style={{marginBottom:16}}>
-      <Metric label="Active users · 24h" value={number(totals.activeUsers24h)} />
-      <Metric label="Active users · 7d" value={number(totals.activeUsers7d)} />
-      <Metric label="Active orders" value={number(totals.ordersActive)} tone="amber" />
-      <Metric label="Realized earnings" value={money(totals.realizedRevenueUGX,'UGX')} tone="green" />
-    </div>
-
-    <div className="card" style={{marginBottom:16}}>
-      <div className="card-header">Product usage <span style={{fontWeight:400,textTransform:'none',letterSpacing:0}}>· actual activity, not just access</span></div>
-      <div style={{overflowX:'auto'}}>
-        <table style={{width:'100%',borderCollapse:'collapse',minWidth:720,fontSize:11}}>
-          <thead><tr style={{textAlign:'left',color:'var(--text-muted)',borderBottom:'1px solid var(--border)'}}>
-            <th style={{padding:'8px 6px'}}>Tool</th><th>Reach</th><th>24h</th><th>7d</th><th>30d</th><th>New 7d</th><th>Growth</th><th>Last activity</th>
-          </tr></thead>
-          <tbody>{topProducts.map(p=><tr key={p.code} style={{borderBottom:'1px solid var(--border)'}}>
-            <td style={{padding:'11px 6px'}}><div style={{fontWeight:700,color:'var(--text)'}}>{p.name}</div><div style={{fontSize:9,color:'var(--text-muted)'}}>{p.code}</div></td>
-            <td>{number(p.reach?.users)} <span style={{color:'var(--text-muted)'}}>users</span></td>
-            <td>{number(p.activeUsers24h)}</td><td style={{fontWeight:700}}>{number(p.activeUsers7d)}</td><td>{number(p.activeUsers30d)}</td><td>{number(p.newUsers7d)}</td><td><Growth value={p.growth7dPercent}/></td><td style={{color:'var(--text-muted)'}}>{age(p.lastActivityAt)}</td>
-          </tr>)}</tbody>
-        </table>
-      </div>
-      {!topProducts.length&&<div style={{color:'var(--text-muted)',fontSize:12,padding:'8px 0'}}>No active estate products reported yet.</div>}
-    </div>
-
-    <div className="card">
-      <div className="card-header">Orders & Earnings</div>
-      {kela&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(135px,1fr))',gap:8,marginBottom:14}}>
-        {[
-          ['Kela live',kela.orders?.active],['New',kela.orders?.new],['Sourcing',kela.orders?.sourcing],['Shopping',kela.orders?.shopping],['Ready',kela.orders?.ready],['On delivery',kela.orders?.outForDelivery],['Fulfilled',kela.orders?.completed]
-        ].map(([label,val])=><div key={label} style={{padding:'10px 12px',background:'var(--surface-3)',borderRadius:8}}><div style={{fontFamily:'Syne,sans-serif',fontWeight:800,fontSize:18}}>{number(val)}</div><div style={{fontSize:10,color:'var(--text-muted)'}}>{label}</div></div>)}
-      </div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:10}}>
-        {commerce.map(c=><div key={`${c.productCode}-${c.currency}`} style={{padding:14,border:'1px solid var(--border)',borderRadius:10}}>
-          <div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'baseline'}}><strong style={{textTransform:'capitalize'}}>{c.productCode}</strong><span style={{fontSize:9,color:'var(--text-muted)'}}>{c.currency}</span></div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:10}}>
-            <div><div style={{fontSize:15,fontWeight:800}}>{number(c.orders?.active)}</div><div style={{fontSize:9,color:'var(--text-muted)'}}>Live orders</div></div>
-            <div><div style={{fontSize:15,fontWeight:800}}>{number(c.orders?.completed)}</div><div style={{fontSize:9,color:'var(--text-muted)'}}>Fulfilled</div></div>
-            <div><div style={{fontSize:13,fontWeight:800,color:'var(--green)'}}>{money(c.earnings?.realized,c.currency)}</div><div style={{fontSize:9,color:'var(--text-muted)'}}>Realized</div></div>
-            <div><div style={{fontSize:13,fontWeight:800,color:'var(--accent)'}}>{money(c.earnings?.pending,c.currency)}</div><div style={{fontSize:9,color:'var(--text-muted)'}}>Pending</div></div>
-          </div>
-        </div>)}
-      </div>
-      {!commerce.length&&<div style={{color:'var(--text-muted)',fontSize:12}}>No commerce feeds have reported orders yet.</div>}
-    </div>
-    {!compact&&<div style={{fontSize:9,color:'var(--text-muted)',marginTop:10}}>Tuku Core snapshot generated {snapshot.generatedAt?new Date(snapshot.generatedAt).toLocaleString('en-UG'):'—'} · refreshed by JakeOS every minute.</div>}
+  const[state,setState]=useState({loading:true,data:null,error:''});
+  const load=useCallback(async(force=false)=>{setState(s=>({...s,loading:!s.data,error:''}));try{const r=await fetch(`/api/estate${force?'?refresh=1':''}`),d=await r.json();if(!r.ok&&!d.snapshot)throw new Error(d.error||'Estate telemetry unavailable');setState({loading:false,data:d,error:d.error||''});}catch(e){setState(s=>({...s,loading:false,error:e.message}))}},[]);useEffect(()=>{load();const t=setInterval(()=>load(false),60000);return()=>clearInterval(t);},[load]);
+  const snap=state.data?.snapshot,products=snap?.products||[],commerce=snap?.commerce||[],totals=snap?.totals||{},kela=commerce.find(x=>x.productCode==='kela');
+  const sorted=useMemo(()=>[...products].sort((a,b)=>Number(b.activeUsers7d)-Number(a.activeUsers7d)),[products]);
+  if(compact)return snap?<div className="px-grid-3"><Metric label="Active users / 7d" value={totals.activeUsers7d||0}/><Metric label="Live orders" value={totals.ordersActive||0}/><Metric label="Realized" value={formatMoney(totals.realizedRevenueUGX||0,'UGX')}/></div>:null;
+  return <div className="module"><PageHeader eyebrow="Portfolio intelligence" title="Tuku Estate" subtitle="Observed product usage, growth, orders and earnings across the estate. Entitled reach stays separate from actual activity." actions={<Button variant="secondary" icon="refresh" onClick={()=>load(true)}>Refresh now</Button>}/>{state.error&&<StateBanner tone={snap?'warning':'danger'} title={snap?'Using the last successful estate snapshot':'Estate telemetry unavailable'}>{state.error}</StateBanner>}{state.data?.stale&&<StateBanner tone="warning" title="Cached telemetry">Last successful refresh {state.data.lastSuccessfulAt?age(state.data.lastSuccessfulAt):'at an unknown time'}. JakeOS will not turn a feed failure into false zeros.</StateBanner>}
+    <div className="px-metrics"><Metric icon="users" label="Active users / 24h" value={totals.activeUsers24h||0} helper="Observed use across products"/><Metric icon="users" label="Active users / 7d" value={totals.activeUsers7d||0} helper="Estate activity window" tone="success"/><Metric icon="target" label="Live orders" value={totals.ordersActive||0} helper={`${totals.ordersCompleted||0} fulfilled`} tone="warning"/><Metric icon="money" label="Realized earnings" value={formatMoney(totals.realizedRevenueUGX||0,'UGX')} helper={`${formatMoney(totals.pendingRevenueUGX||0,'UGX')} pending`} tone="success"/></div>
+    <Panel title="Product usage" subtitle="Actual activity by tool. Reach is entitlement/access, not a substitute for usage.">{state.loading&&!snap?<LoadingRows count={7}/>:sorted.length?<div style={{overflowX:'auto'}}><table className="finance-table" style={{minWidth:760}}><thead><tr><th>Product</th><th>Reach</th><th>24h</th><th>7d</th><th>30d</th><th>New / 7d</th><th>Growth</th><th>Last activity</th></tr></thead><tbody>{sorted.map(p=><tr key={p.code}><td><strong>{p.name}</strong><div className="px-kicker">{p.code}</div></td><td>{Number(p.reach?.users||0).toLocaleString()}</td><td>{Number(p.activeUsers24h||0).toLocaleString()}</td><td><strong>{Number(p.activeUsers7d||0).toLocaleString()}</strong></td><td>{Number(p.activeUsers30d||0).toLocaleString()}</td><td>{Number(p.newUsers7d||0).toLocaleString()}</td><td><Pill tone={growthTone(p.growth7dPercent)}>{Number(p.growth7dPercent||0)>0?'+':''}{Number(p.growth7dPercent||0).toFixed(1)}%</Pill></td><td>{age(p.lastActivityAt)}</td></tr>)}</tbody></table></div>:<EmptyState icon="estate" title="No product usage reported" body="The Estate connection is live, but no product has reported observed usage in this snapshot."/>}</Panel>
+    <div style={{height:16}}/><div className="px-grid-2"><Panel title="Orders & earnings" subtitle="Commercial activity reported by each product.">{commerce.length?<div className="px-list">{commerce.map(c=><div className="px-list-row" key={`${c.productCode}-${c.currency}`}><div className="px-list-main"><div className="px-list-title" style={{textTransform:'capitalize'}}>{c.productCode}</div><div className="px-list-sub">{c.orders?.active||0} live · {c.orders?.completed||0} fulfilled · last order {c.lastOrderAt?age(c.lastOrderAt):'not reported'}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:750,color:'var(--px-success)'}}>{formatMoney(c.earnings?.realized||0,c.currency||'UGX')}</div><div className="px-kicker">{formatMoney(c.earnings?.pending||0,c.currency||'UGX')} pending</div></div></div>)}</div>:<EmptyState icon="money" title="No commerce activity reported" body="Order and earnings feeds will appear here as products send canonical commerce events."/>}</Panel>
+      <Panel title="Kela operations" subtitle="Live fulfilment state from Kela's canonical errands table.">{kela?<div className="px-grid-3">{[['New',kela.orders?.new],['Sourcing',kela.orders?.sourcing],['Shopping',kela.orders?.shopping],['Consolidation',kela.orders?.consolidation],['Ready',kela.orders?.ready],['Delivery',kela.orders?.outForDelivery],['Completed',kela.orders?.completed]].map(([label,value])=><div className="px-panel" key={label} style={{padding:13,boxShadow:'none'}}><div className="px-metric-value" style={{fontSize:20}}>{value||0}</div><div className="px-kicker">{label}</div></div>)}</div>:<EmptyState icon="target" title="Kela feed unavailable" body="The estate snapshot did not include Kela commerce state."/>}</Panel></div>
+    <div className="px-kicker" style={{marginTop:12}}>Snapshot generated {snap?.generatedAt?formatDate(snap.generatedAt,{year:true,time:true}):'—'} · JakeOS refreshes the cached view approximately every minute.</div>
   </div>;
 }

@@ -1,209 +1,49 @@
-import { useState, useEffect } from 'react';
-import Estate from './Estate';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, EmptyState, Icon, LoadingRows, Metric, PageHeader, Panel, Pill, StateBanner, formatMoney, relativeDate } from '../components/ProductUI';
 
-function HealthScore({ projects, pipeline, finance }) {
-  const allTasks     = (projects||[]).flatMap(p => p.tasks||[]);
-  const doneTasks    = allTasks.filter(t => t.done).length;
-  const delivery     = allTasks.length > 0 ? Math.round((doneTasks / allTasks.length) * 100) : 50;
+const severityTone=s=>s==='critical'||s==='high'?'danger':s==='medium'?'warning':'info';
 
-  const confirmed    = (finance?.streams||[]).filter(s=>s.status==='Confirmed').reduce((a,s)=>a+s.amount,0);
-  const target       = finance?.targets?.quarterly || 20000;
-  const revenue      = Math.min(100, Math.round((confirmed / target) * 100));
-
-  const hotDeals     = (pipeline||[]).filter(p=>['Applied','In Delivery','Active Partner'].includes(p.stage));
-  const pipeVelocity = (pipeline||[]).length > 0 ? Math.round((hotDeals.length / (pipeline||[]).length) * 100) : 50;
-
-  const overall = Math.round((delivery * 0.35) + (revenue * 0.4) + (pipeVelocity * 0.25));
-
-  const color = overall >= 70 ? 'var(--green)' : overall >= 40 ? 'var(--accent)' : 'var(--red)';
-  const label = overall >= 70 ? 'Strong' : overall >= 40 ? 'Building' : 'Needs Work';
-
-  const bars = [
-    { label:'Revenue vs Target', val:revenue,      color:'var(--green)' },
-    { label:'Project Delivery',  val:delivery,     color:'var(--blue)'  },
-    { label:'Pipeline Activity', val:pipeVelocity, color:'var(--accent)'},
-  ];
-
-  return (
-    <div className="card health-score-card">
-      <div className="card-header">Business Health</div>
-      <div style={{ display:'flex', gap:16, alignItems:'center', marginBottom:14 }}>
-        <div style={{ position:'relative', width:64, height:64, flexShrink:0 }}>
-          <svg width="64" height="64" viewBox="0 0 64 64">
-            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--surface-3)" strokeWidth="6"/>
-            <circle cx="32" cy="32" r="26" fill="none" stroke={color} strokeWidth="6"
-              strokeDasharray={`${(overall/100)*163.4} 163.4`}
-              strokeLinecap="round" transform="rotate(-90 32 32)"
-              style={{ transition:'stroke-dasharray .6s ease' }}/>
-          </svg>
-          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
-            <span style={{ fontFamily:'Syne,sans-serif', fontWeight:800, fontSize:16, color, lineHeight:1 }}>{overall}</span>
-          </div>
-        </div>
-        <div>
-          <div style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:17, color, lineHeight:1 }}>{label}</div>
-          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>Overall score</div>
-        </div>
-      </div>
-      {bars.map(b => (
-        <div key={b.label} style={{ marginBottom:8 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>
-            <span>{b.label}</span><span style={{ color:b.color, fontWeight:700 }}>{b.val}%</span>
-          </div>
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width:`${b.val}%`, background:b.color }}/>
-          </div>
-        </div>
-      ))}
+export default function Dashboard({openAI,navigate}){
+  const[overview,setOverview]=useState(null),[today,setToday]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
+  const load=useCallback(async()=>{setLoading(true);setError('');try{const[a,b]=await Promise.all([fetch('/api/overview'),fetch('/api/work/today?limit=7')]);if(!a.ok||!b.ok)throw new Error('Command-center data could not be loaded.');setOverview(await a.json());setToday(await b.json());}catch(e){setError(e.message||'JakeOS could not load the overview.');}setLoading(false);},[]);
+  useEffect(()=>{load();},[load]);
+  const estate=overview?.estate||{},tasks=overview?.tasks||{},pipeline=overview?.pipeline||{},invoices=overview?.invoices||{},opportunities=overview?.opportunities||{};
+  const estateTotal=estate.totals||{};
+  const urgent=useMemo(()=>[...(overview?.attention_signals||[])].slice(0,6),[overview]);
+  const first=today?.priorities?.[0];
+  const greeting=new Date().getHours()<12?'Good morning':new Date().getHours()<18?'Good afternoon':'Good evening';
+  return <div className="module">
+    <PageHeader eyebrow="Command center" title={`${greeting}.`} subtitle="What needs attention, what is moving, and where your time should go next." actions={<><Button variant="secondary" icon="refresh" onClick={load}>Refresh</Button><Button variant="tonal" icon="spark" onClick={()=>openAI('Use the live JakeOS command-center context to give me a short prioritised briefing: what is urgent, what is blocked, what should I do next, and what can wait.')}>Brief me</Button></>}/>
+    {error&&<StateBanner tone="danger" title="Overview could not refresh">{error}</StateBanner>}
+    {estate.stale&&<StateBanner tone="warning" title="Estate data is cached">The product telemetry below is the last successful snapshot, not a fresh zero.</StateBanner>}
+    <div className="px-metrics">
+      <Metric icon="check" label="Open work" value={loading?'—':tasks.open??0} helper={`${tasks.overdue??0} overdue · ${tasks.blocked??0} blocked`} tone={tasks.overdue?'danger':'neutral'}/>
+      <Metric icon="target" label="Active pipeline" value={loading?'—':pipeline.active??0} helper={formatMoney(pipeline.active_value_usd||0,'USD')} tone="warning"/>
+      <Metric icon="money" label="Receivables" value={loading?'—':formatMoney(invoices.receivables_value||0,'USD')} helper={`${invoices.overdue_count??0} overdue invoice${Number(invoices.overdue_count)===1?'':'s'}`} tone={invoices.overdue_count?'danger':'success'}/>
+      <Metric icon="estate" label="Estate active users" value={loading?'—':estateTotal.activeUsers7d??0} helper={`${estateTotal.products??estate.products?.length??0} tools · 7 days`} tone="success"/>
     </div>
-  );
-}
 
-function FXRates() {
-  const [rates, setRates] = useState(null);
-  const [updated, setUpdated] = useState('');
-
-  useEffect(() => {
-    const cached = localStorage.getItem('jake_fx_cache');
-    if (cached) {
-      try {
-        const { data, ts } = JSON.parse(cached);
-        if (Date.now() - ts < 3600000) { setRates(data.rates); setUpdated(data.updated); return; }
-      } catch {}
-    }
-    fetch('/api/fx-rates')
-      .then(r => r.json())
-      .then(d => {
-        setRates(d.rates);
-        setUpdated(d.updated);
-        localStorage.setItem('jake_fx_cache', JSON.stringify({ data: d, ts: Date.now() }));
-      })
-      .catch(() => {});
-  }, []);
-
-  if (!rates) return null;
-  const pairs = [['UGX',1], ['KES',1], ['EUR',4], ['GBP',4]];
-
-  return (
-    <div className="card">
-      <div className="card-header">USD Exchange Rates {updated && <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, fontSize:9, marginLeft:4 }}>({new Date(updated).toLocaleDateString('en-GB',{day:'numeric',month:'short'})})</span>}</div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-        {pairs.map(([cur, dp]) => rates[cur] && (
-          <div key={cur} style={{ background:'var(--surface-3)', borderRadius:6, padding:'8px 10px' }}>
-            <div style={{ fontFamily:'JetBrains Mono,monospace', fontSize:13, fontWeight:700, color:'var(--text)' }}>
-              {Number(rates[cur]).toFixed(dp)}
-            </div>
-            <div style={{ fontSize:10, color:'var(--text-muted)' }}>1 USD = {cur}</div>
-          </div>
-        ))}
+    <div className="px-grid-2">
+      <div className="px-stack">
+        <Panel title="Do next" subtitle="Ranked from the canonical JakeOS work queue." action={<Button variant="ghost" icon="arrow" onClick={()=>navigate('work')}>Open Work</Button>}>
+          {loading?<LoadingRows count={4}/>:today?.priorities?.length?<div>{today.priorities.slice(0,5).map((item,index)=><div className="px-task" key={item.id}><div className="px-kicker" style={{paddingTop:4,width:24,textAlign:'center'}}>{index+1}</div><div><div className="px-task-title">{item.title}</div><div className="px-task-reason">{item.why_now}</div><div className="px-task-meta">{item.project_name&&<Pill tone="brand">{item.project_name}</Pill>}<Pill tone={item.priority==='critical'?'danger':item.priority==='high'?'warning':'neutral'}>{item.priority}</Pill>}{item.due_at&&<Pill tone={new Date(item.due_at)<new Date()?'danger':'neutral'}>{relativeDate(item.due_at)}</Pill>}</div></div><div className="px-priority-score">{item.estimated_minutes||30} min</div></div>)}</div>:<EmptyState icon="check" title="Nothing urgent is queued" body="Capture work in JakeOS or Momentum and the ranking engine will surface it here." action={<Button variant="tonal" onClick={()=>navigate('work')}>Open Work</Button>}/>} 
+        </Panel>
+        <Panel title="Needs attention" subtitle="Exceptions across work, deadlines, money and connected services." action={<Button variant="ghost" onClick={()=>navigate('work')}>Review all</Button>}>
+          {loading?<LoadingRows count={3}/>:urgent.length?<div className="px-list">{urgent.map(signal=><div className="px-list-row" key={signal.id}><div className={`px-metric-icon`} style={{margin:0,width:36,height:36,background:signal.severity==='high'?'var(--px-danger-soft)':'var(--px-warning-soft)',color:signal.severity==='high'?'var(--px-danger)':'var(--px-warning)'}}><Icon name="warning" size={17}/></div><div className="px-list-main"><div className="px-list-title">{signal.title}</div><div className="px-list-sub">{signal.summary||signal.source}</div></div><Pill tone={severityTone(signal.severity)}>{signal.severity}</Pill></div>)}</div>:<EmptyState icon="check" title="No exception signals" body="JakeOS has no unresolved cross-work signals to surface right now."/>}
+        </Panel>
+      </div>
+      <div className="px-stack">
+        <Panel title="Focus now" subtitle="The strongest currently actionable item.">
+          {first?<><div className="px-eyebrow">Why now</div><h3 style={{fontSize:20,lineHeight:1.25,letterSpacing:'-.025em',margin:'0 0 8px'}}>{first.title}</h3><p className="px-muted" style={{fontSize:13,lineHeight:1.55,margin:'0 0 14px'}}>{first.why_now}</p><div className="px-row" style={{flexWrap:'wrap'}}>{first.project_name&&<Pill tone="brand">{first.project_name}</Pill>}<Pill>{first.estimated_minutes||30} min</Pill>{first.due_at&&<Pill tone={new Date(first.due_at)<new Date()?'danger':'neutral'}>{relativeDate(first.due_at)}</Pill>}</div><div className="px-form-actions" style={{justifyContent:'flex-start'}}><Button onClick={()=>navigate('work')}>Start from Work</Button></div></>:<EmptyState icon="check" title="Focus is clear" body="No actionable item is currently ranked above the rest."/>}
+        </Panel>
+        <Panel title="Business development" subtitle="Pipeline, opportunities and near-term deadlines." action={<Button variant="ghost" icon="arrow" onClick={()=>navigate('pipeline')}>Pipeline</Button>}>
+          <div className="px-grid-3"><div><div className="px-metric-value" style={{fontSize:21}}>{pipeline.active??0}</div><div className="px-kicker">active deals</div></div><div><div className="px-metric-value" style={{fontSize:21}}>{pipeline.deadlines_14d??0}</div><div className="px-kicker">deadlines / 14d</div></div><div><div className="px-metric-value" style={{fontSize:21}}>{opportunities.high_relevance??0}</div><div className="px-kicker">high-fit opportunities</div></div></div>
+        </Panel>
+        <Panel title="Tuku Estate" subtitle={estate.available===false?'Telemetry is not currently available':'Observed usage and live commercial activity.'} action={<Button variant="ghost" icon="arrow" onClick={()=>navigate('estate')}>Open Estate</Button>}>
+          {estate.available===false?<StateBanner tone="warning" title="Estate telemetry unavailable">{estate.error||'JakeOS could not reach Tuku Core telemetry.'}</StateBanner>:<div className="px-grid-3"><div><div className="px-metric-value" style={{fontSize:21}}>{estateTotal.activeUsers24h??0}</div><div className="px-kicker">active / 24h</div></div><div><div className="px-metric-value" style={{fontSize:21}}>{estateTotal.ordersActive??0}</div><div className="px-kicker">live orders</div></div><div><div className="px-metric-value" style={{fontSize:21}}>{formatMoney(estateTotal.realizedRevenueUGX||0,'UGX')}</div><div className="px-kicker">realized</div></div></div>}
+        </Panel>
+        {overview?.latest_research_brief&&<Panel title="Latest evidence brief" subtitle={overview.latest_research_brief.brief_date} action={<Button variant="ghost" onClick={()=>navigate('ai-search')}>Search</Button>}><div className="px-list-title">{overview.latest_research_brief.title}</div><p className="px-muted" style={{fontSize:12,lineHeight:1.55,margin:'7px 0 0'}}>{overview.latest_research_brief.summary}</p></Panel>}
       </div>
     </div>
-  );
-}
-
-export default function Dashboard({ projects, pipeline, calendar, finance, openAI }) {
-  const today = new Date();
-
-  const activeProjects  = (projects||[]).filter(p => ['Active', 'In Development'].includes(p.status));
-  const confirmedRevenue = (finance?.streams||[]).filter(s => s.status === 'Confirmed').reduce((sum, s) => sum + s.amount, 0);
-  const pendingRevenue   = (finance?.streams||[]).filter(s => s.status === 'Pending').reduce((sum, s) => sum + s.amount, 0);
-
-  const upcomingEvents = [...(calendar||[])]
-    .filter(e => !e.done && new Date(e.date) >= today)
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(0, 6);
-
-  const hotDeals = (pipeline||[]).filter(p => ['Applied', 'In Delivery'].includes(p.stage));
-  const TYPE_COLORS = { milestone: '#F0B429', session: '#5E6AD2', deadline: '#FF4757' };
-
-  return (
-    <div className="module">
-      <div className="module-header">
-        <div>
-          <h1 className="module-title">Good morning, Jacob.</h1>
-          <p className="module-sub">Your work, products and commitments in one view</p>
-        </div>
-        <button className="ai-trigger" onClick={() => openAI('Dashboard overview — give a prioritised briefing for today')}>
-          ✦ Ask AI
-        </button>
-      </div>
-
-      <div className="stats-row">
-        <div className="stat-card">
-          <div className="stat-value">{activeProjects.length}</div>
-          <div className="stat-label">Active Projects</div>
-        </div>
-        <div className="stat-card stat-card--green">
-          <div className="stat-value">${confirmedRevenue.toLocaleString()}</div>
-          <div className="stat-label">Confirmed Revenue</div>
-        </div>
-        <div className="stat-card stat-card--amber">
-          <div className="stat-value">${pendingRevenue.toLocaleString()}</div>
-          <div className="stat-label">Pending Pipeline</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{upcomingEvents.length}</div>
-          <div className="stat-label">Upcoming Events</div>
-        </div>
-      </div>
-
-      <div className="dashboard-grid">
-        <div className="card">
-          <div className="card-header">Projects</div>
-          <div className="project-list">
-            {(projects||[]).map(p => (
-              <div key={p.id} className="project-row">
-                <span className="project-emoji">{p.emoji}</span>
-                <div className="project-row-info">
-                  <div className="project-row-name">{p.name}</div>
-                  <div className="progress-bar" style={{ marginTop:4 }}>
-                    <div className="progress-fill" style={{ width:`${p.progress}%`, background:p.color }}/>
-                  </div>
-                </div>
-                <span className={`badge badge--${p.status.toLowerCase().replace(/ /g,'-')}`}>{p.status}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">Next Up</div>
-          <div className="event-list">
-            {upcomingEvents.length === 0 && <div style={{ color:'var(--text-muted)', fontSize:12 }}>No upcoming events</div>}
-            {upcomingEvents.map(e => (
-              <div key={e.id} className="event-row">
-                <div className="event-type" style={{ background:TYPE_COLORS[e.type]||'#5A6480' }}/>
-                <div className="event-info">
-                  <div className="event-title">{e.title}</div>
-                  <div className="event-meta">{e.project} · {new Date(e.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">Pipeline Spotlight</div>
-          {hotDeals.length === 0 && <div style={{ color:'var(--text-muted)', fontSize:12 }}>No active deals</div>}
-          {hotDeals.map(d => (
-            <div key={d.id} className="pipeline-row">
-              <div className="pipeline-org">{d.org}</div>
-              <div className="pipeline-name">{d.name}</div>
-              <div className="pipeline-meta">
-                <span className="badge">{d.stage}</span>
-                {d.valueUSD > 0 && <span className="pipeline-value">${d.valueUSD.toLocaleString()}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <HealthScore projects={projects} pipeline={pipeline} finance={finance} />
-        <FXRates />
-      </div>
-
-      <div style={{marginTop:18}}>
-        <Estate compact />
-      </div>
-    </div>
-  );
+  </div>;
 }

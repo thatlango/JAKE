@@ -1,233 +1,26 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { askClaude } from '../api/claude';
+import { Button, EmptyState, LoadingRows, PageHeader, Panel, Pill, StateBanner, formatDate } from '../components/ProductUI';
 
-const TYPES = ['Grant Application', 'Consulting Proposal', 'Partnership MOU', 'Service Agreement', 'Project Brief'];
+const TYPES=['Consulting Proposal','Grant Application','Partnership MOU','Service Agreement','Project Brief'];
+const EMPTY={title:'',type:'Consulting Proposal',client:'',value:'',dealId:'',content:'',status:'Draft'};
+const tone=s=>s==='Accepted'?'success':s==='Sent'?'info':s==='Rejected'?'danger':'neutral';
 
-const TYPE_HINTS = {
-  'Grant Application':   'executive summary, problem statement, objectives, methodology, budget, impact metrics, team qualifications, sustainability',
-  'Consulting Proposal': 'understanding of need, proposed approach, deliverables, timeline, fees, team, terms and conditions',
-  'Partnership MOU':     'parties, purpose, roles & responsibilities, resource commitments, duration, reporting, governance, exit clause',
-  'Service Agreement':   'scope of services, deliverables, timeline, payment schedule, IP ownership, termination clause',
-  'Project Brief':       'background, goals, target audience, deliverables, timeline, budget, success metrics',
-};
-
-const STATUS_COLOR = {
-  Draft:    'var(--text-muted)',
-  Sent:     'var(--accent)',
-  Accepted: 'var(--green)',
-  Rejected: 'var(--red)',
-  Archived: 'var(--text-dim)',
-};
-
-function useProposals() {
-  const [proposals, setProposals] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('jake_proposals') || '[]'); } catch { return []; }
-  });
-  const persist = (p) => { setProposals(p); localStorage.setItem('jake_proposals', JSON.stringify(p)); };
-  return {
-    proposals,
-    add:    (p) => persist([p, ...proposals]),
-    update: (id, ch) => persist(proposals.map(p => p.id === id ? { ...p, ...ch } : p)),
-    del:    (id) => persist(proposals.filter(p => p.id !== id)),
-  };
-}
-
-export default function Proposals({ pipeline, openAI }) {
-  const { proposals, add, update, del } = useProposals();
-  const [selected, setSelected]     = useState(null);
-  const [editing,  setEditing]      = useState(false);
-  const [editText, setEditText]     = useState('');
-  const [showForm, setShowForm]     = useState(false);
-  const [busy,     setBusy]         = useState(false);
-  const [form, setForm] = useState({ title: '', type: 'Consulting Proposal', client: '', value: '', dealId: '' });
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const generate = async () => {
-    if (!form.title.trim()) return;
-    setBusy(true);
-    const deal = (pipeline || []).find(p => p.id === form.dealId);
-    const context = deal
-      ? `Deal: "${deal.name}" with ${deal.org}. Stage: ${deal.stage}. Value: ${deal.valueUSD > 0 ? `$${deal.valueUSD.toLocaleString()}` : 'TBD'}. Notes: ${deal.notes || 'none'}.`
-      : `Proposal: "${form.title}". Client: ${form.client || 'TBD'}. Value: ${form.value || 'TBD'}.`;
-    const content = await askClaude([{ role:'user', content:
-      `Write a professional ${form.type} for Jacob Odur, Founder of Tuku-Tuku Labs (Uganda-based consulting & tech firm, Northern Uganda).\n\n${context}\n\nInclude these sections: ${TYPE_HINTS[form.type]}.\n\nFormat with clear headings (## Section). Be specific to the Uganda/East Africa context. Professional tone. First person from Jacob's perspective.`
-    }], 'pipeline');
-    add({
-      id: `prop_${Date.now()}`,
-      title: form.title,
-      type:  form.type,
-      client: deal?.org || form.client,
-      value:  deal?.valueUSD > 0 ? `$${deal.valueUSD.toLocaleString()}` : form.value,
-      dealId: form.dealId,
-      content: typeof content === 'string' ? content : '',
-      status: 'Draft',
-      createdAt: new Date().toISOString(),
-    });
-    setForm({ title:'', type:'Consulting Proposal', client:'', value:'', dealId:'' });
-    setShowForm(false);
-    setBusy(false);
-  };
-
-  const exportPDF = (p) => {
-    const win = window.open('', '_blank');
-    const html = (p.content || '')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br>');
-    win.document.write(`<!DOCTYPE html><html><head><title>${p.title}</title><style>
-      body{font-family:Georgia,serif;max-width:760px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.75}
-      h1{font-size:26px;margin-bottom:4px}h2{font-size:18px;margin-top:32px;border-bottom:1px solid #ddd;padding-bottom:6px}
-      h3{font-size:15px;margin-top:20px}.meta{color:#666;font-size:13px;margin-bottom:32px;border-bottom:1px solid #eee;padding-bottom:12px}
-      @media print{body{margin:20px}}</style></head>
-      <body><h1>${p.title}</h1>
-      <div class="meta">${p.type} &nbsp;·&nbsp; ${p.client} &nbsp;·&nbsp; ${p.value || 'Value TBD'} &nbsp;·&nbsp; ${new Date(p.createdAt).toLocaleDateString('en-GB',{year:'numeric',month:'long',day:'numeric'})}</div>
-      <div>${html}</div></body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 400);
-  };
-
-  const sel = proposals.find(p => p.id === selected);
-  const inp = (pl, k, type='text') => (
-    <input type={type} value={form[k]} onChange={e => set(k, e.target.value)} placeholder={pl}
-      style={{ width:'100%', background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:6, padding:'8px 10px', color:'var(--text)', fontSize:13, marginBottom:8 }} />
-  );
-
-  return (
-    <div className="module">
-      <div className="module-header">
-        <div>
-          <h1 className="module-title">Proposals</h1>
-          <p className="module-sub">{proposals.length} saved · {proposals.filter(p=>p.status==='Draft').length} drafts · {proposals.filter(p=>p.status==='Accepted').length} accepted</p>
-        </div>
-        <div style={{ display:'flex', gap:8 }}>
-          <button className="ai-trigger-sm" onClick={() => setShowForm(s=>!s)}>+ Generate</button>
-          <button className="ai-trigger" onClick={() => openAI('Help me write a compelling proposal for a grant or consulting engagement in Uganda.')}>✦ Ask AI</button>
-        </div>
-      </div>
-
-      {showForm && (
-        <div className="pipeline-add-form">
-          <div style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:14, marginBottom:12 }}>Generate Proposal with AI</div>
-          <div className="pipeline-form-grid">
-            {inp('Proposal title *', 'title')}
-            {inp('Client / Funder name', 'client')}
-          </div>
-          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-            <select value={form.type} onChange={e => set('type', e.target.value)}
-              style={{ flex:2, background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:6, padding:'8px 10px', color:'var(--text)', fontSize:13 }}>
-              {TYPES.map(t => <option key={t}>{t}</option>)}
-            </select>
-            <select value={form.dealId} onChange={e => set('dealId', e.target.value)}
-              style={{ flex:2, background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:6, padding:'8px 10px', color:'var(--text)', fontSize:13 }}>
-              <option value="">— Link to pipeline deal —</option>
-              {(pipeline||[]).map(d => <option key={d.id} value={d.id}>{d.name} · {d.org}</option>)}
-            </select>
-            {inp('Value (e.g. $5,000)', 'value')}
-          </div>
-          <div style={{ display:'flex', gap:8 }}>
-            <button onClick={generate} disabled={busy || !form.title.trim()}
-              style={{ flex:1, padding:9, background: busy?'var(--surface-3)':'var(--accent)', color: busy?'var(--text-muted)':'#07090F', border:'none', borderRadius:6, fontWeight:700, fontSize:13, cursor: busy?'not-allowed':'pointer', fontFamily:'Syne,sans-serif' }}>
-              {busy ? '✦ Writing…' : '✦ Generate with AI'}
-            </button>
-            <button onClick={() => setShowForm(false)}
-              style={{ padding:'9px 14px', background:'var(--surface-3)', color:'var(--text-muted)', border:'none', borderRadius:6, cursor:'pointer', fontSize:13 }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="projects-layout">
-        {/* List */}
-        <div className="projects-list">
-          {proposals.length === 0 && (
-            <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)' }}>
-              <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
-              <div style={{ fontFamily:'Syne,sans-serif', fontWeight:600, marginBottom:6 }}>No proposals yet</div>
-              <div style={{ fontSize:12 }}>Generate your first from a pipeline deal or scratch</div>
-            </div>
-          )}
-          {proposals.map(p => (
-            <div key={p.id}
-              className={`project-card ${selected===p.id?'project-card--active':''}`}
-              style={{ '--project-color': STATUS_COLOR[p.status]||'var(--text-dim)', cursor:'pointer' }}
-              onClick={() => { setSelected(p.id); setEditing(false); }}>
-              <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:14 }}>{p.title}</div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{p.client}{p.value ? ` · ${p.value}` : ''}</div>
-                </div>
-                <span className="badge">{p.type.split(' ')[0]}</span>
-              </div>
-              <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'center' }}>
-                <select value={p.status}
-                  onChange={e => { e.stopPropagation(); update(p.id,{status:e.target.value}); }}
-                  onClick={e => e.stopPropagation()}
-                  style={{ fontSize:11, background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:4, padding:'2px 6px', color:STATUS_COLOR[p.status]||'var(--text-muted)', cursor:'pointer' }}>
-                  {Object.keys(STATUS_COLOR).map(s => <option key={s}>{s}</option>)}
-                </select>
-                <span style={{ fontSize:10, color:'var(--text-dim)', marginLeft:'auto', fontFamily:'JetBrains Mono,monospace' }}>
-                  {new Date(p.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Detail */}
-        <div className="project-detail">
-          {!sel ? (
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', flexDirection:'column', gap:8, color:'var(--text-muted)' }}>
-              <div style={{ fontSize:36 }}>📋</div>
-              <div>Select a proposal to view</div>
-            </div>
-          ) : (
-            <>
-              <div className="detail-header">
-                <div style={{ flex:1 }}>
-                  <div className="detail-name">{sel.title}</div>
-                  <div className="detail-tech">{sel.type} · {sel.client}</div>
-                </div>
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  <button onClick={() => { setEditing(e=>!e); setEditText(sel.content); }}
-                    style={{ padding:'5px 10px', background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, color:'var(--text-muted)', cursor:'pointer' }}>
-                    {editing ? '✕ Cancel' : '✎ Edit'}
-                  </button>
-                  {editing && (
-                    <button onClick={() => { update(sel.id,{content:editText}); setEditing(false); }}
-                      style={{ padding:'5px 10px', background:'var(--accent)', border:'none', borderRadius:6, fontSize:11, color:'#07090F', fontWeight:700, cursor:'pointer' }}>
-                      Save
-                    </button>
-                  )}
-                  <button onClick={() => exportPDF(sel)}
-                    style={{ padding:'5px 10px', background:'var(--blue-dim)', border:'1px solid rgba(94,106,210,.2)', borderRadius:6, fontSize:11, color:'var(--blue)', cursor:'pointer' }}>
-                    ↗ PDF
-                  </button>
-                  <button onClick={() => { del(sel.id); setSelected(null); }}
-                    style={{ padding:'5px 10px', background:'var(--red-dim)', border:'1px solid rgba(255,71,87,.2)', borderRadius:6, fontSize:11, color:'var(--red)', cursor:'pointer' }}>
-                    ✕
-                  </button>
-                </div>
-              </div>
-              <div className="task-list" style={{ padding:'16px 20px', overflowY:'auto' }}>
-                {editing ? (
-                  <textarea value={editText} onChange={e => setEditText(e.target.value)}
-                    style={{ width:'100%', minHeight:500, background:'var(--surface-3)', border:'1px solid var(--border)', borderRadius:6, padding:12, color:'var(--text)', fontSize:13, lineHeight:1.75, resize:'vertical', fontFamily:'DM Sans,sans-serif' }} />
-                ) : (
-                  <div className="proposal-content"
-                    dangerouslySetInnerHTML={{ __html: (sel.content||'')
-                      .replace(/^## (.+)$/gm,'<h3 class="prop-h2">$1</h3>')
-                      .replace(/^### (.+)$/gm,'<h4 class="prop-h3">$1</h4>')
-                      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-                      .replace(/\n/g,'<br>')
-                    }} />
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+export default function Proposals(){
+  const[proposals,setProposals]=useState([]),[pipeline,setPipeline]=useState([]),[selected,setSelected]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[drawer,setDrawer]=useState(null),[form,setForm]=useState(EMPTY),[busy,setBusy]=useState(false),[aiReady,setAiReady]=useState(false);
+  const load=useCallback(async()=>{setLoading(true);try{const[a,b,c]=await Promise.all([fetch('/api/proposals'),fetch('/api/pipeline'),fetch('/api/integrations/status')]);const[pa,pi,ci]=await Promise.all([a.json(),b.json(),c.json()]);setProposals(pa.proposals||[]);setPipeline(pi.pipeline||[]);setAiReady((ci.integrations||[]).find(x=>x.id==='anthropic')?.configured===true);}catch(e){setError('Proposals could not be loaded.');}setLoading(false);},[]);useEffect(()=>{load();},[load]);
+  const current=proposals.find(x=>x.id===selected)||null;
+  const stats=useMemo(()=>({draft:proposals.filter(x=>x.status==='Draft').length,sent:proposals.filter(x=>x.status==='Sent').length,accepted:proposals.filter(x=>x.status==='Accepted').length}),[proposals]);
+  const openNew=()=>{setForm(EMPTY);setDrawer('new');};const edit=p=>{setForm({...EMPTY,...p,dealId:p.deal_id||p.dealId||''});setDrawer(p.id);};
+  const generate=async()=>{if(!form.title.trim())return;setBusy(true);const deal=pipeline.find(x=>x.id===form.dealId);const context=deal?`Proposal title: ${form.title}. Type: ${form.type}. Client: ${deal.org}. Pursuit: ${deal.name}. Stage: ${deal.stage}. Value: ${deal.valueUSD||0} USD. Notes: ${deal.notes||''}.`:`Proposal title: ${form.title}. Type: ${form.type}. Client: ${form.client||'not specified'}. Value: ${form.value||'not specified'}.`;const reply=await askClaude([{role:'user',content:'Draft a professional proposal structure and first draft. Use clear headings, scope, approach, deliverables, timeline, fees/value where known, assumptions and next step. Do not invent facts not supplied.'}],'proposals',context);setForm(f=>({...f,content:reply}));setBusy(false);};
+  const save=async()=>{if(!form.title.trim())return;setBusy(true);const r=await fetch(drawer==='new'?'/api/proposals':`/api/proposals/${encodeURIComponent(drawer)}`,{method:drawer==='new'?'POST':'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const d=await r.json().catch(()=>({}));if(!r.ok)setError(d.error||'Proposal could not be saved.');else{setDrawer(null);await load();setSelected(d.proposal?.id||selected);}setBusy(false);};
+  const updateStatus=async(p,status)=>{await fetch(`/api/proposals/${encodeURIComponent(p.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});await load();};
+  const remove=async p=>{if(!confirm(`Delete ${p.title}?`))return;await fetch(`/api/proposals/${encodeURIComponent(p.id)}`,{method:'DELETE'});setSelected(null);await load();};
+  const printProposal=p=>{const win=window.open('','_blank');if(!win)return;const safe=String(p.content||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/^##? (.+)$/gm,'<h2>$1</h2>').replace(/\n/g,'<br>');win.document.write(`<html><head><title>${p.title}</title><style>body{font:16px/1.65 Georgia,serif;max-width:800px;margin:50px auto;padding:0 30px;color:#18201d}h1,h2{font-family:Arial,sans-serif}h2{margin-top:30px}</style></head><body><h1>${p.title}</h1><p><strong>${p.client||''}</strong> · ${p.type}</p>${safe}</body></html>`);win.document.close();win.print();};
+  return <div className="module"><PageHeader eyebrow="Business development" title="Proposals" subtitle="Durable proposal drafts connected to live pipeline pursuits—not browser-local documents." actions={<Button icon="plus" onClick={openNew}>New proposal</Button>}/>{error&&<StateBanner tone="danger" title="Proposal data needs attention">{error}</StateBanner>}{!aiReady&&<StateBanner tone="info" title="AI drafting is not configured">You can create, edit, track and print proposals now. AI generation will activate when the server AI credential is added.</StateBanner>}
+    <div className="px-metrics"><div className="px-metric"><div className="px-metric-value">{proposals.length}</div><div className="px-metric-label">Proposals</div><div className="px-metric-helper">Durable JakeOS records</div></div><div className="px-metric"><div className="px-metric-value">{stats.draft}</div><div className="px-metric-label">Draft</div><div className="px-metric-helper">Still being worked</div></div><div className="px-metric"><div className="px-metric-value">{stats.sent}</div><div className="px-metric-label">Sent</div><div className="px-metric-helper">Awaiting decision</div></div><div className="px-metric px-metric--success"><div className="px-metric-value">{stats.accepted}</div><div className="px-metric-label">Accepted</div><div className="px-metric-helper">Converted work</div></div></div>
+    <div className="px-grid-2"><Panel title="Proposal library" subtitle="Open a draft to review its content and status.">{loading?<LoadingRows count={5}/>:proposals.length===0?<EmptyState icon="document" title="No proposals yet" body="Create one from a live pipeline pursuit or start a standalone document." action={<Button variant="tonal" onClick={openNew}>Create proposal</Button>}/>:<div className="px-list">{proposals.map(p=><button key={p.id} className="px-list-row" onClick={()=>setSelected(p.id)} style={{width:'100%',textAlign:'left',cursor:'pointer',borderColor:selected===p.id?'rgba(36,92,70,.35)':undefined}}><div className="px-list-main"><div className="px-list-title">{p.title}</div><div className="px-list-sub">{p.client||'No client'} · {p.type} · updated {formatDate(p.updated_at)}</div></div><Pill tone={tone(p.status)}>{p.status}</Pill></button>)}</div>}</Panel>
+      <Panel title={current?.title||'Proposal detail'} subtitle={current?`${current.client||'No client'} · ${current.type}`:'Select a proposal from the library.'}>{current?<><div className="px-between" style={{marginBottom:14}}><Pill tone={tone(current.status)}>{current.status}</Pill><div className="px-row"><Button variant="ghost" onClick={()=>printProposal(current)}>Print / PDF</Button><Button variant="secondary" onClick={()=>edit(current)}>Edit</Button></div></div><div style={{whiteSpace:'pre-wrap',fontSize:13,lineHeight:1.65,maxHeight:'60vh',overflow:'auto',padding:'4px 2px'}}>{current.content||'No proposal content yet.'}</div><div className="px-form-actions" style={{justifyContent:'flex-start'}}>{current.status==='Draft'&&<Button variant="tonal" onClick={()=>updateStatus(current,'Sent')}>Mark sent</Button>}{current.status==='Sent'&&<><Button variant="tonal" onClick={()=>updateStatus(current,'Accepted')}>Accepted</Button><Button variant="danger" onClick={()=>updateStatus(current,'Rejected')}>Rejected</Button></>}<Button variant="ghost" onClick={()=>remove(current)}>Delete</Button></div></>:<EmptyState icon="document" title="Choose a proposal" body="The detail view keeps drafting, status and export actions in one place."/>}</Panel></div>
+    {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card"><PageHeader eyebrow="Proposal" title={drawer==='new'?'New proposal':'Edit proposal'} subtitle="Link to a pursuit where possible so context stays connected." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/><div className="px-stack"><div className="px-field"><label>Title</label><input autoFocus value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))}/></div><div className="px-form-grid"><div className="px-field"><label>Type</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>{TYPES.map(x=><option key={x}>{x}</option>)}</select></div><div className="px-field"><label>Pipeline pursuit</label><select value={form.dealId||''} onChange={e=>{const deal=pipeline.find(x=>x.id===e.target.value);setForm(f=>({...f,dealId:e.target.value,client:deal?.org||f.client,value:deal?.valueUSD?`$${Number(deal.valueUSD).toLocaleString()}`:f.value}))}}><option value="">Standalone</option>{pipeline.map(x=><option key={x.id} value={x.id}>{x.org} · {x.name}</option>)}</select></div></div><div className="px-form-grid"><div className="px-field"><label>Client</label><input value={form.client||''} onChange={e=>setForm(f=>({...f,client:e.target.value}))}/></div><div className="px-field"><label>Value</label><input value={form.value||''} onChange={e=>setForm(f=>({...f,value:e.target.value}))}/></div></div><div className="px-between"><div className="px-field" style={{minWidth:160}}><label>Status</label><select value={form.status||'Draft'} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{['Draft','Sent','Accepted','Rejected','Archived'].map(x=><option key={x}>{x}</option>)}</select></div><Button variant="tonal" icon="spark" disabled={!aiReady||busy} onClick={generate}>{busy?'Drafting…':'Draft with AI'}</Button></div><div className="px-field"><label>Content</label><textarea style={{minHeight:360}} value={form.content||''} onChange={e=>setForm(f=>({...f,content:e.target.value}))} placeholder="Write or paste the proposal here…"/></div></div><div className="px-form-actions"><Button variant="secondary" onClick={()=>setDrawer(null)}>Cancel</Button><Button onClick={save} disabled={busy}>{busy?'Saving…':'Save proposal'}</Button></div></div></div>}
+  </div>;
 }
