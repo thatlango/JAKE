@@ -1,45 +1,64 @@
 services:
-  jakeos-db:
+  db:
     image: postgres:17-alpine
+    container_name: jakeos-db
     restart: unless-stopped
+    env_file:
+      - /opt/tuku/secrets/jakeos.env
     environment:
-      POSTGRES_DB: jakeos
-      POSTGRES_USER: jakeos
+      POSTGRES_USER: ${POSTGRES_USER:-jakeos}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-jakeos}
     volumes:
-      - jakeos_pgdata:/var/lib/postgresql/data
-    networks:
-      - jakeos-internal
+      - jakeos_postgres_data:/var/lib/postgresql/data
+    networks: [jakeos-internal]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jakeos -d jakeos"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-  jakeos-web:
+  web:
     build: .
+    image: jakeos:local
+    container_name: jakeos-web
     restart: unless-stopped
     env_file:
-      - ${JAKEOS_ENV_FILE:-/opt/tuku/secrets/jakeos.env}
+      - /opt/tuku/secrets/jakeos.env
     environment:
-      DATABASE_URL: postgresql://jakeos:${POSTGRES_PASSWORD}@jakeos-db:5432/jakeos
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-jakeos}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jakeos}
+      JAKEOS_AI_ENABLED: ${JAKEOS_AI_ENABLED:-true}
+      JAKEOS_AI_BASE_URL: ${JAKEOS_AI_BASE_URL:-http://tuku-local-llm:11434}
+      JAKEOS_AI_MODEL: ${JAKEOS_AI_MODEL:-qwen3:1.7b}
     depends_on:
-      jakeos-db:
+      db:
         condition: service_healthy
     networks:
       - jakeos-internal
       - tuku-bridge
       - tuku-edge
+      - tuku-llm
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
-  jakeos_pgdata:
+  jakeos_postgres_data:
 
 networks:
   jakeos-internal:
-    internal: true
+    name: jakeos-internal
   tuku-bridge:
     external: true
     name: tuku-bridge
   tuku-edge:
     external: true
     name: tuku-edge
+  tuku-llm:
+    external: true
+    name: tuku-llm
