@@ -5,6 +5,7 @@ const {app:api,ensureSeeded}=require('./app');
 const {momentumRouter,integrationsRouter}=require('./momentum');
 const {momentumProjectsRouter}=require('./momentum-projects');
 const {estateRouter,momentumEstateRouter}=require('./estate');
+const {opsRouter,momentumOpsRouter,opsIngestRouter}=require('./ops');
 const {startJobs}=require('./jobs');
 const {requireJakeAuth,webAuthRouter,momentumAuthRouter}=require('./tuku-auth');
 const gcal=require('./gcal');
@@ -16,14 +17,17 @@ app.set('trust proxy',1);
 app.use(express.json({limit:'15mb'}));
 app.use(express.urlencoded({extended:false,limit:'1mb'}));
 
-app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'5.3',db:await db.ping(),auth:'tuku',time:new Date().toISOString()}));
+app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'5.4',db:await db.ping(),auth:'tuku',time:new Date().toISOString()}));
 app.use('/auth',webAuthRouter());
 app.use('/api/momentum/v1/auth',momentumAuthRouter());
 app.use('/api/momentum/v1/estate',momentumEstateRouter);
+app.use('/api/momentum/v1/ops',momentumOpsRouter);
 app.use('/api/momentum/v1/projects',momentumProjectsRouter);
 app.use('/api/momentum/v1',momentumRouter);
+app.use('/api/integrations/v1/ops',opsIngestRouter);
 app.use('/api/integrations/v1',integrationsRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
+app.use('/api/ops',requireJakeAuth,opsRouter);
 app.use('/api',(req,res,next)=>req.path==='/sms/receive'?next():requireJakeAuth(req,res,next),api);
 
 app.post('/share-target',requireJakeAuth,async(req,res)=>{const text=String(req.body.text||req.body.title||'').trim().slice(0,2000);if(text&&db.isReady()){const entry=parseSMS(text,'share-target',new Date().toISOString())||{id:`sms_${Date.now()}`,type:'unparsed',raw:text,sender:'share-target',timestamp:new Date().toISOString()};await db.insert('sms_transactions',{id:entry.id,type:entry.type||'unparsed',flow:entry.flow||'',amount:entry.amount||0,party:entry.party||'',provider:entry.provider||'',category:entry.category||'Other',timestamp:entry.timestamp,raw:entry.raw||text,sender:'share-target',note:'',currency:'UGX'},true);}res.redirect(303,'/?module=personal-finance');});
