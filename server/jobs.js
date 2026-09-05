@@ -7,6 +7,7 @@ const radar=require('./radar');
 const {sendDeadlineDigest,sendAlert}=require('./alerts');
 const {commandCenterOverview}=require('./overview');
 const {refreshOperations}=require('./ops');
+const {syncOpsStatusCards}=require('./ops-mobile-status');
 
 async function withJobLock(name,fn){
   const pool=db.getPool();
@@ -68,6 +69,7 @@ async function runRadarScan(){
 async function runOpsChecks({domains=false}={}){
   return withJobLock(domains?'ops-domains':'ops',async()=>{
     const result=await refreshOperations({domains});
+    await syncOpsStatusCards();
     console.log(`[Jobs] ops complete: ${result.checked} services${domains?' + domains':''}`);
     return result;
   });
