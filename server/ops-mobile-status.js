@@ -32,7 +32,21 @@ async function syncOpsStatusCards(){
 
   const services=(await db.query(`SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE consecutive_failures=0 AND last_status>=200 AND last_status<500)::int AS healthy FROM ops_services WHERE enabled=true`)).rows[0];
   if(services?.total)await upsertCard('services','Tuku services',`${services.healthy}/${services.total} production endpoints responding.`,{healthy:services.healthy,total:services.total});
-  return{host:!!host,domains:roots.length,services:services?.total||0};
+
+  let subscriptions=[];
+  try{subscriptions=(await db.query(`SELECT id,name,provider,plan_name,billing_mode,billing_cycle,amount,currency,next_renewal_at,expires_at,auto_renew,status,usage_current,usage_limit,usage_unit,usage_period_end FROM ops_subscriptions WHERE status='active' ORDER BY COALESCE(expires_at,next_renewal_at) NULLS LAST,name`)).rows;}catch{}
+  if(subscriptions.length){
+    const due=subscriptions.filter(s=>s.expires_at||s.next_renewal_at).map(s=>({...s,dueAt:s.expires_at||s.next_renewal_at,dueDays:days(s.expires_at||s.next_renewal_at)})).sort((a,b)=>(a.dueDays??99999)-(b.dueDays??99999));
+    const missing=subscriptions.filter(s=>s.billing_mode==='recurring'&&!s.expires_at&&!s.next_renewal_at);
+    const quota=subscriptions.filter(s=>Number(s.usage_limit)>0&&Number.isFinite(Number(s.usage_current)));
+    const parts=[];
+    if(due[0])parts.push(`${due[0].name}: ${due[0].dueDays}d`);
+    if(missing.length)parts.push(`${missing.length} renewal date${missing.length===1?'':'s'} to confirm`);
+    if(quota.length)parts.push(quota.map(s=>`${s.name} ${Math.round(Number(s.usage_current)/Number(s.usage_limit)*100)}%`).join(' · '));
+    if(!parts.length)parts.push(`${subscriptions.length} services tracked`);
+    await upsertCard('renewals','Subscriptions & renewals',parts.join(' · '),{subscriptions:subscriptions.map(s=>({id:s.id,name:s.name,provider:s.provider,planName:s.plan_name,billingMode:s.billing_mode,billingCycle:s.billing_cycle,amount:s.amount,currency:s.currency,nextRenewalAt:s.next_renewal_at,expiresAt:s.expires_at,autoRenew:s.auto_renew,usageCurrent:s.usage_current,usageLimit:s.usage_limit,usageUnit:s.usage_unit,usagePeriodEnd:s.usage_period_end}))});
+  }
+  return{host:!!host,domains:roots.length,services:services?.total||0,subscriptions:subscriptions.length};
 }
 
 module.exports={syncOpsStatusCards};
