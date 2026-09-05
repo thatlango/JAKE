@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect JakeOS VPS operations telemetry every 5 minutes
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=5min
+AccuracySec=20s
+Persistent=true
+Unit=jakeos-ops-agent.service
+
+[Install]
+WantedBy=timers.target
