@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Renewals from './Renewals';
 import './Operations.css';
 
 const fmtPct=v=>Number.isFinite(Number(v))?`${Number(v).toFixed(0)}%`:'—';
@@ -23,7 +24,7 @@ export default function Operations(){
   if(loading&&!data)return <div className="ops-page"><div className="ops-loading">Loading estate operations…</div></div>;
   return <div className="ops-page">
     <header className="ops-hero">
-      <div><div className="ops-eyebrow">Estate operations</div><h1>Infrastructure & continuity</h1><p>Live service health, VPS capacity, domains, TLS and infrastructure exceptions across Tuku.</p></div>
+      <div><div className="ops-eyebrow">Estate operations</div><h1>Infrastructure & continuity</h1><p>Live service health, VPS capacity, domains, TLS, renewals and infrastructure exceptions across Tuku.</p></div>
       <button className="ops-refresh" onClick={()=>load(true)} disabled={refreshing}>{refreshing?'Checking…':'Run full check'}</button>
     </header>
     {error&&<div className="ops-banner">{error}</div>}
@@ -55,6 +56,8 @@ export default function Operations(){
         {(data?.attention||[]).length===0?<div className="ops-empty">No infrastructure exceptions are currently open.</div>:(data.attention||[]).map(item=><article className={`ops-attention ops-attention--${item.severity}`} key={item.id}><div className="ops-attention-severity">{item.severity}</div><div><h3>{item.title}</h3><p>{item.summary}</p>{item.due_at&&<small>Due {fmtDate(item.due_at)}</small>}</div></article>)}
       </div>
     </section>
+
+    <Renewals/>
 
     <section className="ops-section">
       <div className="ops-section-head"><div><span>Services</span><h2>Production endpoints</h2></div><span className="ops-muted">5-minute checks</span></div>
