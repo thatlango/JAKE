@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import './Renewals.css';
 
 const fmtDate=v=>v?new Date(v).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
 const money=(amount,currency='USD')=>amount==null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency}).format(Number(amount));
