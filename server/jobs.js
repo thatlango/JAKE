@@ -6,6 +6,7 @@ const crm=require('./crm');
 const radar=require('./radar');
 const {sendDeadlineDigest,sendAlert}=require('./alerts');
 const {commandCenterOverview}=require('./overview');
+const {refreshOperations}=require('./ops');
 
 async function withJobLock(name,fn){
   const pool=db.getPool();
@@ -64,6 +65,14 @@ async function runRadarScan(){
   });
 }
 
+async function runOpsChecks({domains=false}={}){
+  return withJobLock(domains?'ops-domains':'ops',async()=>{
+    const result=await refreshOperations({domains});
+    console.log(`[Jobs] ops complete: ${result.checked} services${domains?' + domains':''}`);
+    return result;
+  });
+}
+
 async function runWeeklyReview(){
   return withJobLock('weekly-review',async()=>{
     const overview=await commandCenterOverview();
@@ -72,8 +81,7 @@ async function runWeeklyReview(){
     const estateTotals=estate.totals||{};
     const fastest=(estate.products||[]).filter(p=>Number(p.growth7dPercent)>0).sort((a,b)=>Number(b.growth7dPercent)-Number(a.growth7dPercent)).slice(0,3);
     const lines=[
-      '🧭 *JakeOS Weekly Review*',
-      '',
+      '🧭 *JakeOS Weekly Review*','',
       `Open work: ${overview.tasks.open||0} · overdue: ${overview.tasks.overdue||0} · blocked: ${overview.tasks.blocked||0}`,
       `Active pipeline: ${overview.pipeline.active||0} · upcoming deadlines: ${overview.pipeline.deadlines_14d||0}`,
       `Receivables: ${overview.invoices.receivables||0} · overdue invoices: ${overview.invoices.overdue_count||0}`,
@@ -81,8 +89,7 @@ async function runWeeklyReview(){
       estate.available?`Tuku estate: ${estateTotals.activeUsers7d||0} active users (7d) · ${estateTotals.ordersActive||0} live orders · UGX ${Number(estateTotals.realizedRevenueUGX||0).toLocaleString('en-UG')} realized`:'Tuku estate telemetry unavailable',
       fastest.length?`Fastest 7d growth: ${fastest.map(p=>`${p.name} +${Number(p.growth7dPercent).toFixed(1)}%`).join(' · ')}`:'',
       topSignals.length?'':'No unresolved attention signals.',
-      ...topSignals.map((s,i)=>`${i+1}. ${s.title}${s.summary?` — ${s.summary}`:''}`),
-      '',
+      ...topSignals.map((s,i)=>`${i+1}. ${s.title}${s.summary?` — ${s.summary}`:''}`),'',
       '_Open JakeOS for the full command-center view._'
     ].filter(Boolean);
     const result=await sendAlert({message:lines.join('\n'),subject:'JakeOS Weekly Review',channels:['telegram','email','whatsapp']});
@@ -93,17 +100,19 @@ async function runWeeklyReview(){
 
 function startJobs(){
   if(process.env.NODE_ENV==='test'||String(process.env.JOBS_ENABLED||'true').toLowerCase()==='false'){
-    console.log('[Jobs] scheduled jobs disabled');
-    return[];
+    console.log('[Jobs] scheduled jobs disabled');return[];
   }
   const timezone=process.env.JOBS_TIMEZONE||'Africa/Kampala';
   const jobs=[
+    cron.schedule('*/5 * * * *',()=>runOpsChecks().catch(e=>console.error('[Jobs] ops failed:',e)),{timezone}),
+    cron.schedule('20 */6 * * *',()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] ops domains failed:',e)),{timezone}),
     cron.schedule('0 7 * * *',()=>runDailyOperations().catch(e=>console.error('[Jobs] daily failed:',e)),{timezone}),
     cron.schedule('15 */6 * * *',()=>runRadarScan().catch(e=>console.error('[Jobs] radar failed:',e)),{timezone}),
     cron.schedule('15 7 * * 1',()=>runWeeklyReview().catch(e=>console.error('[Jobs] weekly failed:',e)),{timezone})
   ];
-  console.log(`[Jobs] scheduled in ${timezone}: daily 07:00, Radar every 6h, weekly Monday 07:15`);
+  console.log(`[Jobs] scheduled in ${timezone}: ops every 5m, domain/SSL every 6h, daily 07:00, Radar every 6h, weekly Monday 07:15`);
+  setTimeout(()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] initial ops failed:',e)),15000).unref?.();
   return jobs;
 }
 
-module.exports={startJobs,runDailyOperations,runRadarScan,runWeeklyReview,syncGoogleCalendar,withJobLock};
+module.exports={startJobs,runDailyOperations,runRadarScan,runWeeklyReview,runOpsChecks,syncGoogleCalendar,withJobLock};
