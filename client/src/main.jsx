@@ -8,6 +8,7 @@ import './sprint-modules.css';
 import './relationships.css';
 import './layout-fix.css';
 import './dashboard-reference.css';
+import './minimal-kpi-shell.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
