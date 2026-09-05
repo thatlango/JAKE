@@ -1,47 +1,36 @@
 'use strict';
 
+const {readFileSync}=require('node:fs');
+
 const DEFAULT_MODEL='qwen3:1.7b';
-const DEFAULT_BASE_URL='http://tuku-local-llm:11434';
+const DEFAULT_CORE_URL='http://tuku-core-api:3000';
 
 function enabled(){
   return !['false','0','off','no'].includes(String(process.env.JAKEOS_AI_ENABLED||'true').toLowerCase());
 }
-function baseUrl(){return String(process.env.JAKEOS_AI_BASE_URL||DEFAULT_BASE_URL).replace(/\/$/,'');}
+function coreUrl(){return String(process.env.TUKU_CORE_INTERNAL_URL||process.env.TUKU_CORE_URL||DEFAULT_CORE_URL).replace(/\/$/,'');}
 function model(){return String(process.env.JAKEOS_AI_MODEL||DEFAULT_MODEL).trim()||DEFAULT_MODEL;}
 function clean(value,max=12000){return String(value??'').trim().slice(0,max);}
-function status(){return{enabled:enabled(),provider:'local-ollama',model:model(),private:true};}
+function integrationKey(){
+  const configured=String(process.env.JAKEOS_AI_INTEGRATION_KEY||'').trim();
+  if(configured)return configured;
+  try{return readFileSync('/run/secrets/tuku-ai-key','utf8').trim();}catch{return '';}
+}
+function status(){return{enabled:enabled(),provider:'tuku-core',model:model(),private:true,scope:'estate'};}
 
 async function ollamaChat({messages,systemPrompt='',temperature=0.2,maxTokens=1000,json=false,timeoutMs=60000}){
-  if(!enabled())throw Object.assign(new Error('Jake local AI is disabled'),{status:503});
-  const safeMessages=[];
-  if(systemPrompt)safeMessages.push({role:'system',content:clean(systemPrompt,18000)});
-  for(const message of Array.isArray(messages)?messages.slice(-24):[]){
-    const role=message?.role==='assistant'?'assistant':'user';
-    const content=clean(message?.content,8000);
-    if(content)safeMessages.push({role,content});
-  }
+  if(!enabled())throw Object.assign(new Error('Jake AI is disabled'),{status:503});
+  const safeMessages=(Array.isArray(messages)?messages:[]).slice(-16).map(message=>({role:message?.role==='assistant'?'assistant':'user',content:clean(message?.content,6000)})).filter(message=>message.content);
   if(!safeMessages.length)throw Object.assign(new Error('At least one message is required'),{status:422});
-  let response;
-  try{
-    response=await fetch(`${baseUrl()}/api/chat`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:model(),stream:false,think:false,messages:safeMessages,
-        ...(json?{format:'json'}:{}),
-        keep_alive:process.env.JAKEOS_AI_KEEP_ALIVE||'10m',
-        options:{temperature:Number(temperature)||0.2,num_ctx:8192,num_predict:Math.max(64,Math.min(2048,Number(maxTokens)||1000))}
-      }),
-      signal:AbortSignal.timeout(Math.max(5000,Math.min(120000,Number(timeoutMs)||60000)))
-    });
-  }catch(error){
-    throw Object.assign(new Error(`Jake local AI is unavailable: ${error.message}`),{status:503});
-  }
+  const latestUser=[...safeMessages].reverse().find(message=>message.role==='user')?.content||'';
+  const instruction=[clean(systemPrompt,4500)||'You are Jake, the private AI inside JakeOS.',`Latest user request: ${clean(latestUser,3000)}`,json?'Return valid JSON only.':'Respond directly and usefully.'].join(String.fromCharCode(10,10)).slice(0,7900);
+  const response=await fetch(`${coreUrl()}/api/v1/integrations/ai/assist`,{method:'POST',headers:{'Content-Type':'application/json','X-Tuku-Product-Code':'jakeos','X-Tuku-Integration-Key':integrationKey()},body:JSON.stringify({capability:'analyze',instruction,context:{conversation:safeMessages,responseFormat:json?'json':'text',caller:'jakeos'},temperature:Number(temperature)||0.2,mode:'interactive',maxOutputTokens:Math.max(64,Math.min(2048,Number(maxTokens)||1000))}),signal:AbortSignal.timeout(Math.max(5000,Math.min(120000,Number(timeoutMs)||60000)))}).catch(error=>{throw Object.assign(new Error(`Tuku Core AI is unavailable: ${error.message}`),{status:503});});
   const body=await response.json().catch(()=>({}));
-  if(!response.ok)throw Object.assign(new Error(body?.error||`Local AI returned HTTP ${response.status}`),{status:502});
-  const text=clean(body?.message?.content||body?.response,40000);
-  if(!text)throw Object.assign(new Error('Jake local AI returned an empty response'),{status:502});
-  return{text,model:body?.model||model(),provider:'local-ollama'};
+  if(!response.ok)throw Object.assign(new Error(String(body?.message||body?.error?.message||body?.error||`Tuku Core AI returned HTTP ${response.status}`)),{status:response.status||502});
+  const payload=body?.data&&typeof body.data==='object'?body.data:body;
+  const text=clean(payload?.text,40000);
+  if(!text)throw Object.assign(new Error('Tuku Core AI returned an empty response'),{status:502});
+  return{text,model:payload?.model||model(),provider:'tuku-core',knowledgeScope:payload?.knowledgeScope||'estate',interactionId:payload?.interactionId};
 }
 
 function parseJson(text){
