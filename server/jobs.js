@@ -10,6 +10,7 @@ const {refreshOperations}=require('./ops');
 const {syncOpsStatusCards}=require('./ops-mobile-status');
 const {ensureRootDomains}=require('./ops-root-domains');
 const {refreshRootDomains}=require('./ops-domain-refresh');
+const {evaluateSubscriptionSignals}=require('./ops-subscriptions');
 
 async function withJobLock(name,fn){
   const pool=db.getPool();
@@ -73,9 +74,10 @@ async function runOpsChecks({domains=false}={}){
     await ensureRootDomains();
     const result=await refreshOperations({domains:false});
     if(domains)await refreshRootDomains();
+    const renewals=await evaluateSubscriptionSignals();
     await syncOpsStatusCards();
-    console.log(`[Jobs] ops complete: ${result.checked} services${domains?' + domains':''}`);
-    return result;
+    console.log(`[Jobs] ops complete: ${result.checked} services${domains?' + domains':''} · ${renewals.checked} subscriptions`);
+    return{...result,renewals};
   });
 }
 
