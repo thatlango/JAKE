@@ -1,0 +1,11 @@
+[Unit]
+Description=JakeOS Tuku Estate Operations telemetry collector
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=JAKEOS_ENV_FILE=/opt/tuku/secrets/jakeos.env
+ExecStart=/usr/bin/python3 /opt/tuku/apps/jakeos/repo/ops-agent/jakeos_ops_agent.py
+Nice=10
