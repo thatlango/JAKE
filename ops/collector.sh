@@ -12,7 +12,7 @@ TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 
 python3 - <<'PY' > "$TMP"
-import json, os, shutil, socket, subprocess, time
+import datetime, json, os, shutil, socket, ssl, subprocess, time
 
 def cpu_sample():
     with open('/proc/stat') as f:
@@ -59,6 +59,29 @@ except Exception as e:
         'error': str(e)
     }]
 
+certificate_hosts = [
+    'tukutuku.org','getprediq.site','jakeos.tukutuku.org','momentum.tukutuku.org',
+    'core.tukutuku.org','units.tukutuku.org','kela.tukutuku.org','api.kela.tukutuku.org',
+    'lendflow.tukutuku.org','tukuiq.tukutuku.org','ecitaa.tukutuku.org','ecitaaapi.tukutuku.org',
+    'nena.tukutuku.org','radar.tukutuku.org','api.synced.tukutuku.org','traffiq.tukutuku.org',
+    'api.traffiq.tukutuku.org','bcp-next.tukutuku.org','api.getprediq.site','site-api.tukutuku.org',
+    'steady.tukutuku.org'
+]
+certificates = []
+context = ssl.create_default_context()
+for host in certificate_hosts:
+    try:
+        with socket.create_connection((host, 443), timeout=4) as raw_socket:
+            with context.wrap_socket(raw_socket, server_hostname=host) as tls_socket:
+                cert = tls_socket.getpeercert()
+                not_after = cert.get('notAfter')
+                if not_after:
+                    epoch = ssl.cert_time_to_seconds(not_after)
+                    expires = datetime.datetime.fromtimestamp(epoch, datetime.timezone.utc).isoformat().replace('+00:00','Z')
+                    certificates.append({'host': host, 'expiresAt': expires})
+    except Exception:
+        pass
+
 load = os.getloadavg()
 uptime = float(open('/proc/uptime').read().split()[0])
 
@@ -80,7 +103,8 @@ print(json.dumps({
         'disk_total_bytes': disk.total,
         'disk_used_bytes': disk.used
     },
-    'containers': containers
+    'containers': containers,
+    'certificates': certificates
 }))
 PY
 
