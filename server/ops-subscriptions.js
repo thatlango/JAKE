@@ -6,7 +6,7 @@ const {momentumAuth}=require('./momentum-auth');
 
 const SEED=[
   {
-    id:'ovh-vps-production',name:'OVHcloud VPS',provider:'OVHcloud',category:'infrastructure',product:'Tuku estate',plan_name:'Production VPS',billing_mode:'recurring',billing_cycle:'unknown',amount:14.50,currency:'USD',purchased_at:'2026-08-29T12:42:10Z',next_renewal_at:null,expires_at:null,auto_renew:null,status:'active',source:'gmail',source_ref:'OVH invoice WE4458838',notes:'Purchased 29 Aug 2026. Exact renewal frequency/date is not present in the invoice email and must be confirmed from OVHcloud Manager.',metadata:{invoice:'WE4458838',order:'22464306',renewalDateConfirmed:false}
+    id:'ovh-vps-production',name:'OVHcloud VPS',provider:'OVHcloud',category:'infrastructure',product:'Tuku estate',plan_name:'Production VPS',billing_mode:'recurring',billing_cycle:'unknown',amount:14.50,currency:'USD',purchased_at:'2026-08-29T12:42:10Z',next_renewal_at:null,expires_at:null,auto_renew:null,status:'active',usage_current:null,usage_limit:null,usage_unit:'',usage_period_end:null,source:'gmail',source_ref:'OVH invoice WE4458838',notes:'Purchased 29 Aug 2026. Exact renewal frequency/date is not present in the invoice email and must be confirmed from OVHcloud Manager.',metadata:{invoice:'WE4458838',order:'22464306',renewalDateConfirmed:false}
   },
   {
     id:'resend',name:'Resend',provider:'Resend',category:'email',product:'Tuku estate',plan_name:'Free / unconfirmed',billing_mode:'quota',billing_cycle:'monthly',amount:0,currency:'USD',purchased_at:'2026-03-20T19:20:46Z',next_renewal_at:null,expires_at:null,auto_renew:null,status:'active',usage_current:null,usage_limit:3000,usage_unit:'emails/month',usage_period_end:null,source:'gmail+public-pricing',source_ref:'Resend welcome 20 Mar 2026',notes:'No billing receipt was found in Gmail. Current Resend Free pricing is 3,000 emails/month with a 100/day limit; confirm plan if upgraded.',metadata:{dailyLimit:100,planConfirmed:false,noExpiry:true}
@@ -27,7 +27,7 @@ async function ensureSubscriptionSeed(){
         purchased_at=COALESCE(ops_subscriptions.purchased_at,EXCLUDED.purchased_at),usage_limit=COALESCE(ops_subscriptions.usage_limit,EXCLUDED.usage_limit),
         usage_unit=COALESCE(NULLIF(ops_subscriptions.usage_unit,''),EXCLUDED.usage_unit),notes=CASE WHEN ops_subscriptions.notes<>'' THEN ops_subscriptions.notes ELSE EXCLUDED.notes END,
         metadata=ops_subscriptions.metadata||EXCLUDED.metadata,updated_at=NOW()`,[
-      item.id,item.name,item.provider,item.category,item.product,item.plan_name,item.billing_mode,item.billing_cycle,item.amount,item.currency,item.purchased_at,item.next_renewal_at,item.expires_at,item.auto_renew,item.status,item.usage_current,item.usage_limit,item.usage_unit,item.usage_period_end,item.source,item.source_ref,item.notes,JSON.stringify(item.metadata||{})
+      item.id,item.name,item.provider,item.category,item.product,item.plan_name,item.billing_mode,item.billing_cycle,item.amount,item.currency,item.purchased_at,item.next_renewal_at,item.expires_at,item.auto_renew,item.status,item.usage_current,item.usage_limit,item.usage_unit||'',item.usage_period_end,item.source,item.source_ref,item.notes,JSON.stringify(item.metadata||{})
     ]);
   }
 }
