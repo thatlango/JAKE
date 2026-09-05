@@ -1,0 +1,4 @@
+.ops-renewal-confirm{display:grid;gap:7px;margin-top:10px;padding-top:12px;border-top:1px solid rgba(148,163,184,.16)}
+.ops-renewal-confirm span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#778197)}
+.ops-renewal-confirm input{width:100%;min-height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;background:rgba(8,12,20,.55);color:inherit;padding:8px 10px;font:inherit}
+.ops-renewal-confirm input:focus{outline:2px solid rgba(94,106,210,.35);outline-offset:1px;border-color:rgba(94,106,210,.65)}
