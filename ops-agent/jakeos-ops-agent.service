@@ -7,5 +7,5 @@ Wants=network-online.target
 Type=oneshot
 User=root
 Environment=JAKEOS_ENV_FILE=/opt/tuku/secrets/jakeos.env
-ExecStart=/usr/bin/python3 /opt/tuku/apps/jakeos/repo/ops-agent/jakeos_ops_agent.py
+ExecStart=/usr/bin/python3 /opt/tuku/bin/jakeos_ops_agent.py
 Nice=10
