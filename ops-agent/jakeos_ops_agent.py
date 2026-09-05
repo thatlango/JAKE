@@ -4,9 +4,9 @@ from __future__ import annotations
 import json, os, platform, socket, subprocess, time, urllib.request
 from pathlib import Path
 
-ENV_FILE = os.getenv("JAKEOS_ENV_FILE", "/opt/tuku/secrets/jakeos.env")
-ENDPOINT = os.getenv("JAKEOS_OPS_ENDPOINT", "http://127.0.0.1:3000/api/integrations/v1/ops/snapshot")
-BACKUP_ENDPOINT = os.getenv("JAKEOS_BACKUP_ENDPOINT", "http://127.0.0.1:3000/api/integrations/v1/ops/backup")
+ENV_FILE = os.getenv("JAKEOS_ENV_FILE", "/opt/tuku/secrets/estate-product-telemetry.env")
+ENDPOINT = os.getenv("JAKEOS_OPS_ENDPOINT", "https://jakeos.tukutuku.org/api/integrations/v1/ops/snapshot")
+BACKUP_ENDPOINT = os.getenv("JAKEOS_BACKUP_ENDPOINT", "https://jakeos.tukutuku.org/api/integrations/v1/ops/backup")
 BACKUP_ROOT = Path(os.getenv("TUKU_BACKUP_ROOT", "/opt/tuku/backups"))
 
 
@@ -116,9 +116,9 @@ def latest_backup() -> dict | None:
 
 def main() -> int:
     env = load_env(ENV_FILE)
-    token = os.getenv("OPS_INGEST_TOKEN") or env.get("OPS_INGEST_TOKEN") or env.get("JAKEOS_INGEST_TOKEN")
+    token = os.getenv("OPS_INGEST_TOKEN") or env.get("OPS_INGEST_TOKEN") or env.get("JAKEOS_INGEST_TOKEN") or env.get("TUKU_ESTATE_INSIGHTS_SECRET")
     if not token:
-        raise RuntimeError("OPS_INGEST_TOKEN or JAKEOS_INGEST_TOKEN is not configured")
+        raise RuntimeError("No JakeOS ops ingest credential is configured")
     loads = os.getloadavg()
     payload = {
         "host": {
