@@ -24,8 +24,9 @@ import ExportCentre from './modules/ExportCentre';
 import AISearch from './modules/AISearch';
 import Platforms from './modules/Platforms';
 import Estate from './modules/Estate';
+import Operations from './modules/Operations';
 
-const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','pipeline','radar','estate','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
+const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','pipeline','radar','estate','operations','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
 const readLocation=()=>{
   const match=window.location.pathname.match(/^\/estate(?:\/([^/?#]+))?\/?$/i);
   if(match)return{module:'estate',estateProduct:match[1]?decodeURIComponent(match[1]).toLowerCase():null};
@@ -69,7 +70,7 @@ export default function App(){
       </div>
     </header>
     <main className="main-content">
-      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='pipeline'&&<Pipeline openAI={openAI}/>} {module==='proposals'&&<Proposals/>} {module==='grants'&&<Grants/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='radar'&&<OpportunityRadar openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='operations'&&<Operations/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='pipeline'&&<Pipeline openAI={openAI}/>} {module==='proposals'&&<Proposals/>} {module==='grants'&&<Grants/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='radar'&&<OpportunityRadar openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
     </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={module}/><InstallPrompt/>
   </div>;
 }
