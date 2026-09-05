@@ -9,6 +9,7 @@ const {commandCenterOverview}=require('./overview');
 const {refreshOperations}=require('./ops');
 const {syncOpsStatusCards}=require('./ops-mobile-status');
 const {ensureRootDomains}=require('./ops-root-domains');
+const {refreshRootDomains}=require('./ops-domain-refresh');
 
 async function withJobLock(name,fn){
   const pool=db.getPool();
@@ -70,7 +71,8 @@ async function runRadarScan(){
 async function runOpsChecks({domains=false}={}){
   return withJobLock(domains?'ops-domains':'ops',async()=>{
     await ensureRootDomains();
-    const result=await refreshOperations({domains});
+    const result=await refreshOperations({domains:false});
+    if(domains)await refreshRootDomains();
     await syncOpsStatusCards();
     console.log(`[Jobs] ops complete: ${result.checked} services${domains?' + domains':''}`);
     return result;
