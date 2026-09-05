@@ -13,6 +13,7 @@ const GROUPS=[
     {id:'pipeline',label:'Pipeline',icon:'target'},
     {id:'radar',label:'Opportunities',icon:'spark'},
     {id:'estate',label:'Tuku Estate',icon:'estate'},
+    {id:'operations',label:'Operations',icon:'chart'},
   ]},
   {label:'Build & deliver',items:[
     {id:'proposals',label:'Proposals',icon:'document'},
