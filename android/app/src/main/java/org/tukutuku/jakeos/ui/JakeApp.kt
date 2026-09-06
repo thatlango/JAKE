@@ -274,7 +274,7 @@ private fun HomeScreen(vm: JakeViewModel, onLogout: () -> Unit) {
     val home = loaded?.data
     LaunchedEffect(Unit) { if (loaded == null) vm.refreshHome() }
     ScreenShell("Command centre", loaded?.stale == true, vm::refreshHome, onLogout) {
-        if (home == null) LoadingOrError(loaded?.error) else {
+        if (home == null) item { LoadingOrError(loaded?.error) } else {
             item {
                 Text(greeting(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text(nowLabel(), color = JakeMuted)
@@ -315,7 +315,7 @@ private fun WorkScreen(vm: JakeViewModel) {
     val projects = projectsLoaded?.data?.projects.orEmpty()
     LaunchedEffect(Unit) { if (todayLoaded == null) vm.refreshWork() }
     ScreenShell("Work", todayLoaded?.stale == true || projectsLoaded?.stale == true, vm::refreshWork) {
-        if (today == null) LoadingOrError(todayLoaded?.error) else {
+        if (today == null) item { LoadingOrError(todayLoaded?.error) } else {
             item {
                 Text("Today", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text("JakeOS-ranked work, not a generic task list.", color = JakeMuted)
@@ -347,7 +347,7 @@ private fun EstateScreen(vm: JakeViewModel, onProduct: (String) -> Unit) {
     LaunchedEffect(Unit) { if (loaded == null) vm.refreshEstate() }
     ScreenShell("Tuku Estate", loaded?.stale == true || estate?.stale == true, { vm.refreshEstate(true) }) {
         val snapshot = estate?.snapshot
-        if (snapshot == null) LoadingOrError(loaded?.error ?: estate?.error) else {
+        if (snapshot == null) item { LoadingOrError(loaded?.error ?: estate?.error) } else {
             item {
                 Text("Estate", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text("Usage, growth, orders and earnings across Tuku.", color = JakeMuted)
@@ -404,7 +404,7 @@ private fun WatchScreen(vm: JakeViewModel) {
     val watch = loaded?.data
     LaunchedEffect(Unit) { if (loaded == null) vm.refreshWatch() }
     ScreenShell("Watch", loaded?.stale == true, vm::refreshWatch) {
-        if (watch == null) LoadingOrError(loaded?.error) else {
+        if (watch == null) item { LoadingOrError(loaded?.error) } else {
             item {
                 Text("Operations", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text("Infrastructure, services, domains and renewals.", color = JakeMuted)
