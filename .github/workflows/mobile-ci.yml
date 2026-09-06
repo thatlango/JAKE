@@ -1,0 +1,111 @@
+name: JakeOS Mobile CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'server/mobile.js'
+      - 'server/index.js'
+      - 'server/tuku-auth.js'
+      - 'server/overview.js'
+      - 'server/estate.js'
+      - 'server/ops.js'
+      - 'server/priority.js'
+      - 'server/ai.js'
+      - 'database/**'
+      - 'package.json'
+      - '.github/workflows/mobile-ci.yml'
+
+jobs:
+  mobile-api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: jakeos
+          POSTGRES_USER: jakeos
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jakeos -d jakeos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      PORT: 3100
+      DATABASE_URL: postgresql://jakeos:ci_password@127.0.0.1:5432/jakeos
+      JAKEOS_TEST_AUTH_TOKEN: ci_jakeos_token
+      MOMENTUM_API_TOKEN: ci_mobile_token
+      JAKEOS_INGEST_TOKEN: ci_ingest_token
+      SMS_WEBHOOK_SECRET: ci_sms_token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check and test backend
+        run: npm run check
+      - name: Migrate database
+        run: npm run migrate
+      - name: Build web client required by server fallback
+        run: cd client && npm ci --no-audit --no-fund && npm run build
+      - name: Start JakeOS
+        run: |
+          npm start > /tmp/jakeos-mobile.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:3100/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3100/health
+      - name: Smoke-test mobile auth boundary and command API
+        run: |
+          test "$(curl -s -o /tmp/mobile-unauth -w '%{http_code}' http://127.0.0.1:3100/api/mobile/v1/home)" = "401"
+          curl -fsS http://127.0.0.1:3100/api/mobile/v1/health | jq -e '.status=="ok" and .app=="JakeOS Mobile API"'
+          curl -fsS -H 'Authorization: Bearer ci_mobile_token' http://127.0.0.1:3100/api/mobile/v1/home > /tmp/mobile-home.json
+          jq -e '.commandSummary and (.kpis|length)==4 and .work and .watch' /tmp/mobile-home.json
+          curl -fsS -H 'Authorization: Bearer ci_mobile_token' http://127.0.0.1:3100/api/mobile/v1/work/today > /tmp/mobile-today.json
+          jq -e '.tasks|type=="array"' /tmp/mobile-today.json
+          curl -fsS -H 'Authorization: Bearer ci_mobile_token' http://127.0.0.1:3100/api/mobile/v1/watch > /tmp/mobile-watch.json
+          jq -e '.score!=null and .summary' /tmp/mobile-watch.json
+      - name: Verify mobile task mutation
+        run: |
+          curl -fsS -H 'Authorization: Bearer ci_mobile_token' -H 'Content-Type: application/json' \
+            -d '{"title":"JakeOS mobile CI task","priority":"high","estimatedMinutes":20}' \
+            http://127.0.0.1:3100/api/mobile/v1/work/tasks > /tmp/mobile-task.json
+          TASK_ID="$(jq -r '.task.id' /tmp/mobile-task.json)"
+          test -n "$TASK_ID"
+          curl -fsS -X POST -H 'Authorization: Bearer ci_mobile_token' \
+            "http://127.0.0.1:3100/api/mobile/v1/work/tasks/${TASK_ID}/complete" > /tmp/mobile-completed.json
+          jq -e '.task.status=="done"' /tmp/mobile-completed.json
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/jakeos-mobile.log || true
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build and test fresh JakeOS Android app
+        working-directory: android
+        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest
+      - name: Upload QA APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jakeos-mobile-qa-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
