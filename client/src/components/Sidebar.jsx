@@ -14,6 +14,7 @@ const GROUPS=[
     {id:'radar',label:'Opportunities',icon:'spark'},
     {id:'estate',label:'Tuku Estate',icon:'estate'},
     {id:'operations',label:'Operations',icon:'chart'},
+    {id:'payments',label:'Payments',icon:'money'},
   ]},
   {label:'Build & deliver',items:[
     {id:'proposals',label:'Proposals',icon:'document'},
