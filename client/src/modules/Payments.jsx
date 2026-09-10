@@ -2,7 +2,7 @@ import { useEffect,useMemo,useState } from 'react';
 import './Payments.css';
 
 const fmt=v=>Number(v||0).toLocaleString('en-UG');
-const moneyMinor=v=>`UGX ${(Number(v||0)/100).toLocaleString('en-UG',{maximumFractionDigits:2})}`;
+const moneyMinor=v=>`UGX ${Number(v||0).toLocaleString('en-UG',{maximumFractionDigits:0})}`;
 const age=v=>{if(!v)return'—';const mins=Math.max(0,Math.round((Date.now()-new Date(v).getTime())/60000));if(mins<2)return'Just now';if(mins<60)return`${mins}m ago`;const h=Math.round(mins/60);return h<48?`${h}h ago`:`${Math.round(h/24)}d ago`;};
 
 function Stat({label,value,detail,tone=''}){return <article className={`pay-stat ${tone?`pay-stat--${tone}`:''}`}><span>{label}</span><strong>{value}</strong>{detail&&<small>{detail}</small>}</article>;}
