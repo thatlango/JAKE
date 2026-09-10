@@ -7,6 +7,7 @@ const {momentumProjectsRouter}=require('./momentum-projects');
 const {mobileRouter}=require('./mobile');
 const {estateRouter,momentumEstateRouter}=require('./estate');
 const {opsRouter,momentumOpsRouter}=require('./ops');
+const {tukuPayRouter}=require('./tukupay');
 const {opsIngestRouter}=require('./ops-ingest');
 const {subscriptionRouter,momentumSubscriptionRouter}=require('./ops-subscriptions');
 const {startJobs}=require('./jobs');
@@ -35,6 +36,7 @@ app.use('/api/integrations/v1',integrationsRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
 app.use('/api/ops/subscriptions',requireJakeAuth,subscriptionRouter);
 app.use('/api/ops',requireJakeAuth,opsRouter);
+app.use('/api/tukupay',requireJakeAuth,tukuPayRouter);
 app.use('/api',(req,res,next)=>req.path==='/sms/receive'?next():requireJakeAuth(req,res,next),api);
 
 app.post('/share-target',requireJakeAuth,async(req,res)=>{const text=String(req.body.text||req.body.title||'').trim().slice(0,2000);if(text&&db.isReady()){const entry=parseSMS(text,'share-target',new Date().toISOString())||{id:`sms_${Date.now()}`,type:'unparsed',raw:text,sender:'share-target',timestamp:new Date().toISOString()};await db.insert('sms_transactions',{id:entry.id,type:entry.type||'unparsed',flow:entry.flow||'',amount:entry.amount||0,party:entry.party||'',provider:entry.provider||'',category:entry.category||'Other',timestamp:entry.timestamp,raw:entry.raw||text,sender:'share-target',note:'',currency:'UGX'},true);}res.redirect(303,'/?module=personal-finance');});
