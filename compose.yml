@@ -26,6 +26,7 @@ services:
     env_file:
       - /opt/tuku/secrets/jakeos.env
       - /opt/tuku/secrets/estate-product-telemetry.env
+      - /opt/tuku/secrets/jakeos-tukupay.env
     environment:
       NODE_ENV: production
       PORT: 3000
