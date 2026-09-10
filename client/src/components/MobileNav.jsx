@@ -12,6 +12,7 @@ const MORE=[
   {id:'calendar',label:'Calendar',icon:'calendar'},
   {id:'crm',label:'Relationships',icon:'users'},
   {id:'cashflow',label:'Money',icon:'money'},
+  {id:'payments',label:'Payments',icon:'money'},
   {id:'pipeline',label:'Pipeline',icon:'target'},
   {id:'radar',label:'Opportunities',icon:'target'},
   {id:'proposals',label:'Proposals',icon:'document'},
