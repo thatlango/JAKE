@@ -167,6 +167,7 @@ class JakeRepository(context: Context) {
     suspend fun watch(): Loaded<WatchResponse> = cached("watch", moshi.adapter(WatchResponse::class.java)) { api.watch() }
     suspend fun completeTask(id: String) = api.completeTask(id).task
     suspend fun createTask(request: TaskCreateRequest) = api.createTask(request).task
+    suspend fun createScheduleItem(request: ScheduleItemRequest) = api.createScheduleItem(request)
     suspend fun askJake(message: String, history: List<AiHistory>) = aiApi.ai(AiRequest(message, history))
 
     private suspend fun <T> cached(key: String, adapter: JsonAdapter<T>, fetch: suspend () -> T): Loaded<T> {

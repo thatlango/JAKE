@@ -31,6 +31,9 @@ interface JakeApi {
     @POST("work/tasks/{id}/complete")
     suspend fun completeTask(@Path("id") id: String): TaskEnvelope
 
+    @POST("schedule/items")
+    suspend fun createScheduleItem(@Body body: ScheduleItemRequest): ScheduleItemEnvelope
+
     @GET("estate")
     suspend fun estate(@Query("refresh") refresh: Int? = null): EstateResponse
 

@@ -99,14 +99,17 @@ async function getAllEvents({days=60}={}){
   }
   return out;
 }
-function eventBody({title,description='',start,end,timeZone=DEFAULT_TZ,jakeosTaskId}){
+function eventBody({title,description='',start,end,timeZone=DEFAULT_TZ,jakeosTaskId,reminderMinutes}){
   const body={summary:title,description,start:{dateTime:new Date(start).toISOString(),timeZone},end:{dateTime:new Date(end).toISOString(),timeZone}};
   if(jakeosTaskId)body.extendedProperties={private:{jakeosTaskId:String(jakeosTaskId)}};
+  if(Number.isFinite(Number(reminderMinutes))){
+    body.reminders={useDefault:false,overrides:[{method:'popup',minutes:Math.max(0,Math.min(40320,Number(reminderMinutes)))}]};
+  }
   return body;
 }
-async function createEvent({calendarId='primary',title,description='',start,end,timeZone=DEFAULT_TZ,jakeosTaskId}){
+async function createEvent({calendarId='primary',title,description='',start,end,timeZone=DEFAULT_TZ,jakeosTaskId,reminderMinutes}){
   if(!isConnected())throw new Error('Google Calendar is not connected');
-  const body=eventBody({title,description,start,end,timeZone,jakeosTaskId});
+  const body=eventBody({title,description,start,end,timeZone,jakeosTaskId,reminderMinutes});
   const d=await googleJson(`/calendars/${encodeURIComponent(calendarId)}/events`,{method:'POST',body});
   return mapEvent(d,calendarId);
 }

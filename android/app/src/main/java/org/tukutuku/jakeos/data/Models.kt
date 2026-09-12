@@ -140,6 +140,20 @@ data class TaskCreateRequest(
     val tags: List<String> = emptyList()
 )
 
+data class ScheduleItemRequest(
+    val title: String,
+    val type: String,
+    val date: String,
+    val startsAt: String,
+    val endsAt: String,
+    val notes: String = ""
+)
+data class ScheduleItemEnvelope(
+    val item: CalendarCommitment,
+    val googleSynced: Boolean = false,
+    val warning: String? = null
+)
+
 data class HomeEstate(
     val available: Boolean = false,
     val stale: Boolean = false,

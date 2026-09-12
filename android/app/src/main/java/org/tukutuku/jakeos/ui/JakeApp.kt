@@ -42,11 +42,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +90,7 @@ import org.tukutuku.jakeos.data.JakeRepository
 import org.tukutuku.jakeos.data.Loaded
 import org.tukutuku.jakeos.data.ProductResponse
 import org.tukutuku.jakeos.data.ProjectListResponse
+import org.tukutuku.jakeos.data.ScheduleItemRequest
 import org.tukutuku.jakeos.data.ServiceStatus
 import org.tukutuku.jakeos.data.TodayResponse
 import org.tukutuku.jakeos.data.WatchResponse
@@ -123,6 +126,10 @@ class JakeViewModel(private val repo: JakeRepository) : ViewModel() {
     private val _aiError = MutableStateFlow<String?>(null)
     val aiError = _aiError.asStateFlow()
     private var retryPrompt: String? = null
+    private val _scheduleSaving = MutableStateFlow(false)
+    val scheduleSaving = _scheduleSaving.asStateFlow()
+    private val _scheduleError = MutableStateFlow<String?>(null)
+    val scheduleError = _scheduleError.asStateFlow()
 
     init { if (_signedIn.value) refreshAll() }
 
@@ -186,6 +193,21 @@ class JakeViewModel(private val repo: JakeRepository) : ViewModel() {
         }
         _busy.value = false
     }
+
+    fun clearScheduleError() { _scheduleError.value = null }
+
+    fun addScheduleItem(request: ScheduleItemRequest, onSaved: () -> Unit) = viewModelScope.launch {
+        _scheduleSaving.value = true
+        _scheduleError.value = null
+        runCatching { repo.createScheduleItem(request) }
+            .onSuccess {
+                refreshHome()
+                refreshWork()
+                onSaved()
+            }
+            .onFailure { _scheduleError.value = it.message ?: "Schedule item could not be saved" }
+        _scheduleSaving.value = false
+    }
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -222,12 +244,22 @@ fun JakeApp(repo: JakeRepository) {
         containerColor = JakeCanvas,
         bottomBar = { if (showBottom) BottomNav(nav) },
         floatingActionButton = {
-            if (showBottom) FloatingActionButton(
-                onClick = { nav.navigate("ai") },
-                content = { Icon(Icons.Outlined.AutoAwesome, "Open Jake AI") },
-                containerColor = JakePurple,
-                contentColor = Color.White
-            )
+            if (showBottom) Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SmallFloatingActionButton(
+                    onClick = { nav.navigate("schedule/new") },
+                    containerColor = Color.White,
+                    contentColor = JakePurple
+                ) { Icon(Icons.Outlined.CalendarMonth, "Add to schedule") }
+                FloatingActionButton(
+                    onClick = { nav.navigate("ai") },
+                    content = { Icon(Icons.Outlined.AutoAwesome, "Open Jake AI") },
+                    containerColor = JakePurple,
+                    contentColor = Color.White
+                )
+            }
         }
     ) { padding ->
         NavHost(navController = nav, startDestination = "home", modifier = Modifier.padding(padding)) {
@@ -237,6 +269,7 @@ fun JakeApp(repo: JakeRepository) {
             composable("estate/{code}") { back -> ProductScreen(vm, nav, back.arguments?.getString("code").orEmpty()) }
             composable("watch") { WatchScreen(vm) }
             composable("ai") { AiScreen(vm, nav, busy) }
+            composable("schedule/new") { ScheduleItemScreen(vm, nav) }
         }
     }
 }
@@ -504,6 +537,89 @@ private fun AiScreen(vm: JakeViewModel, nav: NavHostController, busy: Boolean) {
             OutlinedTextField(input, { input = it }, placeholder = { Text("Ask Jake…") }, modifier = Modifier.weight(1f), maxLines = 4)
             Spacer(Modifier.width(8.dp))
             IconButton(onClick = { val text = input; input = ""; vm.askJake(text) }, enabled = input.isNotBlank() && !busy) { Icon(Icons.Outlined.Send, "Send", tint = JakePurple) }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleItemScreen(vm: JakeViewModel, nav: NavHostController) {
+    val saving by vm.scheduleSaving.collectAsState()
+    val serverError by vm.scheduleError.collectAsState()
+    val initial = remember { java.time.ZonedDateTime.now(Kampala).plusMinutes(15).withSecond(0).withNano(0) }
+    var type by remember { mutableStateOf("event") }
+    var title by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(initial.toLocalDate().toString()) }
+    var time by remember { mutableStateOf(initial.toLocalTime().format(TimeFormat)) }
+    var duration by remember { mutableStateOf("60") }
+    var notes by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) { vm.clearScheduleError() }
+    Column(Modifier.fillMaxSize().background(JakeCanvas).statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.Outlined.ArrowBack, "Back") }
+            Column(Modifier.weight(1f)) {
+                Text("Add to schedule", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Event, reminder or focus block", color = JakeMuted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("event" to "Event", "reminder" to "Reminder", "focus" to "Focus").forEach { option ->
+                        if (type == option.first) Button(onClick = { type = option.first }) { Text(option.second) }
+                        else OutlinedButton(onClick = { type = option.first }) { Text(option.second) }
+                    }
+                }
+            }
+            item { OutlinedTextField(title, { title = it }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(date, { date = it }, label = { Text("Date · YYYY-MM-DD") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            item { OutlinedTextField(time, { time = it }, label = { Text("Start time · HH:mm") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            if (type != "reminder") {
+                item { OutlinedTextField(duration, { duration = it.filter(Char::isDigit).take(4) }, label = { Text("Duration · minutes") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            }
+            item { OutlinedTextField(notes, { notes = it }, label = { Text("Notes · optional") }, modifier = Modifier.fillMaxWidth(), maxLines = 4) }
+            item {
+                Text(
+                    if (type == "reminder") "Reminder is scheduled for this time. Google Calendar is updated automatically when connected."
+                    else "Google Calendar is updated automatically when connected.",
+                    color = JakeMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            (localError ?: serverError)?.let { error -> item { InfoCard("Could not add item", "Check details", error, JakeRed) } }
+            item {
+                Button(
+                    enabled = title.isNotBlank() && !saving,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val start = runCatching {
+                            val localDate = java.time.LocalDate.parse(date)
+                            val localTime = java.time.LocalTime.parse(time, TimeFormat)
+                            java.time.ZonedDateTime.of(localDate, localTime, Kampala)
+                        }.getOrNull()
+                        val minutes = if (type == "reminder") 5L else duration.toLongOrNull()?.coerceIn(5, 1440)
+                        if (start == null) {
+                            localError = "Use a valid date and 24-hour time, for example 2026-09-13 and 09:30."
+                        } else if (minutes == null) {
+                            localError = "Enter a duration between 5 and 1440 minutes."
+                        } else {
+                            localError = null
+                            val end = start.plusMinutes(minutes)
+                            vm.addScheduleItem(
+                                ScheduleItemRequest(title.trim(), type, date, start.toOffsetDateTime().toString(), end.toOffsetDateTime().toString(), notes.trim())
+                            ) { nav.navigate("work") { popUpTo("schedule/new") { inclusive = true } } }
+                        }
+                    }
+                ) {
+                    if (saving) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text("Add to schedule")
+                }
+            }
         }
     }
 }

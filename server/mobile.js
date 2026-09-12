@@ -8,11 +8,17 @@ const {fetchEstateSnapshot,fetchProductSnapshot,compactEstate}=require('./estate
 const {overview:opsOverview}=require('./ops');
 const {rankItems,buildReason}=require('./priority');
 const {interpretJakeCommand,status:aiStatus}=require('./ai');
+const gcal=require('./gcal');
 
 const router=express.Router();
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const safeText=(value,max=4000)=>String(value??'').trim().slice(0,max);
 const safePriority=value=>['low','medium','high','critical'].includes(String(value||'').toLowerCase())?String(value).toLowerCase():'medium';
+const scheduleTypes=new Set(['event','reminder','focus']);
+function validDateTime(value){
+  const parsed=new Date(value);
+  return Number.isNaN(parsed.getTime())?null:parsed;
+}
 
 async function actionableWork(limit=7){
   const rows=(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji
@@ -134,6 +140,41 @@ router.post('/work/tasks/:id/complete',async(req,res)=>{
     await db.query(`INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,'completed',$2::jsonb)`,[id,JSON.stringify({source:'jakeos-mobile'})]);
     res.json({task:result.rows[0]});
   }catch{res.status(500).json({error:'Task could not be completed'});}
+});
+
+router.post('/schedule/items',async(req,res)=>{
+  try{
+    const title=safeText(req.body?.title,240);
+    const date=safeText(req.body?.date,10);
+    const type=scheduleTypes.has(String(req.body?.type||'').toLowerCase())?String(req.body.type).toLowerCase():'event';
+    const notes=safeText(req.body?.notes,4000);
+    const startRaw=req.body?.startsAt||req.body?.starts_at;
+    const endRaw=req.body?.endsAt||req.body?.ends_at;
+    const start=validDateTime(startRaw),end=validDateTime(endRaw);
+    if(!title)return res.status(422).json({error:'Title is required'});
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return res.status(422).json({error:'A valid date is required'});
+    if(!start)return res.status(422).json({error:'A valid start time is required'});
+    if(!end||end<=start)return res.status(422).json({error:'End time must be after the start time'});
+
+    let googleEvent=null,warning=null;
+    if(gcal.isConnected()){
+      try{
+        googleEvent=await gcal.createEvent({
+          title,description:notes,start:start.toISOString(),end:end.toISOString(),
+          reminderMinutes:type==='reminder'?0:undefined
+        });
+      }catch(error){warning='Saved in JakeOS, but Google Calendar sync failed: '+(error.message||'unknown error');}
+    }else if(type==='reminder'){
+      warning='Saved in JakeOS. Connect Google Calendar to also receive the calendar reminder there.';
+    }
+    const id=googleEvent?.id||('event_'+crypto.randomUUID());
+    const row=await db.insert('calendar_events',{
+      id,title,date,project:'',type,done:false,source:googleEvent?'google':'jakeos-mobile',notes,
+      starts_at:start.toISOString(),ends_at:end.toISOString(),all_day:false,
+      external_id:googleEvent?.id?.replace(/^gcal_/,'')||null
+    },true);
+    res.status(201).json({item:row,googleSynced:!!googleEvent,warning});
+  }catch(error){res.status(500).json({error:error.message||'Schedule item could not be created'});}
 });
 
 router.get('/estate',async(req,res)=>{
