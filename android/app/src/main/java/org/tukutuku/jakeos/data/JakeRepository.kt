@@ -133,6 +133,13 @@ class JakeRepository(context: Context) {
         .build()
         .create(JakeApi::class.java)
 
+    private val aiApi = Retrofit.Builder()
+        .baseUrl(BuildConfig.JAKEOS_API_BASE_URL)
+        .client(client.newBuilder().readTimeout(90, TimeUnit.SECONDS).callTimeout(95, TimeUnit.SECONDS).build())
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
+        .build()
+        .create(JakeApi::class.java)
+
     private val authApi = Retrofit.Builder()
         .baseUrl(BuildConfig.JAKEOS_API_BASE_URL)
         .client(rawClient)
@@ -160,7 +167,7 @@ class JakeRepository(context: Context) {
     suspend fun watch(): Loaded<WatchResponse> = cached("watch", moshi.adapter(WatchResponse::class.java)) { api.watch() }
     suspend fun completeTask(id: String) = api.completeTask(id).task
     suspend fun createTask(request: TaskCreateRequest) = api.createTask(request).task
-    suspend fun askJake(message: String, history: List<AiHistory>) = api.ai(AiRequest(message, history))
+    suspend fun askJake(message: String, history: List<AiHistory>) = aiApi.ai(AiRequest(message, history))
 
     private suspend fun <T> cached(key: String, adapter: JsonAdapter<T>, fetch: suspend () -> T): Loaded<T> {
         return try {
