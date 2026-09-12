@@ -21,6 +21,63 @@ async function upsertSignal(ref,title,summary,severity,dueAt,metadata={}){
   return id;
 }
 
+function telemetryTime(value){
+  if(!value)return null;
+  const n=new Date(value).getTime();
+  return Number.isFinite(n)?n:null;
+}
+function telemetrySeverity(value){
+  const v=String(value||'').toLowerCase();
+  if(['critical','failed','failure','unhealthy','down','error'].includes(v))return'critical';
+  if(['warning','attention','degraded','stale','not_configured'].includes(v))return'high';
+  return null;
+}
+function telemetrySummary(label,data){
+  const reasons=Array.isArray(data?.reasons)?data.reasons.filter(Boolean):[];
+  if(reasons.length)return `${label}: ${reasons.slice(0,5).join(', ').replaceAll('_',' ')}`;
+  if(data?.message)return String(data.message).slice(0,500);
+  if(data?.state)return `${label} reports ${String(data.state).replaceAll('_',' ')}.`;
+  if(data?.severity)return `${label} reports ${data.severity}.`;
+  return `${label} needs attention.`;
+}
+async function processPlatformTelemetry(platform){
+  if(!platform||typeof platform!=='object')return{processed:0,stale:0,attention:0};
+  const specs=[
+    ['status','Platform health',platform.status,15,false],
+    ['workers','Workers & queues',platform.workers,15,true],
+    ['databases','Database health',platform.databases,15,true],
+    ['security','Security posture',platform.security,30,true],
+    ['offsiteBackup','Off-site backup',platform.offsiteBackup,26*60,true],
+    ['offsiteBackupCheck','Off-site backup verification',platform.offsiteBackupCheck,8*24*60,false],
+    ['restore','Restore verification',platform.restore,8*24*60,true],
+    ['housekeeping','Docker housekeeping',platform.housekeeping,8*24*60,false]
+  ];
+  let processed=0,stale=0,attention=0;
+  for(const [key,label,data,maxAgeMinutes,alertState] of specs){
+    if(!data||typeof data!=='object')continue;
+    processed++;
+    const checked=data.checked_at||data.checkedAt||data.finished_at||data.finishedAt||null;
+    const checkedMs=telemetryTime(checked);
+    const ageMinutes=checkedMs==null?null:Math.max(0,Math.round((Date.now()-checkedMs)/60000));
+    const staleRef=`telemetry:${key}:stale`;
+    if(ageMinutes==null||ageMinutes>maxAgeMinutes){
+      stale++;
+      await upsertSignal(staleRef,`${label} telemetry is stale`,ageMinutes==null?`JakeOS has no timestamp for the latest ${label.toLowerCase()} sample.`:`The latest sample is ${ageMinutes} minutes old; expected within ${maxAgeMinutes} minutes.`,'high',null,{key,checkedAt:checked,ageMinutes,maxAgeMinutes});
+    }else await resolveSignal(staleRef);
+
+    let reported=data.severity||data.state||null;
+    if(key==='restore'&&data.ok===false)reported='critical';
+    if(key==='restore'&&data.ok===true)reported='ok';
+    const severity=alertState?telemetrySeverity(reported):null;
+    const ref=`platform:${key}`;
+    if(severity){
+      attention++;
+      await upsertSignal(ref,`${label} needs attention`,telemetrySummary(label,data),severity,null,{key,reported,checkedAt:checked,reasons:data.reasons||[],state:data.state||null});
+    }else await resolveSignal(ref);
+  }
+  return{processed,stale,attention};
+}
+
 async function processCertificates(certificates){
   const list=Array.isArray(certificates)?certificates.slice(0,150):[];
   if(!list.length)return 0;
@@ -53,7 +110,7 @@ async function processCertificates(certificates){
 
 const opsIngestRouter=express.Router();
 opsIngestRouter.use(requireOpsIngest);
-opsIngestRouter.post('/snapshot',async(req,res)=>{try{const snapshot=await recordHostSnapshot(req.body||{}),certificates=await processCertificates(req.body?.certificates);res.status(202).json({ok:true,...snapshot,certificates});}catch(e){res.status(500).json({ok:false,error:e.message});}});
+opsIngestRouter.post('/snapshot',async(req,res)=>{try{const snapshot=await recordHostSnapshot(req.body||{}),certificates=await processCertificates(req.body?.certificates),platform=await processPlatformTelemetry(req.body?.platform);res.status(202).json({ok:true,...snapshot,certificates,platform});}catch(e){res.status(500).json({ok:false,error:e.message});}});
 opsIngestRouter.post('/backup',async(req,res)=>{try{const p=req.body||{},id=String(p.id||p.name||`backup-${Date.now()}`).toLowerCase().replace(/[^a-z0-9_-]+/g,'-').slice(0,100);await db.query(`INSERT INTO ops_backups(id,name,target,status,size_bytes,completed_at,checked_at,metadata) VALUES($1,$2,$3,$4,$5,$6,NOW(),$7::jsonb) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,target=EXCLUDED.target,status=EXCLUDED.status,size_bytes=EXCLUDED.size_bytes,completed_at=EXCLUDED.completed_at,checked_at=NOW(),metadata=EXCLUDED.metadata`,[id,String(p.name||id).slice(0,120),String(p.target||'').slice(0,255),String(p.status||'unknown').slice(0,30),Number(p.sizeBytes||p.size_bytes||0),p.completedAt||p.completed_at||null,JSON.stringify(p.metadata||{})]);res.status(202).json({ok:true,id});}catch(e){res.status(500).json({ok:false,error:e.message});}});
 
-module.exports={opsIngestRouter,processCertificates};
+module.exports={opsIngestRouter,processCertificates,processPlatformTelemetry};
