@@ -23,6 +23,7 @@ const MORE=[
   {id:'personal-finance',label:'Personal finance',icon:'money'},
   {id:'platforms',label:'Platforms',icon:'grid'},
   {id:'export',label:'Export',icon:'upload'},
+  {id:'accounts',label:'Accounts',icon:'users'},
   {id:'integrations',label:'Integrations',icon:'link'},
   {id:'alerts',label:'Alerts',icon:'bell'},
 ];
