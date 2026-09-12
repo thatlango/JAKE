@@ -1,6 +1,7 @@
 'use strict';
 const express=require('express');
 const db=require('./db');
+const gcal=require('./gcal');
 const {rankItems,buildReason}=require('./priority');
 
 const router=express.Router();
@@ -95,17 +96,17 @@ router.patch('/finance/expenses/:id',async(req,res)=>{const existing=await db.ge
 router.delete('/finance/expenses/:id',async(req,res)=>{await db.del('expenses',text(req.params.id,120));res.json({ok:true});});
 router.patch('/finance/targets',async(req,res)=>{const target=await db.get('settings',{eq:{key:'finance_targets'}});let current={};try{current=target?.value?JSON.parse(target.value):{};}catch(error){current={};}const updatedTargets={...current};for(const key of ['quarterly','annual']){if(req.body[key]!==undefined)updatedTargets[key]=Number(req.body[key])||0;}if(req.body.currency!==undefined)updatedTargets.currency=text(req.body.currency,10)||'USD';await db.insert('settings',{key:'finance_targets',value:JSON.stringify(updatedTargets),updated_at:new Date().toISOString()},true);res.json({targets:updatedTargets});});
 
-router.get('/integrations/status',async(_,res)=>res.json({integrations:[
+router.get('/integrations/status',async(_,res)=>{const google=gcal.getStatus();res.json({integrations:[
   {id:'tuku-core',name:'Tuku Core',category:'identity',configured:true,status:'connected',detail:'Identity and estate telemetry'},
   {id:'estate',name:'Tuku Estate telemetry',category:'data',configured:!!process.env.TUKU_ESTATE_INSIGHTS_SECRET,status:process.env.TUKU_ESTATE_INSIGHTS_SECRET?'connected':'action_required'},
-  {id:'google-calendar',name:'Google Calendar',category:'calendar',configured:!!(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET),status:(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET)?'available':'action_required'},
+  {id:'google-calendar',name:'Google Calendar',category:'calendar',configured:google.configured,connected:google.connected,email:google.email||null,writeEnabled:google.writeEnabled===true,status:google.connected?'connected':google.configured?'available':'action_required',detail:google.connected?`Connected${google.email?` as ${google.email}`:''}`:google.configured?'OAuth is ready — connect your Google account.':'Google OAuth client credentials are missing.'},
   {id:'local-ai',name:'Jake local AI',category:'ai',configured:String(process.env.JAKEOS_AI_ENABLED||'true').toLowerCase()!=='false',status:String(process.env.JAKEOS_AI_ENABLED||'true').toLowerCase()!=='false'?'connected':'action_required',detail:process.env.JAKEOS_AI_MODEL||'qwen3:1.7b'},
   {id:'groq',name:'Voice transcription',category:'ai',configured:!!process.env.GROQ_API_KEY,status:process.env.GROQ_API_KEY?'available':'action_required'},
   {id:'resend',name:'Email alerts',category:'alerts',configured:!!(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL),status:(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL)?'available':'action_required'},
   {id:'telegram',name:'Telegram alerts',category:'alerts',configured:!!(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID),status:(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID)?'available':'action_required'},
   {id:'whatsapp',name:'WhatsApp alerts',category:'alerts',configured:!!(process.env.WHATSAPP_PHONE&&process.env.WHATSAPP_APIKEY),status:(process.env.WHATSAPP_PHONE&&process.env.WHATSAPP_APIKEY)?'available':'action_required'},
   {id:'sms',name:'SMS ingestion',category:'finance',configured:!!process.env.SMS_WEBHOOK_SECRET,status:process.env.SMS_WEBHOOK_SECRET?'available':'action_required'}
-]}));
+]});});
 
 router.get('/search',async(req,res)=>{const q=text(req.query.q,180);if(q.length<2)return res.json({query:q,results:[]});const like=`%${q}%`;const[work,projects,pipeline,clients,opportunities,briefs]=await Promise.all([
   db.query(`SELECT id,title AS name,description AS subtitle,'work' AS type,status,project_id AS context FROM work_items WHERE title ILIKE $1 OR description ILIKE $1 ORDER BY updated_at DESC LIMIT 12`,[like]),

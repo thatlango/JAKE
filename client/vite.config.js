@@ -36,6 +36,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        navigateFallbackDenylist: [/^\/auth\//, /^\/api\//, /^\/share-target(?:\/|$)/],
         runtimeCaching: [
           { urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i, handler:'CacheFirst', options:{ cacheName:'google-fonts', expiration:{ maxEntries:10, maxAgeSeconds:31536000 } } },
           { urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,   handler:'CacheFirst', options:{ cacheName:'gstatic-fonts',  expiration:{ maxEntries:10, maxAgeSeconds:31536000 } } }

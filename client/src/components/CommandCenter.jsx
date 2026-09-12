@@ -80,7 +80,7 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
     const navMap = {
       dashboard: 'dashboard', overview: 'dashboard', work: 'work', projects: 'projects', pipeline: 'pipeline',
       calendar: 'calendar', finance: 'finance', crm: 'crm', relationships: 'crm', radar: 'radar', opportunities: 'radar',
-      estate: 'estate', invoices: 'cashflow', money: 'cashflow', alerts: 'alerts', grants: 'grants', proposals: 'proposals'
+      estate: 'estate', accounts: 'accounts', users: 'accounts', invoices: 'cashflow', money: 'cashflow', alerts: 'alerts', grants: 'grants', proposals: 'proposals'
     };
     const lower = q.toLowerCase();
     for (const [kw, mod] of Object.entries(navMap)) {

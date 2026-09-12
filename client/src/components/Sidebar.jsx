@@ -23,6 +23,7 @@ const GROUPS=[
   ]},
   {label:'System',items:[
     {id:'ai-search',label:'Search',icon:'search'},
+    {id:'accounts',label:'Accounts',icon:'users'},
     {id:'integrations',label:'Integrations',icon:'link'},
     {id:'alerts',label:'Alerts',icon:'bell'},
   ]},
