@@ -83,6 +83,13 @@ jobs:
           curl -fsS -X POST -H 'Authorization: Bearer ci_mobile_token' \
             "http://127.0.0.1:3100/api/mobile/v1/work/tasks/${TASK_ID}/complete" > /tmp/mobile-completed.json
           jq -e '.task.status=="done"' /tmp/mobile-completed.json
+      - name: Verify mobile schedule mutation
+        run: |
+          SCHEDULE_DATE="$(date -u -d '+1 day' +%F)"
+          curl -fsS -H 'Authorization: Bearer ci_mobile_token' -H 'Content-Type: application/json' \
+            -d "{\"title\":\"JakeOS CI reminder\",\"type\":\"reminder\",\"date\":\"${SCHEDULE_DATE}\",\"startsAt\":\"${SCHEDULE_DATE}T09:30:00+03:00\",\"endsAt\":\"${SCHEDULE_DATE}T09:35:00+03:00\"}" \
+            http://127.0.0.1:3100/api/mobile/v1/schedule/items > /tmp/mobile-schedule.json
+          jq -e '.item.title=="JakeOS CI reminder" and .item.type=="reminder"' /tmp/mobile-schedule.json
       - name: Show server log on failure
         if: failure()
         run: cat /tmp/jakeos-mobile.log || true
