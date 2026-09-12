@@ -12,11 +12,11 @@ const SERVICE_SEED=[
   ['core','Tuku Core','Tuku Core','https://core.tukutuku.org/health',true],
   ['units','Units','Units','https://units.tukutuku.org',true],
   ['kela','Kela','Kela','https://kela.tukutuku.org',true],
-  ['kela-api','Kela API','Kela','https://api.kela.tukutuku.org',true],
+  ['kela-api','Kela API','Kela','https://api.kela.tukutuku.org/health',true],
   ['lendflow','LendFlow','LendFlow','https://lendflow.tukutuku.org',true],
   ['tukuiq','TukuIQ','TukuIQ','https://tukuiq.tukutuku.org',true],
   ['ecitaa','ECITAA','ECITAA','https://ecitaa.tukutuku.org',true],
-  ['ecitaa-api','ECITAA API','ECITAA','https://ecitaaapi.tukutuku.org',true],
+  ['ecitaa-api','ECITAA API','ECITAA','https://ecitaaapi.tukutuku.org/api/v1/health',true],
   ['nena','NENA','NENA','https://nena.tukutuku.org',false],
   ['radar','Radar','Radar','https://radar.tukutuku.org',false],
   ['synced-api','Synced API','Synced','https://api.synced.tukutuku.org',true],
@@ -99,7 +99,7 @@ async function checkService(service){
     status=r.status;
     try{r.body?.cancel();}catch{}
   }catch(e){error=e.message||'request failed';}
-  const latency=Date.now()-started,ok=status!=null&&status>=200&&status<500;
+  const latency=Date.now()-started,ok=status!=null&&status>=200&&status<400;
   const previous=Number(service.consecutive_failures||0),failures=ok?0:previous+1;
   const host=new URL(service.url).hostname;
   const cert=await tlsExpiry(host);
@@ -145,7 +145,7 @@ async function overview(){
     db.query(`SELECT * FROM attention_signals WHERE source='ops' AND resolved=false ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,due_at NULLS LAST,created_at DESC LIMIT 50`),
     db.query(`SELECT * FROM ops_backups ORDER BY checked_at DESC LIMIT 30`)
   ]);
-  const svc=services.rows,healthy=svc.filter(s=>Number(s.consecutive_failures||0)===0&&Number(s.last_status||0)>=200&&Number(s.last_status||0)<500).length;
+  const svc=services.rows,healthy=svc.filter(s=>Number(s.consecutive_failures||0)===0&&Number(s.last_status||0)>=200&&Number(s.last_status||0)<400).length;
   const critical=signals.rows.filter(s=>s.severity==='critical').length,high=signals.rows.filter(s=>s.severity==='high').length;
   const score=Math.max(0,100-critical*15-high*6-Math.max(0,svc.length-healthy)*3);
   return{generatedAt:nowIso(),score,status:critical?'critical':high||healthy<svc.length?'attention':'healthy',summary:{servicesTotal:svc.length,servicesHealthy:healthy,domainsTotal:domains.rows.length,domainsAttention:domains.rows.filter(d=>d.status!=='healthy').length,criticalSignals:critical,highSignals:high},hosts:hosts.rows,services:svc,domains:domains.rows,backups:backups.rows,attention:signals.rows};
