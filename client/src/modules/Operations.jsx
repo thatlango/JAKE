@@ -18,6 +18,7 @@ export default function Operations(){
   useEffect(()=>{load();const timer=setInterval(()=>load(),60000);return()=>clearInterval(timer);},[]);
   const host=data?.hosts?.[0];
   const containers=Array.isArray(host?.snapshot?.containers)?host.snapshot.containers:[];
+  const platform=host?.snapshot?.platform||{};
   const running=containers.filter(c=>c.running!==false&&!String(c.status||'').toLowerCase().includes('exited')).length;
   const badContainers=containers.filter(c=>String(c.health||'').toLowerCase()==='unhealthy'||String(c.status||'').toLowerCase().includes('restarting')||String(c.status||'').toLowerCase().includes('exited'));
   const roots=useMemo(()=>{const seen=new Set();return(data?.domains||[]).filter(d=>{if(d.kind!=='registrable'||seen.has(d.root_domain))return false;seen.add(d.root_domain);return true;});},[data]);
@@ -48,6 +49,18 @@ export default function Operations(){
         <Stat label="Containers" value={containers.length?`${running}/${containers.length}`:'—'} detail={badContainers.length?`${badContainers.length} require attention`:'running'}/>
       </div>
       {badContainers.length>0&&<div className="ops-container-alerts">{badContainers.map(c=><div key={c.name}><StatusDot state="critical"/><strong>{c.name}</strong><span>{c.status||c.health||'problem detected'}</span></div>)}</div>}
+    </section>
+
+    <section className="ops-section">
+      <div className="ops-section-head"><div><span>Telemetry pipeline</span><h2>Platform signals</h2></div><span className="ops-muted">Collector freshness + subsystem health</span></div>
+      <div className="ops-grid ops-grid--host">
+        <Stat label="Platform" value={platform.status?.severity||'—'} detail={platform.status?.checked_at?`sample ${age(platform.status.checked_at)}`:'not reporting'}/>
+        <Stat label="Workers" value={platform.workers?.severity||'—'} detail={platform.workers?.reasons?.length?`${platform.workers.reasons.length} issue(s)`:platform.workers?.checked_at?`sample ${age(platform.workers.checked_at)}`:'not reporting'}/>
+        <Stat label="Databases" value={platform.databases?.severity||'—'} detail={platform.databases?.databases?.length?`${platform.databases.databases.length} databases sampled`:platform.databases?.checked_at?`sample ${age(platform.databases.checked_at)}`:'not reporting'}/>
+        <Stat label="Security" value={platform.security?.severity||platform.security?.state||'—'} detail={platform.security?.checked_at?`sample ${age(platform.security.checked_at)}`:'not reporting'}/>
+        <Stat label="Off-site backup" value={platform.offsiteBackup?.state||'—'} detail={platform.offsiteBackup?.checked_at?`sample ${age(platform.offsiteBackup.checked_at)}`:'not reporting'}/>
+        <Stat label="Restore test" value={platform.restore?.ok===true?'passed':platform.restore?.ok===false?'failed':'—'} detail={platform.restore?.finished_at?`finished ${age(platform.restore.finished_at)}`:'not reporting'}/>
+      </div>
     </section>
 
     <section className="ops-section">
