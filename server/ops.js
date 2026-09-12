@@ -106,7 +106,13 @@ async function checkService(service){
   await db.query(`UPDATE ops_services SET last_status=$2,last_latency_ms=$3,last_checked_at=NOW(),last_ok_at=CASE WHEN $4 THEN NOW() ELSE last_ok_at END,consecutive_failures=$5,tls_expires_at=$6,metadata=COALESCE(metadata,'{}'::jsonb)||$7::jsonb WHERE id=$1`,[service.id,status,latency,ok,failures,cert,JSON.stringify({lastError:error})]);
   await db.query(`INSERT INTO ops_service_checks(service_id,checked_at,status_code,latency_ms,ok,error) VALUES($1,NOW(),$2,$3,$4,$5)`,[service.id,status,latency,ok,error]);
   const ref=`service:${service.id}`;
-  if(failures>=3)await upsertSignal({ref,title:`${service.name} is not responding`,summary:`${failures} consecutive checks failed${error?`: ${error}`:''}.`,severity:service.critical?'critical':'high',metadata:{serviceId:service.id,url:service.url,status,latency,failures}});else if(ok)await resolveSignal(ref);
+  if(failures>=3){
+    const clientError=status!=null&&status>=400&&status<500;
+    const serverError=status!=null&&status>=500;
+    const title=clientError?`${service.name} health check is misconfigured`:serverError?`${service.name} is degraded`:`${service.name} is down`;
+    const summary=clientError?`Expected a successful health response but received HTTP ${status} from ${service.url}.`:`${failures} consecutive checks failed${status?` with HTTP ${status}`:error?`: ${error}`:''}.`;
+    await upsertSignal({ref,title,summary,severity:clientError?'high':service.critical?'critical':'high',metadata:{serviceId:service.id,url:service.url,status,latency,failures,state:clientError?'misconfigured':serverError?'degraded':'down'}});
+  }else if(ok)await resolveSignal(ref);
   if(cert){const days=Math.ceil((new Date(cert)-Date.now())/86400000),tlsRef=`tls:${host}`;if(days<=14)await upsertSignal({ref:tlsRef,title:`TLS certificate expires soon: ${host}`,summary:`Certificate expires in ${days} days.`,severity:'critical',dueAt:cert,metadata:{host,expiresAt:cert}});else if(days<=30)await upsertSignal({ref:tlsRef,title:`TLS renewal approaching: ${host}`,summary:`Certificate expires in ${days} days.`,severity:'high',dueAt:cert,metadata:{host,expiresAt:cert}});else await resolveSignal(tlsRef);}
   return{serviceId:service.id,ok,status,latencyMs:latency};
 }
