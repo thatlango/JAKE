@@ -37,7 +37,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,6 +88,7 @@ import org.tukutuku.jakeos.data.JakeRepository
 import org.tukutuku.jakeos.data.Loaded
 import org.tukutuku.jakeos.data.ProductResponse
 import org.tukutuku.jakeos.data.ProjectListResponse
+import org.tukutuku.jakeos.data.ServiceStatus
 import org.tukutuku.jakeos.data.TodayResponse
 import org.tukutuku.jakeos.data.WatchResponse
 import org.tukutuku.jakeos.data.WorkItem
@@ -119,6 +120,9 @@ class JakeViewModel(private val repo: JakeRepository) : ViewModel() {
     val watch = _watch.asStateFlow()
     private val _chat = MutableStateFlow<List<ChatMessage>>(emptyList())
     val chat = _chat.asStateFlow()
+    private val _aiError = MutableStateFlow<String?>(null)
+    val aiError = _aiError.asStateFlow()
+    private var retryPrompt: String? = null
 
     init { if (_signedIn.value) refreshAll() }
 
@@ -155,18 +159,30 @@ class JakeViewModel(private val repo: JakeRepository) : ViewModel() {
             .onFailure { _message.value = it.message ?: "Task could not be completed" }
     }
 
-    fun askJake(text: String) = viewModelScope.launch {
-        val clean = text.trim(); if (clean.isEmpty()) return@launch
+    fun askJake(text: String) {
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+        askJakeInternal(clean, appendUser = true)
+    }
+
+    fun retryJake() {
+        retryPrompt?.let { askJakeInternal(it, appendUser = false) }
+    }
+
+    private fun askJakeInternal(clean: String, appendUser: Boolean) = viewModelScope.launch {
         val existing = _chat.value
-        _chat.value = existing + ChatMessage("user", clean)
+        if (appendUser) _chat.value = existing + ChatMessage("user", clean)
+        _aiError.value = null
         _busy.value = true
         runCatching {
             repo.askJake(clean, existing.takeLast(8).map { AiHistory(it.role, it.content) })
         }.onSuccess { reply ->
             _chat.value = _chat.value + ChatMessage("assistant", reply.reply)
+            retryPrompt = null
             if (reply.actions.any { it.status == "executed" }) { refreshWork(); refreshHome() }
         }.onFailure {
-            _chat.value = _chat.value + ChatMessage("assistant", "Jake AI is unavailable right now: ${it.message ?: "unknown error"}")
+            retryPrompt = clean
+            _aiError.value = "Jake could not answer: ${it.message ?: "request failed"}"
         }
         _busy.value = false
     }
@@ -206,10 +222,9 @@ fun JakeApp(repo: JakeRepository) {
         containerColor = JakeCanvas,
         bottomBar = { if (showBottom) BottomNav(nav) },
         floatingActionButton = {
-            if (showBottom) ExtendedFloatingActionButton(
+            if (showBottom) FloatingActionButton(
                 onClick = { nav.navigate("ai") },
-                icon = { Icon(Icons.Outlined.AutoAwesome, null) },
-                text = { Text("Jake") },
+                content = { Icon(Icons.Outlined.AutoAwesome, "Open Jake AI") },
                 containerColor = JakePurple,
                 contentColor = Color.White
             )
@@ -325,14 +340,18 @@ private fun WorkScreen(vm: JakeViewModel) {
                     InfoCard("Next commitment", formatTime(event.startsAt), event.title)
                 }
             }
-            items(today.tasks) { WorkCard(it) { vm.complete(it) } }
+            item { SectionTitle("Priorities") }
+            if (today.tasks.isEmpty()) {
+                item { InfoCard("No ranked work yet", "Clear", "Nothing actionable is currently ranked for today.") }
+            } else items(today.tasks) { WorkCard(it) { vm.complete(it) } }
             if (projects.isNotEmpty()) {
                 item { SectionTitle("Projects") }
                 items(projects.take(12)) { project ->
+                    val activeTasks = project.openTasks + project.doingTasks + project.blockedTasks
                     InfoCard(
                         "${project.emoji.orEmpty()} ${project.name}".trim(),
-                        "${project.progress}%",
-                        "${project.openTasks} open · ${project.doingTasks} doing · ${project.blockedTasks} blocked"
+                        if (activeTasks == 0) "No active tasks" else "${project.progress}%",
+                        if (activeTasks == 0) "Project is currently clear" else "${project.openTasks} open · ${project.doingTasks} doing · ${project.blockedTasks} blocked"
                     )
                 }
             }
@@ -379,7 +398,7 @@ private fun ProductScreen(vm: JakeViewModel, nav: NavHostController, code: Strin
         }
         LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (detail == null) item { LoadingOrError(loaded?.error ?: loaded?.data?.error) } else {
-                item { InfoCard("Active users", "${detail.product.activeUsers7d} / 7d", "${signed(detail.product.growth7dPercent)} growth · ${detail.product.newUsers7d} new") }
+                item { InfoCard("Active users", "${detail.product.activeUsers7d} / 7d", "${growthSummary(detail.product)} · ${detail.product.newUsers7d} new") }
                 item { InfoCard("Telemetry", detail.telemetry?.coverage ?: "Unobserved", detail.telemetry?.message ?: "No telemetry note") }
                 if (detail.commerce.isNotEmpty()) {
                     item { SectionTitle("Orders & earnings") }
@@ -422,8 +441,15 @@ private fun WatchScreen(vm: JakeViewModel) {
             }
             item { SectionTitle("Services") }
             items(watch.services.take(24)) { service ->
-                val healthy = service.consecutiveFailures == 0 && (service.lastStatus ?: 0) in 200..499
-                InfoCard(service.name, if (healthy) "Healthy" else "Needs attention", "HTTP ${service.lastStatus ?: 0} · ${service.lastLatencyMs ?: 0} ms", if (healthy) JakeGreen else JakeRed)
+                val state = serviceState(service)
+                InfoCard(service.name, state.first, "HTTP ${service.lastStatus ?: 0} · ${service.lastLatencyMs ?: 0} ms", state.second)
+            }
+            val importantDomains = watch.domains.filter { it.host == it.rootDomain || it.status != "healthy" }.take(16)
+            if (importantDomains.isNotEmpty()) {
+                item { SectionTitle("Domains & certificates") }
+                items(importantDomains) { domain ->
+                    InfoCard(domain.host, domain.status?.uppercase() ?: "UNKNOWN", "Registration ${dateCountdown(domain.expiresAt)} · TLS ${dateCountdown(domain.tlsExpiresAt)}", statusColor(domain.status))
+                }
             }
             if (watch.subscriptions.isNotEmpty()) {
                 item { SectionTitle("Subscriptions & renewals") }
@@ -438,6 +464,7 @@ private fun WatchScreen(vm: JakeViewModel) {
 @Composable
 private fun AiScreen(vm: JakeViewModel, nav: NavHostController, busy: Boolean) {
     val chat by vm.chat.collectAsState()
+    val aiError by vm.aiError.collectAsState()
     var input by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().background(JakeCanvas).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -458,7 +485,20 @@ private fun AiScreen(vm: JakeViewModel, nav: NavHostController, busy: Boolean) {
                     }
                 }
             }
-            if (busy) item { CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
+            if (busy) item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                    Text("Jake is reasoning…", color = JakeMuted)
+                }
+            }
+            aiError?.let { error ->
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        InfoCard("Jake did not finish", "Retry available", error, JakeAmber)
+                        Button(onClick = vm::retryJake, enabled = !busy) { Text("Retry") }
+                    }
+                }
+            }
         }
         Row(Modifier.fillMaxWidth().background(Color.White).navigationBarsPadding().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(input, { input = it }, placeholder = { Text("Ask Jake…") }, modifier = Modifier.weight(1f), maxLines = 4)
@@ -483,7 +523,7 @@ private fun ScreenShell(
             IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "Refresh") }
             if (onLogout != null) IconButton(onClick = onLogout) { Icon(Icons.Outlined.Logout, "Sign out") }
         }
-        LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
@@ -543,7 +583,7 @@ private fun ProductCard(product: EstateProduct, onClick: () -> Unit) {
                 Text(product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("${product.activeUsers7d} active / 7d · ${product.newUsers7d} new", color = JakeMuted)
             }
-            Text(signed(product.growth7dPercent), color = if (product.growth7dPercent >= 0) JakeGreen else JakeRed, fontWeight = FontWeight.Bold)
+            Text(growthBadge(product), color = growthColor(product), fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -551,27 +591,27 @@ private fun ProductCard(product: EstateProduct, onClick: () -> Unit) {
 @Composable
 private fun HealthCard(watch: WatchResponse) {
     val color = statusColor(watch.status)
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${watch.score}%", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = color)
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("Infrastructure health", fontWeight = FontWeight.SemiBold)
-                    Text("${watch.summary.servicesHealthy}/${watch.summary.servicesTotal} services healthy", color = JakeMuted)
+                    Text("Operations health", fontWeight = FontWeight.SemiBold)
+                    Text("${watch.summary.servicesHealthy}/${watch.summary.servicesTotal} service checks healthy", color = JakeMuted)
                 }
             }
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = .45f))
             Spacer(Modifier.height(12.dp))
-            Text("${watch.summary.domainsAttention} domains need attention · ${watch.summary.criticalSignals} critical signals", color = JakeMuted)
+            Text("${watch.summary.domainsAttention} domain alerts · ${watch.summary.criticalSignals} critical · ${watch.summary.highSignals} high", color = JakeMuted)
         }
     }
 }
 
 @Composable
 private fun InfoCard(title: String, metric: String, detail: String, metricColor: Color = JakePurple) {
-    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
             if (metric.isNotBlank()) Text(metric, color = metricColor, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -600,10 +640,39 @@ private fun LoadingOrError(error: String?) {
 
 private fun statusColor(value: String?): Color = when (value?.lowercase()) {
     "healthy", "low", "available", "high" -> if (value?.lowercase() == "high") JakeAmber else JakeGreen
-    "attention", "medium", "stale" -> JakeAmber
-    "critical", "error", "unavailable" -> JakeRed
+    "attention", "medium", "stale", "degraded", "misconfigured" -> JakeAmber
+    "critical", "error", "unavailable", "down" -> JakeRed
     else -> JakePurple
 }
+
+private fun serviceState(service: ServiceStatus): Pair<String, Color> {
+    val status = service.lastStatus
+    return when {
+        service.consecutiveFailures == 0 && status != null && status in 200..399 -> "Healthy" to JakeGreen
+        status != null && status in 400..499 -> "Misconfigured" to JakeAmber
+        status != null && status >= 500 -> "Degraded" to JakeRed
+        service.consecutiveFailures > 0 -> "Down" to JakeRed
+        else -> "Unknown" to JakePurple
+    }
+}
+
+private fun growthSummary(product: EstateProduct): String = when {
+    product.activeUsers7d == 0 && product.growth7dPercent < 0 -> "No activity this week; down from last week"
+    product.activeUsers7d == 0 -> "No activity this week"
+    product.growth7dPercent == 0.0 -> "Flat vs last week"
+    else -> "${signed(product.growth7dPercent)} vs last week"
+}
+private fun growthBadge(product: EstateProduct): String = when {
+    product.activeUsers7d == 0 && product.growth7dPercent < 0 -> "Down to zero"
+    product.activeUsers7d == 0 -> "No activity"
+    product.growth7dPercent == 0.0 -> "Flat"
+    else -> signed(product.growth7dPercent)
+}
+private fun growthColor(product: EstateProduct): Color =
+    if (product.activeUsers7d == 0) JakeMuted
+    else if (product.growth7dPercent > 0) JakeGreen
+    else if (product.growth7dPercent < 0) JakeRed
+    else JakeMuted
 
 private fun greeting(): String {
     val hour = java.time.ZonedDateTime.now(Kampala).hour
@@ -614,6 +683,14 @@ private fun signed(value: Double) = if (value > 0) "+${String.format("%.1f", val
 private fun percent(value: Double?) = value?.let { "${String.format("%.0f", it)}%" } ?: "—"
 private fun money(value: Double) = NumberFormat.getNumberInstance().format(value)
 private fun shortDate(value: String) = value.take(10)
+private fun dateCountdown(value: String?): String {
+    if (value.isNullOrBlank()) return "unknown"
+    val instant = runCatching { Instant.parse(value) }.getOrNull()
+        ?: runCatching { OffsetDateTime.parse(value).toInstant() }.getOrNull()
+        ?: return value.take(10)
+    val days = java.time.Duration.between(Instant.now(), instant).toDays()
+    return when { days < 0 -> "expired ${-days}d ago"; days == 0L -> "due today"; else -> "in ${days}d" }
+}
 private fun formatTime(value: String?): String {
     if (value.isNullOrBlank()) return ""
     return runCatching { OffsetDateTime.parse(value).atZoneSameInstant(Kampala).format(TimeFormat) }
