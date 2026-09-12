@@ -30,7 +30,7 @@ async function syncOpsStatusCards(){
     await upsertCard('domains','Domains & certificates',summary,{domains:roots.map(d=>({rootDomain:d.root_domain,registrar:d.registrar,expiresAt:d.expires_at,tlsExpiresAt:d.tls_expires_at,status:d.status,lastCheckedAt:d.last_checked_at}))});
   }
 
-  const services=(await db.query(`SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE consecutive_failures=0 AND last_status>=200 AND last_status<500)::int AS healthy FROM ops_services WHERE enabled=true`)).rows[0];
+  const services=(await db.query(`SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE consecutive_failures=0 AND last_status>=200 AND last_status<400)::int AS healthy FROM ops_services WHERE enabled=true`)).rows[0];
   if(services?.total)await upsertCard('services','Tuku services',`${services.healthy}/${services.total} production endpoints responding.`,{healthy:services.healthy,total:services.total});
 
   let subscriptions=[];
