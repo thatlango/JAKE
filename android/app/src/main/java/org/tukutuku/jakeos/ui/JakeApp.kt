@@ -85,6 +85,7 @@ import kotlinx.coroutines.launch
 import org.tukutuku.jakeos.data.AiHistory
 import org.tukutuku.jakeos.data.AttentionCard
 import org.tukutuku.jakeos.data.EstateProduct
+import org.tukutuku.jakeos.data.EstateTelemetry
 import org.tukutuku.jakeos.data.HomeResponse
 import org.tukutuku.jakeos.data.JakeRepository
 import org.tukutuku.jakeos.data.Loaded
@@ -408,12 +409,17 @@ private fun EstateScreen(vm: JakeViewModel, onProduct: (String) -> Unit) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     item { KpiCard("Products", snapshot.totals.products.toDouble(), "tools", null) }
                     item { KpiCard("Active users", snapshot.totals.activeUsers7d.toDouble(), "7d", null) }
+                    item { KpiCard("Rich telemetry", snapshot.totals.productsWithRichTelemetry.toDouble(), "products", null) }
+                    item { KpiCard("Telemetry gaps", snapshot.totals.productsNeedingTelemetryReview.toDouble(), "products", if (snapshot.totals.productsNeedingTelemetryReview > 0) "attention" else "healthy") }
                     item { KpiCard("Live orders", snapshot.totals.ordersActive.toDouble(), "orders", null) }
                     item { KpiCard("Revenue", snapshot.totals.realizedRevenueUGX, "UGX", null) }
                 }
             }
             item { SectionTitle("Products") }
-            items(snapshot.products) { product -> ProductCard(product) { onProduct(product.code) } }
+            items(snapshot.products) { product ->
+                val telemetry = snapshot.telemetry.firstOrNull { it.productCode.equals(product.code, ignoreCase = true) }
+                ProductCard(product, telemetry) { onProduct(product.code) }
+            }
         }
     }
 }
@@ -692,12 +698,13 @@ private fun WorkCard(task: WorkItem, onComplete: () -> Unit) {
 }
 
 @Composable
-private fun ProductCard(product: EstateProduct, onClick: () -> Unit) {
+private fun ProductCard(product: EstateProduct, telemetry: EstateTelemetry?, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("${product.activeUsers7d} active / 7d · ${product.newUsers7d} new", color = JakeMuted)
+                Text("${product.activeUsers7d} active · ${product.usageEvents7d} events / 7d · ${product.newUsers7d} new", color = JakeMuted)
+                Text(telemetryRoadLabel(telemetry), color = statusColor(telemetry?.coverage), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
             }
             Text(growthBadge(product), color = growthColor(product), fontWeight = FontWeight.Bold)
         }
@@ -770,6 +777,14 @@ private fun serviceState(service: ServiceStatus): Pair<String, Color> {
         service.consecutiveFailures > 0 -> "Down" to JakeRed
         else -> "Unknown" to JakePurple
     }
+}
+
+private fun telemetryRoadLabel(telemetry: EstateTelemetry?): String = when (telemetry?.coverage?.lowercase()) {
+    "rich" -> "Rich telemetry"
+    "connected" -> "Connected · waiting for records"
+    "basic" -> "SSO only · deeper telemetry needed"
+    "unobserved" -> "No product telemetry"
+    else -> "Telemetry state unknown"
 }
 
 private fun growthSummary(product: EstateProduct): String = when {
