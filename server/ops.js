@@ -5,7 +5,7 @@ const express=require('express');
 const db=require('./db');
 const {momentumAuth}=require('./momentum-auth');
 
-const ROOT_DOMAINS=['tukutuku.org','getprediq.site'];
+const ROOT_DOMAINS=['tukutuku.org','getprediq.site','smartvet.africa'];
 const SERVICE_SEED=[
   ['jakeos','JakeOS','JakeOS','https://jakeos.tukutuku.org/health',true],
   ['momentum','Momentum API','Momentum','https://momentum.tukutuku.org/health',true],
@@ -14,19 +14,23 @@ const SERVICE_SEED=[
   ['kela','Kela','Kela','https://kela.tukutuku.org',true],
   ['kela-api','Kela API','Kela','https://api.kela.tukutuku.org/health',true],
   ['lendflow','LendFlow','LendFlow','https://lendflow.tukutuku.org',true],
-  ['tukuiq','TukuIQ','TukuIQ','https://tukuiq.tukutuku.org',true],
+  ['tukuiq','TukuIQ','TukuIQ','https://tukuiq.tukutuku.org/health',true],
   ['ecitaa','ECITAA','ECITAA','https://ecitaa.tukutuku.org',true],
   ['ecitaa-api','ECITAA API','ECITAA','https://ecitaaapi.tukutuku.org/api/v1/health',true],
   ['nena','NENA','NENA','https://nena.tukutuku.org',false],
-  ['radar','Radar','Radar','https://radar.tukutuku.org',false],
+  ['radar','Radar','Radar','https://radar.tukutuku.org/health',false],
   ['synced-api','Synced API','Synced','https://api.synced.tukutuku.org/api/v1/health',true],
-  ['traffiq','Traffiq','Traffiq','https://traffiq.tukutuku.org',false],
-  ['traffiq-api','Traffiq API','Traffiq','https://api.traffiq.tukutuku.org',false],
-  ['bcp','BCP','BCP','https://bcp-next.tukutuku.org',false],
-  ['prediq','PredIQ','PredIQ','https://getprediq.site',true],
-  ['prediq-api','PredIQ API','PredIQ','https://api.getprediq.site',true],
+  ['traffiq','Traffiq Web','Traffiq','https://traffiqweb.tukutuku.org',false],
+  ['traffiq-api','Traffiq API','Traffiq','https://api.traffiq.tukutuku.org/health',false],
+  ['bcp','PRUDEV BCP','BCP','https://prudevbcp.tukutuku.org/health',true],
+  ['prediq','PredIQ','PredIQ','https://getprediq.site/health',true],
+  ['prediq-api','PredIQ API','PredIQ','https://api.getprediq.site/health',true],
   ['site-api','Tuku Site API','Tukutuku','https://site-api.tukutuku.org/health',false],
-  ['steady','Steady / BCP API','BCP','https://steady.tukutuku.org',false]
+  ['steady','Steady / BCP API','BCP','https://steady.tukutuku.org/health',false],
+  ['impactos','ImpactOS','ImpactOS','https://impactos.tukutuku.org',true],
+  ['tukupay','TukuPay','TukuPay','https://payments.tukutuku.org/health',true],
+  ['smartvet','SmartVet Academy','SmartVet','https://academy.smartvet.africa',false],
+  ['lubiih','LubiiH','LubiiH','https://lubiih.tukutuku.org',false]
 ];
 
 const nowIso=()=>new Date().toISOString();
@@ -144,17 +148,22 @@ async function refreshOperations({domains=false}={}){
 
 async function overview(){
   await ensureOpsSeed();
-  const [hosts,services,domains,signals,backups]=await Promise.all([
+  const [hosts,services,domains,backups]=await Promise.all([
     db.query(`SELECT h.*,m.captured_at,m.cpu_percent,m.memory_percent,m.disk_percent,m.load1,m.load5,m.load15,m.uptime_seconds,m.metadata AS snapshot FROM ops_hosts h LEFT JOIN LATERAL(SELECT * FROM ops_host_metrics WHERE host_id=h.id ORDER BY captured_at DESC LIMIT 1)m ON true ORDER BY h.label`),
     db.query(`SELECT * FROM ops_services WHERE enabled=true ORDER BY critical DESC,name`),
     db.query(`SELECT * FROM ops_domains ORDER BY CASE status WHEN 'critical' THEN 0 WHEN 'attention' THEN 1 ELSE 2 END,host`),
-    db.query(`SELECT * FROM attention_signals WHERE source='ops' AND resolved=false ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,due_at NULLS LAST,created_at DESC LIMIT 50`),
     db.query(`SELECT * FROM ops_backups ORDER BY checked_at DESC LIMIT 30`)
   ]);
+  const latestTelemetry=hosts.rows.map(h=>h.captured_at&&new Date(h.captured_at).getTime()).filter(Number.isFinite).sort((a,b)=>b-a)[0]||null;
+  const telemetryAgeMinutes=latestTelemetry==null?null:Math.max(0,Math.round((Date.now()-latestTelemetry)/60000));
+  const telemetryFresh=telemetryAgeMinutes!=null&&telemetryAgeMinutes<=15;
+  if(!telemetryFresh)await upsertSignal({ref:'telemetry:ops-ingest:stale',title:'JakeOS operations telemetry is stale',summary:telemetryAgeMinutes==null?'No VPS operations sample has reached JakeOS yet.':`The latest VPS operations sample is ${telemetryAgeMinutes} minutes old; expected within 15 minutes.`,severity:'high',metadata:{telemetryAgeMinutes}});
+  else await resolveSignal('telemetry:ops-ingest:stale');
+  const signals=await db.query(`SELECT * FROM attention_signals WHERE source='ops' AND resolved=false ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,due_at NULLS LAST,created_at DESC LIMIT 50`);
   const svc=services.rows,healthy=svc.filter(s=>Number(s.consecutive_failures||0)===0&&Number(s.last_status||0)>=200&&Number(s.last_status||0)<400).length;
   const critical=signals.rows.filter(s=>s.severity==='critical').length,high=signals.rows.filter(s=>s.severity==='high').length;
   const score=Math.max(0,100-critical*15-high*6-Math.max(0,svc.length-healthy)*3);
-  return{generatedAt:nowIso(),score,status:critical?'critical':high||healthy<svc.length?'attention':'healthy',summary:{servicesTotal:svc.length,servicesHealthy:healthy,domainsTotal:domains.rows.length,domainsAttention:domains.rows.filter(d=>d.status!=='healthy').length,criticalSignals:critical,highSignals:high},hosts:hosts.rows,services:svc,domains:domains.rows,backups:backups.rows,attention:signals.rows};
+  return{generatedAt:nowIso(),score,status:critical?'critical':high||healthy<svc.length?'attention':'healthy',summary:{servicesTotal:svc.length,servicesHealthy:healthy,domainsTotal:domains.rows.length,domainsAttention:domains.rows.filter(d=>d.status!=='healthy').length,criticalSignals:critical,highSignals:high,telemetryFresh,lastTelemetryAt:latestTelemetry?new Date(latestTelemetry).toISOString():null,telemetryAgeMinutes},hosts:hosts.rows,services:svc,domains:domains.rows,backups:backups.rows,attention:signals.rows};
 }
 
 function requireIngest(req,res,next){const expected=process.env.OPS_INGEST_TOKEN||process.env.JAKEOS_INGEST_TOKEN||'',provided=req.get('x-jakeos-ingest-token')||String(req.get('authorization')||'').replace(/^Bearer\s+/i,'');if(!expected||!secureEqual(expected,provided))return res.status(401).json({error:'Invalid ops ingest token'});next();}
