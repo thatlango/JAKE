@@ -19,7 +19,7 @@ const SERVICE_SEED=[
   ['ecitaa-api','ECITAA API','ECITAA','https://ecitaaapi.tukutuku.org/api/v1/health',true],
   ['nena','NENA','NENA','https://nena.tukutuku.org',false],
   ['radar','Radar','Radar','https://radar.tukutuku.org',false],
-  ['synced-api','Synced API','Synced','https://api.synced.tukutuku.org',true],
+  ['synced-api','Synced API','Synced','https://api.synced.tukutuku.org/api/v1/health',true],
   ['traffiq','Traffiq','Traffiq','https://traffiq.tukutuku.org',false],
   ['traffiq-api','Traffiq API','Traffiq','https://api.traffiq.tukutuku.org',false],
   ['bcp','BCP','BCP','https://bcp-next.tukutuku.org',false],
