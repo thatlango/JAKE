@@ -216,6 +216,7 @@ data class EstateTotals(
     val ordersCompleted: Int = 0,
     val realizedRevenueUGX: Double = 0.0,
     val pendingRevenueUGX: Double = 0.0,
+    val productsWithRichTelemetry: Int = 0,
     val productsNeedingTelemetryReview: Int = 0
 )
 
