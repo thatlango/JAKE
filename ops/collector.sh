@@ -13,6 +13,7 @@ trap 'rm -f "$TMP"' EXIT
 
 python3 - <<'PY' > "$TMP"
 import datetime, json, os, shutil, socket, ssl, subprocess, time
+from pathlib import Path
 
 def cpu_sample():
     with open('/proc/stat') as f:
@@ -41,14 +42,20 @@ try:
     raw = subprocess.check_output(['docker', 'inspect'] + ids, text=True) if ids else '[]'
     for c in json.loads(raw or '[]'):
         state = c.get('State') or {}
+        labels = (c.get('Config') or {}).get('Labels') or {}
+        running = bool(state.get('Running'))
+        managed = bool(labels.get('com.docker.compose.project'))
+        if not running and not managed:
+            continue
         containers.append({
             'name': (c.get('Name') or '').lstrip('/'),
             'image': (c.get('Config') or {}).get('Image'),
-            'running': bool(state.get('Running')),
+            'running': running,
             'status': state.get('Status'),
             'health': (state.get('Health') or {}).get('Status'),
             'restarts': c.get('RestartCount', 0),
-            'startedAt': state.get('StartedAt')
+            'startedAt': state.get('StartedAt'),
+            'managed': managed
         })
 except Exception as e:
     containers = [{
@@ -65,7 +72,8 @@ certificate_hosts = [
     'lendflow.tukutuku.org','tukuiq.tukutuku.org','ecitaa.tukutuku.org','ecitaaapi.tukutuku.org',
     'nena.tukutuku.org','radar.tukutuku.org','api.synced.tukutuku.org','traffiq.tukutuku.org',
     'api.traffiq.tukutuku.org','bcp-next.tukutuku.org','api.getprediq.site','site-api.tukutuku.org',
-    'steady.tukutuku.org'
+    'steady.tukutuku.org','prudevbcp.tukutuku.org','traffiqweb.tukutuku.org',
+    'impactos.tukutuku.org','payments.tukutuku.org','academy.smartvet.africa','lubiih.tukutuku.org'
 ]
 certificates = []
 context = ssl.create_default_context()
@@ -84,6 +92,25 @@ for host in certificate_hosts:
 
 load = os.getloadavg()
 uptime = float(open('/proc/uptime').read().split()[0])
+
+monitoring_root = Path('/opt/tuku/platform/monitoring')
+def read_json(name):
+    try:
+        return json.loads((monitoring_root / name).read_text())
+    except Exception:
+        return None
+
+platform = {
+    'status': read_json('status.json'),
+    'workers': read_json('worker-health.json'),
+    'databases': read_json('database-health.json'),
+    'security': read_json('security-health.json'),
+    'restore': read_json('restore-verification.json'),
+    'offsiteBackup': read_json('offsite-backup-status.json'),
+    'offsiteBackupCheck': read_json('offsite-backup-check.json'),
+    'housekeeping': read_json('docker-housekeeping.json'),
+    'providerDependencies': read_json('provider-dependency-inventory.json')
+}
 
 print(json.dumps({
     'host': {
@@ -104,7 +131,8 @@ print(json.dumps({
         'disk_used_bytes': disk.used
     },
     'containers': containers,
-    'certificates': certificates
+    'certificates': certificates,
+    'platform': platform
 }))
 PY
 
