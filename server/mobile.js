@@ -35,10 +35,12 @@ function mobileHomeShape(command,ops,today,next){
   const signals=Array.isArray(command.attention_signals)?command.attention_signals:[];
   const critical=signals.filter(s=>String(s.severity).toLowerCase()==='critical');
   const high=signals.filter(s=>String(s.severity).toLowerCase()==='high');
+  const medium=signals.filter(s=>String(s.severity).toLowerCase()==='medium');
+  const low=signals.filter(s=>String(s.severity).toLowerCase()==='low');
   const attentionCount=signals.length;
   const severity=critical.length?'critical':high.length?'high':attentionCount?'attention':'healthy';
   const title=attentionCount?`${attentionCount} ${attentionCount===1?'thing needs':'things need'} your attention`:'No urgent exceptions right now';
-  const detail=[critical.length?`${critical.length} critical`:null,high.length?`${high.length} high priority`:null,Number(command.tasks?.overdue||0)?`${command.tasks.overdue} overdue`:null].filter(Boolean).join(' · ');
+  const detail=[critical.length?`${critical.length} critical`:null,high.length?`${high.length} high`:null,medium.length?`${medium.length} medium`:null,low.length?`${low.length} low`:null,Number(command.tasks?.overdue||0)?`${command.tasks.overdue} overdue`:null].filter(Boolean).join(' · ');
   const estateAvailable=estate.available!==false&&Object.keys(totals).length>0;
   const realized=estateAvailable&&Number.isFinite(Number(totals.realizedRevenueUGX))?Number(totals.realizedRevenueUGX):null;
   return{
