@@ -7,11 +7,15 @@ test('mobile home reports attention and avoids fabricated unavailable estate KPI
   const shaped=mobileHomeShape({
     generated_at:'2026-09-06T10:00:00.000Z',
     tasks:{open:4,doing:1,overdue:2,blocked:1},
-    attention_signals:[{id:'a1',severity:'critical',title:'Disk high',summary:'Disk is high',source:'ops'}],
+    attention_signals:[
+      {id:'a1',severity:'critical',title:'Disk high',summary:'Disk is high',source:'ops'},
+      {id:'a2',severity:'medium',title:'Telemetry stale',summary:'Telemetry is stale',source:'ops'}
+    ],
     estate:{available:false,stale:false,error:'upstream unavailable',totals:{},products:[],commerce:[]}
   },{score:72,status:'attention',summary:{servicesTotal:10,servicesHealthy:9}},[],null);
-  assert.equal(shaped.commandSummary.count,1);
+  assert.equal(shaped.commandSummary.count,2);
   assert.equal(shaped.commandSummary.severity,'critical');
+  assert.match(shaped.commandSummary.detail,/1 critical · 1 medium · 2 overdue/);
   assert.equal(shaped.kpis.find(k=>k.key==='products').value,null);
   assert.equal(shaped.kpis.find(k=>k.key==='infrastructure').value,72);
   assert.equal(shaped.work.overdue,2);
