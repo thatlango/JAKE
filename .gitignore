@@ -5,3 +5,7 @@ client/dist/
 .env.local
 .DS_Store
 *.log
+android/.gradle/
+android/.kotlin/
+android/**/build/
+*.apk
