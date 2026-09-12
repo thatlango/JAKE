@@ -48,6 +48,7 @@ app.patch('/sms/transactions/:id',async(req,res)=>{await db.update('sms_transact
 app.delete('/sms/transactions/:id',async(req,res)=>{await db.del('sms_transactions',req.params.id.slice(0,100));res.json({ok:true});});
 
 app.get('/gcal/status',(_,res)=>res.json(gcal.getStatus()));
+app.get('/gcal/auth-url',(req,res)=>{if(!gcal.isConfigured())return res.status(503).json({error:'Google Calendar is not configured yet.'});const redirectUri=process.env.GOOGLE_REDIRECT_URI||`${req.protocol}://${req.get('host')}/auth/google/callback`;res.json({url:gcal.buildAuthUrl(redirectUri)});});
 app.get('/gcal/events',(_,res)=>res.json({events:gcal.isConnected()?cache.gcalEvents:[],connected:gcal.isConnected(),email:gcal.getStatus().email}));
 app.post('/gcal/sync',async(_,res)=>{if(!gcal.isConnected())return res.status(400).json({error:'Not connected'});try{cache.gcalEvents=await gcal.getAllEvents({days:90});for(const e of cache.gcalEvents)await db.insert('calendar_events',{id:e.id,title:e.title,date:e.date,project:e.project,type:e.type,done:false,source:'google',notes:e.desc||'',starts_at:e.dateTime,ends_at:e.endDateTime||null,all_day:e.allDay,external_id:e.id.replace(/^gcal_/,'')},true);res.json({ok:true,count:cache.gcalEvents.length,events:cache.gcalEvents});}catch(e){res.status(500).json({ok:false,error:e.message});}});
 app.post('/gcal/disconnect',(_,res)=>{gcal.disconnect();cache.gcalEvents=[];res.json({ok:true});});
