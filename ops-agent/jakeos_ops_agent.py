@@ -8,6 +8,7 @@ ENV_FILE = os.getenv("JAKEOS_ENV_FILE", "/opt/tuku/secrets/estate-product-teleme
 ENDPOINT = os.getenv("JAKEOS_OPS_ENDPOINT", "https://jakeos.tukutuku.org/api/integrations/v1/ops/snapshot")
 BACKUP_ENDPOINT = os.getenv("JAKEOS_BACKUP_ENDPOINT", "https://jakeos.tukutuku.org/api/integrations/v1/ops/backup")
 BACKUP_ROOT = Path(os.getenv("TUKU_BACKUP_ROOT", "/opt/tuku/backups"))
+MONITORING_ROOT = Path(os.getenv("TUKU_MONITORING_ROOT", "/opt/tuku/platform/monitoring"))
 
 
 def load_env(path: str) -> dict[str, str]:
@@ -75,12 +76,18 @@ def containers() -> list[dict]:
         try:
             row = json.loads(line)
             status = row.get("Status", "")
+            running = status.lower().startswith("up")
+            labels = str(row.get("Labels") or "")
+            managed = "com.docker.compose.project=" in labels
+            if not running and not managed:
+                continue
             result.append({
                 "name": row.get("Names") or row.get("ID"),
                 "image": row.get("Image"),
                 "status": status,
                 "health": "unhealthy" if "unhealthy" in status.lower() else ("healthy" if "healthy" in status.lower() else None),
-                "running": status.lower().startswith("up"),
+                "running": running,
+                "managed": managed,
             })
         except Exception:
             continue
@@ -114,8 +121,29 @@ def latest_backup() -> dict | None:
         return None
 
 
+def read_monitoring_json(filename: str):
+    try:
+        return json.loads((MONITORING_ROOT / filename).read_text())
+    except Exception:
+        return None
+
+
+def platform_telemetry() -> dict:
+    return {
+        "status": read_monitoring_json("status.json"),
+        "workers": read_monitoring_json("worker-health.json"),
+        "databases": read_monitoring_json("database-health.json"),
+        "security": read_monitoring_json("security-health.json"),
+        "restore": read_monitoring_json("restore-verification.json"),
+        "offsiteBackup": read_monitoring_json("offsite-backup-status.json"),
+        "offsiteBackupCheck": read_monitoring_json("offsite-backup-check.json"),
+        "housekeeping": read_monitoring_json("docker-housekeeping.json"),
+        "providerDependencies": read_monitoring_json("provider-dependency-inventory.json"),
+    }
+
+
 def main() -> int:
-    env = load_env(ENV_FILE)
+    env = {**load_env("/opt/tuku/secrets/jakeos.env"), **load_env(ENV_FILE), **load_env("/opt/tuku/secrets/estate-product-telemetry.env")}
     token = os.getenv("OPS_INGEST_TOKEN") or env.get("OPS_INGEST_TOKEN") or env.get("JAKEOS_INGEST_TOKEN") or env.get("TUKU_ESTATE_INSIGHTS_SECRET")
     if not token:
         raise RuntimeError("No JakeOS ops ingest credential is configured")
@@ -129,6 +157,7 @@ def main() -> int:
             "uptimeSeconds": int(float(Path("/proc/uptime").read_text().split()[0])),
         },
         "containers": containers(),
+        "platform": platform_telemetry(),
     }
     post(ENDPOINT, token, payload)
     backup = latest_backup()
