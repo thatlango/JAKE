@@ -35,7 +35,7 @@ function TimerCard({minutes=30}){
 }
 
 export default function Dashboard({openAI,navigate}){
-  const[data,setData]=useState({overview:null,today:null,projects:[],clients:[],items:[],events:[]});
+  const[data,setData]=useState({overview:null,today:null,projects:[],clients:[],items:[],events:[],accounts:null});
   const[loading,setLoading]=useState(true),[error,setError]=useState('');
   const load=useCallback(async()=>{
     setLoading(true);setError('');
@@ -48,7 +48,8 @@ export default function Dashboard({openAI,navigate}){
       const responses=await Promise.all(endpoints.map(url=>fetch(url)));
       if(responses.some(r=>!r.ok))throw new Error('Command-center data could not be loaded.');
       const[overview,today,projects,crm,items,events]=await Promise.all(responses.map(r=>r.json()));
-      setData({overview,today,projects:projects.projects||[],clients:crm.clients||[],items:items.items||[],events:events.events||[]});
+      let accounts=null;try{const ar=await fetch('/api/accounts?limit=1');if(ar.ok)accounts=await ar.json();}catch{}
+      setData({overview,today,projects:projects.projects||[],clients:crm.clients||[],items:items.items||[],events:events.events||[],accounts});
     }catch(e){setError(e.message||'JakeOS could not load the dashboard.');}
     setLoading(false);
   },[]);
@@ -94,7 +95,7 @@ export default function Dashboard({openAI,navigate}){
       <StatCard label="Open work" value={loading?'—':tasks.open??0} helper={`${priorityHigh} high priority`} icon="warning" highlight onClick={()=>navigate('work')}/>
       <StatCard label="Active pipeline" value={loading?'—':pipeline.active??0} helper={`${formatMoney(pipeline.active_value_usd||0,'USD')} tracked`} icon="money" onClick={()=>navigate('pipeline')}/>
       <StatCard label="Upcoming events" value={loading?'—':upcoming.length} helper="Next 7 days" icon="calendar" onClick={()=>navigate('calendar')}/>
-      <StatCard label="Estate active users" value={loading?'—':estateTotal.activeUsers7d??0} helper={`${estateTotal.products??estate.products?.length??0} tools · 7 days`} icon="users" onClick={()=>navigate('estate')}/>
+      <StatCard label="Active accounts" value={loading?'—':data.accounts?.totals?.active7d??estateTotal.activeUsers7d??0} helper={`${data.accounts?.totals?.totalAccounts??'—'} total accounts · 7 days`} icon="users" onClick={()=>navigate('accounts',{activity:'7d'})}/>
     </section>
 
     <section className="jd-mid-grid">
