@@ -51,7 +51,9 @@ router.get('/',async(req,res)=>{
       submitted:opportunities.filter(o=>['Submitted','Decision'].includes(o.stage)).length,
       won:opportunities.filter(o=>o.stage==='Won').length,
       due14:due14.length,
-      active_value_usd:active.filter(o=>(o.currency||'USD')==='USD').reduce((s,o)=>s+Number(o.value_amount||0),0)
+      active_value_usd:active.filter(o=>(o.currency||'USD')==='USD').reduce((s,o)=>s+Number(o.value_amount||0),0),
+      fully_assessed:opportunities.filter(o=>o.assessment_status==='Verified').length,
+      needs_verification:active.filter(o=>o.eligibility_status==='Needs verification'||o.assessment_status!=='Verified').length
     }
   });
 });
@@ -91,6 +93,27 @@ router.post('/',async(req,res)=>{
     contact:text(req.body.contact,500),
     notes:text(req.body.notes,10000),
     source_context:text(req.body.source_context||req.body.sourceContext,30000),
+    fit_status:text(req.body.fit_status||req.body.fitStatus,60)||'Needs assessment',
+    eligibility_status:text(req.body.eligibility_status||req.body.eligibilityStatus,80)||'Needs verification',
+    assessment_status:text(req.body.assessment_status||req.body.assessmentStatus,60)||'Partial',
+    assessment_confidence:text(req.body.assessment_confidence||req.body.assessmentConfidence,40)||'Medium',
+    opportunity_summary:text(req.body.opportunity_summary||req.body.opportunitySummary,12000),
+    fit_summary:text(req.body.fit_summary||req.body.fitSummary,8000),
+    decision_rationale:text(req.body.decision_rationale||req.body.decisionRationale,8000),
+    winning_strategy:text(req.body.winning_strategy||req.body.winningStrategy,10000),
+    mandatory_requirements:Array.isArray(req.body.mandatory_requirements||req.body.mandatoryRequirements)?(req.body.mandatory_requirements||req.body.mandatoryRequirements).slice(0,100):[],
+    desirable_requirements:Array.isArray(req.body.desirable_requirements||req.body.desirableRequirements)?(req.body.desirable_requirements||req.body.desirableRequirements).slice(0,100):[],
+    strongest_matches:Array.isArray(req.body.strongest_matches||req.body.strongestMatches)?(req.body.strongest_matches||req.body.strongestMatches).slice(0,100):[],
+    gaps:Array.isArray(req.body.gaps)?req.body.gaps.slice(0,100):[],
+    hard_blockers:Array.isArray(req.body.hard_blockers||req.body.hardBlockers)?(req.body.hard_blockers||req.body.hardBlockers).slice(0,100):[],
+    deliverables:Array.isArray(req.body.deliverables)?req.body.deliverables.slice(0,100):[],
+    application_requirements:Array.isArray(req.body.application_requirements||req.body.applicationRequirements)?(req.body.application_requirements||req.body.applicationRequirements).slice(0,100):[],
+    strategic_reasons:Array.isArray(req.body.strategic_reasons||req.body.strategicReasons)?(req.body.strategic_reasons||req.body.strategicReasons).slice(0,100):[],
+    start_window:text(req.body.start_window||req.body.startWindow,300),
+    duration:text(req.body.duration,300),
+    compensation:text(req.body.compensation,500),
+    source_verified_at:req.body.source_verified_at||req.body.sourceVerifiedAt||null,
+    assessed_at:req.body.assessed_at||req.body.assessedAt||new Date().toISOString(),
     checklist:Array.isArray(req.body.checklist)?req.body.checklist.slice(0,100):[],
     watch_profile_id:text(req.body.watch_profile_id||req.body.watchProfileId,120)||null,
     updated_at:new Date().toISOString()
@@ -130,13 +153,24 @@ router.patch('/:id',async(req,res)=>{
   const opportunity=await db.get('opportunities',{eq:{id:text(req.params.id,120)}});
   if(!opportunity)return res.status(404).json({error:'Opportunity not found'});
   const data={updated_at:new Date().toISOString()};
-  const fields=[['title',500],['org',500],['source',200],['source_url',2000],['deadline',40],['budget',200],['description',8000],['relevance_reason',2000],['status',60],['tags',1000],['currency',10],['location',300],['arrangement',200],['procurement_type',200],['bid_posture',120],['next_action',4000],['contact',500],['notes',10000],['source_context',30000],['outcome',1000]];
+  const fields=[['title',500],['org',500],['source',200],['source_url',2000],['deadline',40],['budget',200],['description',8000],['relevance_reason',2000],['status',60],['tags',1000],['currency',10],['location',300],['arrangement',200],['procurement_type',200],['bid_posture',120],['next_action',4000],['contact',500],['notes',10000],['source_context',30000],['outcome',1000],['fit_status',60],['eligibility_status',80],['assessment_status',60],['assessment_confidence',40],['opportunity_summary',12000],['fit_summary',8000],['decision_rationale',8000],['winning_strategy',10000],['start_window',300],['duration',300],['compensation',500]];
   for(const [key,max] of fields)if(req.body[key]!==undefined)data[key]=text(req.body[key],max);
   if(req.body.sourceUrl!==undefined)data.source_url=text(req.body.sourceUrl,2000);
   if(req.body.procurementType!==undefined)data.procurement_type=text(req.body.procurementType,200);
   if(req.body.bidPosture!==undefined)data.bid_posture=text(req.body.bidPosture,120);
   if(req.body.nextAction!==undefined)data.next_action=text(req.body.nextAction,4000);
   if(req.body.sourceContext!==undefined)data.source_context=text(req.body.sourceContext,30000);
+  if(req.body.fitStatus!==undefined)data.fit_status=text(req.body.fitStatus,60);
+  if(req.body.eligibilityStatus!==undefined)data.eligibility_status=text(req.body.eligibilityStatus,80);
+  if(req.body.assessmentStatus!==undefined)data.assessment_status=text(req.body.assessmentStatus,60);
+  if(req.body.assessmentConfidence!==undefined)data.assessment_confidence=text(req.body.assessmentConfidence,40);
+  if(req.body.opportunitySummary!==undefined)data.opportunity_summary=text(req.body.opportunitySummary,12000);
+  if(req.body.fitSummary!==undefined)data.fit_summary=text(req.body.fitSummary,8000);
+  if(req.body.decisionRationale!==undefined)data.decision_rationale=text(req.body.decisionRationale,8000);
+  if(req.body.winningStrategy!==undefined)data.winning_strategy=text(req.body.winningStrategy,10000);
+  if(req.body.startWindow!==undefined)data.start_window=text(req.body.startWindow,300);
+  if(req.body.source_verified_at!==undefined||req.body.sourceVerifiedAt!==undefined)data.source_verified_at=(req.body.source_verified_at??req.body.sourceVerifiedAt)||null;
+  if(req.body.assessed_at!==undefined||req.body.assessedAt!==undefined)data.assessed_at=(req.body.assessed_at??req.body.assessedAt)||new Date().toISOString();
   if(req.body.stage!==undefined)data.stage=cleanStage(req.body.stage,opportunity.stage);
   if(req.body.audience!==undefined)data.audience=cleanAudience(req.body.audience,opportunity.audience);
   if(req.body.opportunity_type!==undefined||req.body.opportunityType!==undefined)data.opportunity_type=cleanType(req.body.opportunity_type??req.body.opportunityType,opportunity.opportunity_type);
@@ -147,6 +181,8 @@ router.patch('/:id',async(req,res)=>{
   if(req.body.seen!==undefined)data.seen=bool(req.body.seen);
   if(req.body.watch_profile_id!==undefined||req.body.watchProfileId!==undefined)data.watch_profile_id=text(req.body.watch_profile_id??req.body.watchProfileId,120)||null;
   if(Array.isArray(req.body.checklist))data.checklist=req.body.checklist.slice(0,100);
+  const arrays=[['mandatory_requirements','mandatoryRequirements'],['desirable_requirements','desirableRequirements'],['strongest_matches','strongestMatches'],['gaps','gaps'],['hard_blockers','hardBlockers'],['deliverables','deliverables'],['application_requirements','applicationRequirements'],['strategic_reasons','strategicReasons']];
+  for(const [snake,camel] of arrays){const value=req.body[snake]??req.body[camel];if(Array.isArray(value))data[snake]=value.slice(0,100);}
   if(req.body.submitted_at!==undefined||req.body.submittedAt!==undefined)data.submitted_at=(req.body.submitted_at??req.body.submittedAt)||null;
   if(req.body.decision_at!==undefined||req.body.decisionAt!==undefined)data.decision_at=(req.body.decision_at??req.body.decisionAt)||null;
   await db.update('opportunities',opportunity.id,data);
