@@ -91,6 +91,12 @@ Momentum may use Firebase for its mobile concerns, but Firebase must not become 
 | **Integrations** | Calendar, email and other approved data connections |
 | **AI / Search** | Ask questions across the full JakeOS context |
 
+## Estate Control
+
+JakeOS also owns the **Tuku Estate Control** release plane. It tracks the canonical estate repository graph, one-workstream-per-repository ownership, durable Git/CI checkpoints, deployed SHAs/artifacts and production verification. The operating contract lives in `estate-control/README.md` and the registry in `estate-control/registry.json`.
+
+Estate telemetry answers **how products are operating**. Estate Control answers **whether software changes are moving safely from repository to production**.
+
 ## Momentum API boundary
 
 JakeOS should expose a narrow execution API for Momentum, beginning with:

@@ -12,6 +12,7 @@ const GROUPS=[
     {id:'cashflow',label:'Money',icon:'money'},
     {id:'opportunities',label:'Opportunities',icon:'target'},
     {id:'estate',label:'Tuku Estate',icon:'estate'},
+    {id:'estate-control',label:'Estate Control',icon:'target'},
     {id:'operations',label:'Operations',icon:'chart'},
     {id:'payments',label:'Payments',icon:'money'},
   ]},

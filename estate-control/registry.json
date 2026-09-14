@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "authority": "JakeOS Estate Control",
+  "canonicalBranchPolicy": "main",
+  "states": [
+    "AVAILABLE",
+    "ACTIVE",
+    "VERIFYING",
+    "MERGING",
+    "DEPLOYING",
+    "VERIFIED",
+    "BLOCKED"
+  ],
+  "repositories": [
+    {
+      "id": "tuku-core",
+      "product": "core",
+      "repo": "thatlango/Tuku-Core",
+      "branch": "main",
+      "priority": 1,
+      "criticality": "critical",
+      "kind": "web-api",
+      "dependencies": [],
+      "release": {
+        "type": "web",
+        "target": "core.tukutuku.org"
+      }
+    },
+    {
+      "id": "shared-language",
+      "product": "shared",
+      "repo": "thatlango/tuku-shared-language",
+      "branch": "main",
+      "priority": 2,
+      "criticality": "high",
+      "kind": "package-contract",
+      "dependencies": [],
+      "release": {
+        "type": "library",
+        "target": "consumers"
+      }
+    },
+    {
+      "id": "ecitaa-api",
+      "product": "ecitaa",
+      "repo": "thatlango/ecitaa-api",
+      "branch": "main",
+      "priority": 3,
+      "criticality": "critical",
+      "kind": "api",
+      "dependencies": [
+        "tuku-core"
+      ],
+      "release": {
+        "type": "service",
+        "target": "ecitaa-api"
+      }
+    },
+    {
+      "id": "ecitaa-core",
+      "product": "ecitaa",
+      "repo": "thatlango/EcitaaDashboard",
+      "branch": "main",
+      "priority": 3,
+      "criticality": "critical",
+      "kind": "web",
+      "dependencies": [
+        "tuku-core",
+        "shared-language",
+        "ecitaa-api"
+      ],
+      "release": {
+        "type": "web",
+        "target": "ecitaa.tukutuku.org"
+      }
+    },
+    {
+      "id": "ecitaa-field",
+      "product": "ecitaa",
+      "repo": "thatlango/ecitaafield",
+      "branch": "main",
+      "priority": 3,
+      "criticality": "critical",
+      "kind": "android",
+      "dependencies": [
+        "tuku-core",
+        "shared-language",
+        "ecitaa-api"
+      ],
+      "release": {
+        "type": "apk",
+        "target": "field"
+      }
+    },
+    {
+      "id": "kela",
+      "product": "kela",
+      "repo": "thatlango/kela",
+      "branch": "main",
+      "priority": 3,
+      "criticality": "critical",
+      "kind": "web-service",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "web",
+        "target": "kela.tukutuku.org"
+      }
+    },
+    {
+      "id": "impactos",
+      "product": "impactos",
+      "repo": "thatlango/impactos-platform",
+      "branch": "main",
+      "priority": 4,
+      "criticality": "high",
+      "kind": "web-service",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "web",
+        "target": "impactos.tukutuku.org"
+      }
+    },
+    {
+      "id": "bcp",
+      "product": "bcp",
+      "repo": "thatlango/BCP-Pro-Main",
+      "branch": "main",
+      "priority": 4,
+      "criticality": "high",
+      "kind": "web",
+      "dependencies": [
+        "tuku-core"
+      ],
+      "release": {
+        "type": "web",
+        "target": "prudevbcp.tukutuku.org"
+      }
+    },
+    {
+      "id": "jakeos",
+      "product": "jakeos",
+      "repo": "thatlango/JAKE",
+      "branch": "main",
+      "priority": 5,
+      "criticality": "high",
+      "kind": "web-service",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "web",
+        "target": "jakeos.tukutuku.org"
+      }
+    },
+    {
+      "id": "traffiq-web",
+      "product": "traffiq",
+      "repo": "thatlango/traffiqweb",
+      "branch": "main",
+      "priority": 6,
+      "criticality": "medium",
+      "kind": "web",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "web",
+        "target": "traffiq.tukutuku.org"
+      }
+    },
+    {
+      "id": "traffiq-android",
+      "product": "traffiq",
+      "repo": "thatlango/traffIQAndroid",
+      "branch": "main",
+      "priority": 6,
+      "criticality": "high",
+      "kind": "android",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "apk",
+        "target": "field"
+      }
+    },
+    {
+      "id": "units",
+      "product": "units",
+      "repo": "thatlango/UnitsERPV2-",
+      "branch": "main",
+      "priority": 7,
+      "criticality": "high",
+      "kind": "web-service",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "web",
+        "target": "units.tukutuku.org"
+      }
+    },
+    {
+      "id": "lendflow",
+      "product": "lendflow",
+      "repo": "thatlango/lendflow",
+      "branch": "main",
+      "priority": 7,
+      "criticality": "high",
+      "kind": "web-service",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "web",
+        "target": "lendflow.tukutuku.org"
+      }
+    },
+    {
+      "id": "tukuiq",
+      "product": "tukuiq",
+      "repo": "thatlango/TukuIQ-1-",
+      "branch": "main",
+      "priority": 8,
+      "criticality": "medium",
+      "kind": "web-service",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "web",
+        "target": "tukuiq.tukutuku.org"
+      }
+    },
+    {
+      "id": "prediq",
+      "product": "prediq",
+      "repo": "thatlango/PredIQ",
+      "branch": "main",
+      "priority": 8,
+      "criticality": "medium",
+      "kind": "service",
+      "dependencies": [
+        "tuku-core"
+      ],
+      "release": {
+        "type": "service",
+        "target": "prediq-backend"
+      }
+    },
+    {
+      "id": "prediq-android",
+      "product": "prediq",
+      "repo": "thatlango/PredIQAndroid",
+      "branch": "main",
+      "priority": 8,
+      "criticality": "medium",
+      "kind": "android",
+      "dependencies": [
+        "prediq",
+        "shared-language"
+      ],
+      "release": {
+        "type": "apk",
+        "target": "consumer"
+      }
+    },
+    {
+      "id": "tukumail",
+      "product": "tukumail",
+      "repo": "thatlango/TukuMail",
+      "branch": "main",
+      "priority": 9,
+      "criticality": "medium",
+      "kind": "monorepo",
+      "dependencies": [
+        "tuku-core",
+        "shared-language"
+      ],
+      "release": {
+        "type": "multi",
+        "target": "web-android-desktop"
+      }
+    }
+  ]
+}
