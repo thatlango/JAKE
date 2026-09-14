@@ -8,7 +8,6 @@ import { Button, Icon } from './components/ProductUI';
 import Dashboard from './modules/Dashboard';
 import Work from './modules/Work';
 import Projects from './modules/Projects';
-import Pipeline from './modules/Pipeline';
 import CalendarModule from './modules/Calendar';
 import Finance from './modules/Finance';
 import Integrations from './modules/Integrations';
@@ -16,9 +15,7 @@ import PersonalFinance from './modules/PersonalFinance';
 import AlertsSettings from './modules/AlertsSettings';
 import CRM from './modules/CRMNext';
 import CashFlow from './modules/CashFlow';
-import OpportunityRadar from './modules/OpportunityRadar';
-import Proposals from './modules/Proposals';
-import Grants from './modules/Grants';
+import Opportunities from './modules/Opportunities';
 import VoiceMemo from './modules/VoiceMemo';
 import ExportCentre from './modules/ExportCentre';
 import AISearch from './modules/AISearch';
@@ -28,7 +25,7 @@ import Accounts from './modules/Accounts';
 import Operations from './modules/Operations';
 import Payments from './modules/Payments';
 
-const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','pipeline','radar','estate','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
+const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','opportunities','pipeline','radar','estate','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
 const readLocation=()=>{
   const match=window.location.pathname.match(/^\/estate(?:\/([^/?#]+))?\/?$/i);
   if(match)return{module:'estate',estateProduct:match[1]?decodeURIComponent(match[1]).toLowerCase():null};
@@ -61,8 +58,11 @@ export default function App(){
   const userName=authState.user?.name||authState.user?.display_name||authState.user?.full_name||'Jacob Odur';
   const userEmail=authState.user?.email||'Tuku account';
   const initials=userName.split(/\s+/).map(x=>x[0]).filter(Boolean).slice(0,2).join('').toUpperCase()||'JO';
+  const opportunityModules=new Set(['opportunities','pipeline','radar','proposals','grants']);
+  const opportunityView=module==='pipeline'?'pipeline':module==='radar'?'discover':module==='proposals'||module==='grants'?'applications':(new URLSearchParams(window.location.search).get('view')||'overview');
+  const navActive=opportunityModules.has(module)?'opportunities':module;
   return <div className="app-layout">
-    <Sidebar active={module} onChange={navigate}/><MobileNav active={module} onChange={navigate}/>
+    <Sidebar active={navActive} onChange={navigate}/><MobileNav active={navActive} onChange={navigate}/>
     <header className="jd-topbar">
       <button className="jd-search-command" onClick={openJake}><Icon name="search" size={19}/><span>Search task, project or relationship</span><kbd>⌘F</kbd></button>
       <div className="jd-topbar-actions">
@@ -72,7 +72,7 @@ export default function App(){
       </div>
     </header>
     <main className="main-content">
-      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='pipeline'&&<Pipeline openAI={openAI}/>} {module==='proposals'&&<Proposals/>} {module==='grants'&&<Grants/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='radar'&&<OpportunityRadar openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
     </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={module}/><InstallPrompt/>
   </div>;
 }
