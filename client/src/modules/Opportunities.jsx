@@ -10,6 +10,8 @@ const POSTURES=['Apply','Bid','Recruit Specialists & Bid','Consortium Bid','Cons
 const EMPTY={title:'',org:'',audience:'Tuku-Tuku',opportunityType:'Consultancy',stage:'Watching',deadline:'',valueAmount:'',currency:'USD',fitScore:0,bidPosture:'Consider',sourceUrl:'',location:'',nextAction:'',notes:'',watchProfileId:''};
 const stageTone=s=>s==='Won'?'success':s==='Lost'||s==='Closed'?'danger':s==='Submitted'||s==='Decision'?'info':s==='Pursuing'||s==='Drafting'?'warning':'neutral';
 const audienceTone=a=>a==='Jacob'?'info':a==='Tuku-Tuku'?'brand':'neutral';
+const fitTone=s=>String(s||'').toLowerCase().includes('strong')?'success':String(s||'').toLowerCase().includes('good')?'brand':String(s||'').toLowerCase().includes('conditional')||String(s||'').toLowerCase().includes('verification')?'warning':String(s||'').toLowerCase().includes('weak')||String(s||'').toLowerCase().includes('not eligible')?'danger':'neutral';
+const cleanList=value=>Array.isArray(value)?value.filter(Boolean):[];
 const dueSoon=o=>o.deadline&&new Date(o.deadline)>=new Date()&&new Date(o.deadline)<=new Date(Date.now()+14*86400000);
 const overdue=o=>o.deadline&&!['Won','Lost','Closed'].includes(o.stage)&&new Date(o.deadline)<new Date();
 const score=o=>Number(o.fit_score||0)>0?String(o.fit_score)+'/5':Number(o.relevance_score||0)>0?String(o.relevance_score)+'%':'—';
@@ -19,7 +21,7 @@ function OpportunityRow({o,onOpen,onPatch}){
     <button onClick={()=>onOpen(o)} style={{flex:1,minWidth:0,textAlign:'left',border:0,background:'transparent',cursor:'pointer',padding:0}}>
       <div className="px-list-title">{o.title}</div>
       <div className="px-list-sub">{o.org} · {o.opportunity_type||'Opportunity'}{o.location?' · '+o.location:''}</div>
-      <div className="px-task-meta"><Pill tone={audienceTone(o.audience)}>{o.audience}</Pill><Pill tone={stageTone(o.stage)}>{o.stage}</Pill>{o.deadline&&<Pill tone={overdue(o)?'danger':dueSoon(o)?'warning':'neutral'}>{relativeDate(o.deadline)}</Pill>}</div>
+      <div className="px-task-meta"><Pill tone={audienceTone(o.audience)}>{o.audience}</Pill><Pill tone={fitTone(o.fit_status)}>{o.fit_status||'Needs assessment'}</Pill><Pill tone={stageTone(o.stage)}>{o.stage}</Pill>{o.deadline&&<Pill tone={overdue(o)?'danger':dueSoon(o)?'warning':'neutral'}>{relativeDate(o.deadline)}</Pill>}</div>
     </button>
     <div className="px-list-meta" style={{textAlign:'right'}}><strong>{score(o)}</strong><div>{Number(o.value_amount)>0?formatMoney(o.value_amount,o.currency||'USD'):'Value TBD'}</div></div>
     {o.stage==='Discover'&&<Button variant="tonal" onClick={()=>onPatch(o.id,{stage:'Watching',saved:true,status:'Watching'})}>Watch</Button>}
@@ -47,7 +49,7 @@ export default function Opportunities({openAI,initialView='overview'}){
   const pipelineGroups=useMemo(()=>Object.fromEntries(STAGES.map(s=>[s,data.opportunities.filter(o=>o.stage===s)])),[data.opportunities]);
 
   const openNew=()=>{setForm(EMPTY);setDrawer('new');};
-  const edit=o=>{setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||''});setDrawer(o.id);setSelected(o.id);};
+  const edit=o=>{setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||'',fitStatus:o.fit_status||'Needs assessment',eligibilityStatus:o.eligibility_status||'Needs verification',assessmentStatus:o.assessment_status||'Partial',assessmentConfidence:o.assessment_confidence||'Medium'});setDrawer(o.id);setSelected(o.id);};
 
   const patch=async(id,updates)=>{
     const r=await fetch('/api/opportunities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)});
@@ -145,12 +147,62 @@ export default function Opportunities({openAI,initialView='overview'}){
     {view==='overview'?overview:view==='discover'?discoverView:view==='pipeline'?pipelineView:view==='applications'?applicationsView:watchesView}
 
     {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card">
-      <PageHeader eyebrow="Canonical opportunity" title={drawer==='new'?'Add opportunity':form.title||'Edit opportunity'} subtitle="One record owns fit, deadline, value, pursuit stage, next action and attached application work." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/>
+      <PageHeader eyebrow="Canonical opportunity" title={drawer==='new'?'Add opportunity':form.title||'Edit opportunity'} subtitle="One record owns the opportunity, assessment, pursuit decision, application work and outcome." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/>
+      {drawer!=='new'&&current&&<div className="px-stack" style={{marginBottom:18}}>
+        <Panel title="Fit decision" subtitle="The score shows thematic fit; the status accounts for eligibility, evidence and unresolved blockers.">
+          <div className="px-row" style={{flexWrap:'wrap',gap:8,marginBottom:12}}>
+            <Pill tone={fitTone(current.fit_status)}>{current.fit_status||'Needs assessment'} · {score(current)}</Pill>
+            <Pill tone={fitTone(current.eligibility_status)}>{current.eligibility_status||'Needs verification'}</Pill>
+            <Pill tone={current.bid_posture==='No-Bid'?'danger':current.bid_posture?'brand':'neutral'}>{current.bid_posture||'Posture not set'}</Pill>
+            <Pill>{current.assessment_status||'Partial'} · {current.assessment_confidence||'Medium'} confidence</Pill>
+          </div>
+          <div style={{fontSize:14,lineHeight:1.65}}>{current.fit_summary||current.relevance_reason||'This opportunity still needs a deeper fit assessment.'}</div>
+          {current.decision_rationale&&<div className="px-banner" style={{marginTop:12}}><strong>Decision rationale</strong><div>{current.decision_rationale}</div></div>}
+        </Panel>
+        <Panel title="Opportunity brief" subtitle={[current.opportunity_type,current.location,current.arrangement,current.start_window,current.duration].filter(Boolean).join(' · ')||'Scope and timing'}>
+          <div style={{fontSize:14,lineHeight:1.7}}>{current.opportunity_summary||current.description||'Detailed opportunity summary has not been captured yet.'}</div>
+          <div className="px-row" style={{flexWrap:'wrap',gap:8,marginTop:12}}>
+            {current.deadline&&<Pill tone={overdue(current)?'danger':dueSoon(current)?'warning':'neutral'}>Deadline {String(current.deadline).slice(0,10)}</Pill>}
+            {current.compensation&&<Pill>{current.compensation}</Pill>}
+            {Number(current.value_amount)>0&&<Pill>{formatMoney(current.value_amount,current.currency||'USD')}</Pill>}
+            {current.procurement_type&&<Pill>{current.procurement_type}</Pill>}
+          </div>
+        </Panel>
+        <div className="px-grid-2">
+          <Panel title="Why it fits" subtitle="Verified or evidence-backed matches to the opportunity.">
+            {cleanList(current.strongest_matches).length?<ul style={{margin:'0 0 0 18px',padding:0,lineHeight:1.7}}>{cleanList(current.strongest_matches).map((x,i)=><li key={i}>{typeof x==='string'?x:(x.label||x.text||JSON.stringify(x))}</li>)}</ul>:<div className="px-list-sub">No structured fit evidence captured yet.</div>}
+          </Panel>
+          <Panel title="Mandatory requirements" subtitle="Requirements that determine eligibility, not just attractiveness.">
+            {cleanList(current.mandatory_requirements).length?<ul style={{margin:'0 0 0 18px',padding:0,lineHeight:1.7}}>{cleanList(current.mandatory_requirements).map((x,i)=><li key={i}>{typeof x==='string'?x:(x.label||x.text||JSON.stringify(x))}</li>)}</ul>:<div className="px-list-sub">Mandatory requirements have not been fully extracted yet.</div>}
+          </Panel>
+        </div>
+        <div className="px-grid-2">
+          <Panel title="Gaps & blockers" subtitle="What must be resolved before applying or bidding.">
+            {cleanList([...(current.gaps||[]),...(current.hard_blockers||[])]).length?<ul style={{margin:'0 0 0 18px',padding:0,lineHeight:1.7}}>{cleanList([...(current.gaps||[]),...(current.hard_blockers||[])]).map((x,i)=><li key={i}>{typeof x==='string'?x:(x.label||x.text||JSON.stringify(x))}</li>)}</ul>:<div className="px-list-sub">No material blocker is recorded.</div>}
+          </Panel>
+          <Panel title="Scope / deliverables" subtitle="What the assignment expects to be delivered.">
+            {cleanList(current.deliverables).length?<ul style={{margin:'0 0 0 18px',padding:0,lineHeight:1.7}}>{cleanList(current.deliverables).map((x,i)=><li key={i}>{typeof x==='string'?x:(x.label||x.text||JSON.stringify(x))}</li>)}</ul>:<div className="px-list-sub">Deliverables have not been fully extracted yet.</div>}
+          </Panel>
+        </div>
+        <div className="px-grid-2">
+          <Panel title="Application requirements" subtitle="What must be prepared or submitted.">
+            {cleanList(current.application_requirements).length?<ul style={{margin:'0 0 0 18px',padding:0,lineHeight:1.7}}>{cleanList(current.application_requirements).map((x,i)=><li key={i}>{typeof x==='string'?x:(x.label||x.text||JSON.stringify(x))}</li>)}</ul>:<div className="px-list-sub">Application requirements have not been fully extracted yet.</div>}
+          </Panel>
+          <Panel title="Winning strategy" subtitle="Recommended pursuit approach based on fit and gaps.">
+            <div style={{fontSize:14,lineHeight:1.7}}>{current.winning_strategy||current.next_action||'No pursuit strategy has been recorded yet.'}</div>
+            {cleanList(current.strategic_reasons).length>0&&<ul style={{margin:'12px 0 0 18px',padding:0,lineHeight:1.7}}>{cleanList(current.strategic_reasons).map((x,i)=><li key={i}>{typeof x==='string'?x:(x.label||x.text||JSON.stringify(x))}</li>)}</ul>}
+          </Panel>
+        </div>
+        <Panel title="Source & verification" subtitle={current.source_verified_at?'Source verified '+relativeDate(current.source_verified_at):'Source verification not yet recorded'}>
+          <div className="px-between"><div><strong>{current.source||'Unknown source'}</strong><div className="px-list-sub">{current.source_context||'No source notes captured.'}</div></div>{current.source_url&&<Button variant="secondary" onClick={()=>window.open(current.source_url,'_blank','noopener')}>Open original source</Button>}</div>
+        </Panel>
+      </div>}
       <div className="px-stack">
         <div className="px-form-grid"><div className="px-field"><label>Title</label><input autoFocus value={form.title||''} onChange={e=>setForm(f=>({...f,title:e.target.value}))}/></div><div className="px-field"><label>Organisation</label><input value={form.org||''} onChange={e=>setForm(f=>({...f,org:e.target.value}))}/></div></div>
         <div className="px-form-grid"><div className="px-field"><label>For</label><select value={form.audience||'Tuku-Tuku'} onChange={e=>setForm(f=>({...f,audience:e.target.value}))}>{AUDIENCES.map(x=><option key={x}>{x}</option>)}</select></div><div className="px-field"><label>Type</label><select value={form.opportunityType||'Consultancy'} onChange={e=>setForm(f=>({...f,opportunityType:e.target.value}))}>{TYPES.map(x=><option key={x}>{x}</option>)}</select></div></div>
         <div className="px-form-grid"><div className="px-field"><label>Stage</label><select value={form.stage||'Watching'} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{['Discover',...STAGES,'Closed'].map(x=><option key={x}>{x}</option>)}</select></div><div className="px-field"><label>Deadline</label><input type="date" value={form.deadline?String(form.deadline).slice(0,10):''} onChange={e=>setForm(f=>({...f,deadline:e.target.value}))}/></div></div>
-        <div className="px-form-grid"><div className="px-field"><label>Fit score</label><select value={form.fitScore??0} onChange={e=>setForm(f=>({...f,fitScore:Number(e.target.value)}))}>{[0,1,2,3,4,5].map(x=><option key={x} value={x}>{x===0?'Not scored':String(x)+'/5'}</option>)}</select></div><div className="px-field"><label>Bid / application posture</label><select value={form.bidPosture||'Consider'} onChange={e=>setForm(f=>({...f,bidPosture:e.target.value}))}>{POSTURES.map(x=><option key={x}>{x}</option>)}</select></div></div>
+        <div className="px-form-grid"><div className="px-field"><label>Fit score</label><select value={form.fitScore??0} onChange={e=>setForm(f=>({...f,fitScore:Number(e.target.value)}))}>{[0,1,2,3,4,5].map(x=><option key={x} value={x}>{x===0?'Not scored':String(x)+'/5'}</option>)}</select></div><div className="px-field"><label>Fit status</label><select value={form.fitStatus||'Needs assessment'} onChange={e=>setForm(f=>({...f,fitStatus:e.target.value}))}>{['Needs assessment','Strong fit','Good fit','Conditional fit','Weak fit','Not eligible'].map(x=><option key={x}>{x}</option>)}</select></div></div>
+        <div className="px-form-grid"><div className="px-field"><label>Eligibility status</label><select value={form.eligibilityStatus||'Needs verification'} onChange={e=>setForm(f=>({...f,eligibilityStatus:e.target.value}))}>{['Needs verification','Eligible','Likely eligible','Conditional','Not eligible'].map(x=><option key={x}>{x}</option>)}</select></div><div className="px-field"><label>Bid / application posture</label><select value={form.bidPosture||'Consider'} onChange={e=>setForm(f=>({...f,bidPosture:e.target.value}))}>{POSTURES.map(x=><option key={x}>{x}</option>)}</select></div></div>
         <div className="px-form-grid"><div className="px-field"><label>Value</label><input type="number" min="0" value={form.valueAmount||''} onChange={e=>setForm(f=>({...f,valueAmount:e.target.value}))}/></div><div className="px-field"><label>Currency</label><select value={form.currency||'USD'} onChange={e=>setForm(f=>({...f,currency:e.target.value}))}>{['USD','UGX','EUR','GBP','KES'].map(x=><option key={x}>{x}</option>)}</select></div></div>
         <div className="px-field"><label>Watch profile</label><select value={form.watchProfileId||''} onChange={e=>setForm(f=>({...f,watchProfileId:e.target.value}))}><option value="">None / manual</option>{data.watches.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
         <div className="px-field"><label>Source URL</label><input value={form.sourceUrl||''} onChange={e=>setForm(f=>({...f,sourceUrl:e.target.value}))}/></div>
