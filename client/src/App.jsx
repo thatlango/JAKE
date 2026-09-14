@@ -21,13 +21,15 @@ import ExportCentre from './modules/ExportCentre';
 import AISearch from './modules/AISearch';
 import Platforms from './modules/Platforms';
 import Estate from './modules/Estate';
+import EstateControl from './modules/EstateControl';
 import Accounts from './modules/Accounts';
 import Operations from './modules/Operations';
 import Payments from './modules/Payments';
 
-const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','opportunities','pipeline','radar','estate','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
+const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','opportunities','pipeline','radar','estate','estate-control','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
 const readLocation=()=>{
   const match=window.location.pathname.match(/^\/estate(?:\/([^/?#]+))?\/?$/i);
+  if(window.location.pathname==='/estate/control'||window.location.pathname==='/estate/control/')return{module:'estate-control',estateProduct:null};
   if(match)return{module:'estate',estateProduct:match[1]?decodeURIComponent(match[1]).toLowerCase():null};
   const requested=new URLSearchParams(window.location.search).get('module')||'dashboard';
   return{module:KNOWN_MODULES.has(requested)?requested:'dashboard',estateProduct:null};
@@ -49,7 +51,7 @@ export default function App(){
   useEffect(()=>{let active=true;fetch('/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})).then(({ok,data})=>active&&setAuthState({checking:false,authenticated:ok&&data.authenticated===true,user:data.user||null})).catch(()=>active&&setAuthState({checking:false,authenticated:false,user:null}));return()=>{active=false;};},[]);
   const signOut=useCallback(async()=>{try{await fetch('/auth/logout',{method:'POST'});}catch{}window.location.replace('/');},[]);
   const openAI=useCallback(context=>{setAiContext(context||'');setAiOpen(true);},[]);
-  const navigate=useCallback((next,params={})=>{const safe=KNOWN_MODULES.has(next)?next:'dashboard';setModule(safe);setEstateProduct(null);setAiOpen(false);let url;if(safe==='dashboard')url='/';else if(safe==='estate')url='/estate';else{const query=new URLSearchParams({module:safe});Object.entries(params||{}).forEach(([key,value])=>{if(value!==undefined&&value!==null&&String(value)!=='')query.set(key,String(value));});url=`/?${query.toString()}`;}window.history.replaceState({},'',url);window.scrollTo({top:0,behavior:'smooth'});},[]);
+  const navigate=useCallback((next,params={})=>{const safe=KNOWN_MODULES.has(next)?next:'dashboard';setModule(safe);setEstateProduct(null);setAiOpen(false);let url;if(safe==='dashboard')url='/';else if(safe==='estate')url='/estate';else if(safe==='estate-control')url='/estate/control';else{const query=new URLSearchParams({module:safe});Object.entries(params||{}).forEach(([key,value])=>{if(value!==undefined&&value!==null&&String(value)!=='')query.set(key,String(value));});url=`/?${query.toString()}`;}window.history.replaceState({},'',url);window.scrollTo({top:0,behavior:'smooth'});},[]);
   const navigateEstateProduct=useCallback(code=>{const safe=String(code||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');if(!safe)return;setModule('estate');setEstateProduct(safe);setAiOpen(false);window.history.pushState({},'',`/estate/${encodeURIComponent(safe)}`);window.scrollTo({top:0,behavior:'smooth'});},[]);
   const backToEstate=useCallback(()=>{setModule('estate');setEstateProduct(null);setAiOpen(false);window.history.pushState({},'','/estate');window.scrollTo({top:0,behavior:'smooth'});},[]);
   const openJake=useCallback(()=>window.dispatchEvent(new Event('jake:open')),[]);
@@ -72,7 +74,7 @@ export default function App(){
       </div>
     </header>
     <main className="main-content">
-      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
     </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={navActive}/><InstallPrompt/>
   </div>;
 }
