@@ -12,6 +12,7 @@ const db=require('./db');
 const invoices=require('./invoices');
 const crm=require('./crm');
 const radar=require('./radar');
+const {opportunitiesWorkspaceRouter}=require('./opportunities-workspace');
 const {commandCenterOverview}=require('./overview');
 const {desktopRouter}=require('./desktop-routes');
 const localAi=require('./ai');
@@ -32,6 +33,7 @@ async function assertExternalUrl(raw){let url;try{url=new URL(raw);}catch{throw 
 app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'5.1',db:await db.ping(),time:new Date().toISOString()}));
 app.get('/overview',async(_,res)=>res.json(await commandCenterOverview()));
 app.use(desktopRouter);
+app.use('/opportunities',opportunitiesWorkspaceRouter);
 
 app.get('/ai/status',(_,res)=>res.json(localAi.status()));
 app.post('/claude',validate([body('messages').isArray({min:1,max:50}),body('messages.*.role').isIn(['user','assistant']),body('messages.*.content').isString().trim().isLength({min:1,max:8000})]),async(req,res)=>{try{const result=await localAi.ollamaChat({messages:req.body.messages,systemPrompt:String(req.body.systemPrompt||'').slice(0,18000),maxTokens:1500,temperature:0.2,timeoutMs:75000});res.json({id:`jake_${Date.now()}`,type:'message',role:'assistant',model:result.model,provider:result.provider,content:[{type:'text',text:result.text}]});}catch(e){res.status(e.status||502).json({error:e.message||'Jake local AI failed'});}});
