@@ -93,7 +93,7 @@ export default function Dashboard({openAI,navigate}){
 
     <section className="jd-stats-grid" aria-label="Command center metrics">
       <StatCard label="Open work" value={loading?'—':tasks.open??0} helper={`${priorityHigh} high priority`} icon="warning" highlight onClick={()=>navigate('work')}/>
-      <StatCard label="Active pipeline" value={loading?'—':pipeline.active??0} helper={`${formatMoney(pipeline.active_value_usd||0,'USD')} tracked`} icon="money" onClick={()=>navigate('pipeline')}/>
+      <StatCard label="Active pipeline" value={loading?'—':pipeline.active??0} helper={`${formatMoney(pipeline.active_value_usd||0,'USD')} tracked`} icon="money" onClick={()=>navigate('opportunities',{view:'pipeline'})}/>
       <StatCard label="Upcoming events" value={loading?'—':upcoming.length} helper="Next 7 days" icon="calendar" onClick={()=>navigate('calendar')}/>
       <StatCard label="Active accounts" value={loading?'—':data.accounts?.totals?.active7d??estateTotal.activeUsers7d??0} helper={`${data.accounts?.totals?.totalAccounts??'—'} total accounts · 7 days`} icon="users" onClick={()=>navigate('accounts',{activity:'7d'})}/>
     </section>
