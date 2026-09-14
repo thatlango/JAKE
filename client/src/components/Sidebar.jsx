@@ -10,15 +10,12 @@ const GROUPS=[
   ]},
   {label:'Operate',items:[
     {id:'cashflow',label:'Money',icon:'money'},
-    {id:'pipeline',label:'Pipeline',icon:'target'},
-    {id:'radar',label:'Opportunities',icon:'spark'},
+    {id:'opportunities',label:'Opportunities',icon:'target'},
     {id:'estate',label:'Tuku Estate',icon:'estate'},
     {id:'operations',label:'Operations',icon:'chart'},
     {id:'payments',label:'Payments',icon:'money'},
   ]},
   {label:'Build & deliver',items:[
-    {id:'proposals',label:'Proposals',icon:'document'},
-    {id:'grants',label:'Grants & bids',icon:'document'},
     {id:'finance',label:'Revenue plan',icon:'chart'},
   ]},
   {label:'System',items:[

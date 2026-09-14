@@ -18,9 +18,9 @@ const MODULE_COMMANDS = {
     { label: 'Which project is at risk?', prompt: 'Review active project health and tell me which project deserves intervention first, why, and the next action.' },
     { label: 'Find blocked delivery', prompt: 'Find stalled or blocked project work and propose the shortest path to movement.' },
   ],
-  pipeline: [
-    { label: 'Which deal needs action?', prompt: 'Review the pipeline and identify the pursuit that most needs action now. Consider value, age, stage and next-action urgency.' },
-    { label: 'Find stale pursuits', prompt: 'Find pursuits that are stale or overdue and tell me whether to follow up, reframe, or close them.' },
+  opportunities: [
+    { label: 'Which opportunity needs action?', prompt: 'Review the canonical opportunity workspace and identify the pursuit that most needs action now. Consider fit, value, deadline, stage and next-action urgency.' },
+    { label: 'What should I pursue?', prompt: 'Review watched and discovered opportunities and tell me which ones to pursue, hold, consortium-bid or close.' },
   ],
   crm: [
     { label: 'Who should I contact?', prompt: 'Review relationship activity and tell me which contacts I should reach out to next and why.' },
@@ -78,9 +78,9 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
     setInput('');
 
     const navMap = {
-      dashboard: 'dashboard', overview: 'dashboard', work: 'work', projects: 'projects', pipeline: 'pipeline',
-      calendar: 'calendar', finance: 'finance', crm: 'crm', relationships: 'crm', radar: 'radar', opportunities: 'radar',
-      estate: 'estate', accounts: 'accounts', users: 'accounts', invoices: 'cashflow', money: 'cashflow', alerts: 'alerts', grants: 'grants', proposals: 'proposals'
+      dashboard: 'dashboard', overview: 'dashboard', work: 'work', projects: 'projects', pipeline: 'opportunities',
+      calendar: 'calendar', finance: 'finance', crm: 'crm', relationships: 'crm', radar: 'opportunities', opportunities: 'opportunities',
+      estate: 'estate', accounts: 'accounts', users: 'accounts', invoices: 'cashflow', money: 'cashflow', alerts: 'alerts', grants: 'opportunities', proposals: 'opportunities'
     };
     const lower = q.toLowerCase();
     for (const [kw, mod] of Object.entries(navMap)) {

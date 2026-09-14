@@ -108,14 +108,13 @@ router.get('/integrations/status',async(_,res)=>{const google=gcal.getStatus();r
   {id:'sms',name:'SMS ingestion',category:'finance',configured:!!process.env.SMS_WEBHOOK_SECRET,status:process.env.SMS_WEBHOOK_SECRET?'available':'action_required'}
 ]});});
 
-router.get('/search',async(req,res)=>{const q=text(req.query.q,180);if(q.length<2)return res.json({query:q,results:[]});const like=`%${q}%`;const[work,projects,pipeline,clients,opportunities,briefs]=await Promise.all([
+router.get('/search',async(req,res)=>{const q=text(req.query.q,180);if(q.length<2)return res.json({query:q,results:[]});const like=`%${q}%`;const[work,projects,clients,opportunities,briefs]=await Promise.all([
   db.query(`SELECT id,title AS name,description AS subtitle,'work' AS type,status,project_id AS context FROM work_items WHERE title ILIKE $1 OR description ILIKE $1 ORDER BY updated_at DESC LIMIT 12`,[like]),
   db.query(`SELECT id,name,description AS subtitle,'project' AS type,status,NULL::text AS context FROM projects WHERE name ILIKE $1 OR description ILIKE $1 ORDER BY updated_at DESC LIMIT 8`,[like]),
-  db.query(`SELECT id,name,org AS subtitle,'pipeline' AS type,stage AS status,org AS context FROM pipeline WHERE name ILIKE $1 OR org ILIKE $1 OR notes ILIKE $1 ORDER BY updated_at DESC LIMIT 8`,[like]),
   db.query(`SELECT id,name,org AS subtitle,'client' AS type,status,org AS context FROM clients WHERE name ILIKE $1 OR org ILIKE $1 OR notes ILIKE $1 ORDER BY updated_at DESC LIMIT 8`,[like]),
-  db.query(`SELECT id,title AS name,org AS subtitle,'opportunity' AS type,status,org AS context FROM opportunities WHERE title ILIKE $1 OR org ILIKE $1 OR description ILIKE $1 ORDER BY relevance_score DESC LIMIT 8`,[like]),
+  db.query(`SELECT id,title AS name,org AS subtitle,'opportunity' AS type,stage AS status,org AS context FROM opportunities WHERE title ILIKE $1 OR org ILIKE $1 OR description ILIKE $1 OR notes ILIKE $1 ORDER BY fit_score DESC,relevance_score DESC LIMIT 12`,[like]),
   db.query(`SELECT id,title,summary AS subtitle,'research' AS type,'brief' AS status,brief_date::text AS context FROM research_briefs WHERE title ILIKE $1 OR summary ILIKE $1 ORDER BY brief_date DESC LIMIT 5`,[like])
-]);res.json({query:q,results:[...work.rows,...projects.rows,...pipeline.rows,...clients.rows,...opportunities.rows,...briefs.rows]});});
+]);res.json({query:q,results:[...work.rows,...projects.rows,...clients.rows,...opportunities.rows,...briefs.rows]});});
 router.post('/personal-finance/transactions',async(req,res)=>{const amount=Number(req.body.amount)||0,party=text(req.body.party,500),flow=['in','out'].includes(req.body.flow)?req.body.flow:'out';if(amount<=0||!party)return res.status(422).json({error:'Amount and party are required'});const row=await db.insert('sms_transactions',{id:text(req.body.id,120)||id('manual'),type:'transaction',flow,amount,party,provider:text(req.body.provider,120)||'Manual',category:text(req.body.category,100)||'Other',timestamp:dateOrNull(req.body.timestamp)||new Date().toISOString(),raw:'Manual JakeOS entry',sender:'jakeos-web',note:text(req.body.note,1000),currency:text(req.body.currency,10)||'UGX'},false);res.status(201).json({transaction:row});});
 
 router.get('/proposals',async(_,res)=>res.json({proposals:await db.all('proposals',{order:{col:'updated_at',asc:false},limit:300})}));

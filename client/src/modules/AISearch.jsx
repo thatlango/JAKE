@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, EmptyState, Icon, PageHeader, Panel, Pill, StateBanner } from '../components/ProductUI';
 
-const routeFor={work:'work',project:'projects',pipeline:'pipeline',client:'crm',opportunity:'radar',research:'dashboard'};
+const routeFor={work:'work',project:'projects',pipeline:'opportunities',client:'crm',opportunity:'opportunities',research:'dashboard'};
 const iconFor={work:'check',project:'folder',pipeline:'target',client:'users',opportunity:'target',research:'document'};
 export default function AISearch({navigate}){
   const[q,setQ]=useState(''),[results,setResults]=useState([]),[loading,setLoading]=useState(false),[error,setError]=useState('');
