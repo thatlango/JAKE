@@ -147,8 +147,8 @@ router.patch('/:id',async(req,res)=>{
   if(req.body.seen!==undefined)data.seen=bool(req.body.seen);
   if(req.body.watch_profile_id!==undefined||req.body.watchProfileId!==undefined)data.watch_profile_id=text(req.body.watch_profile_id??req.body.watchProfileId,120)||null;
   if(Array.isArray(req.body.checklist))data.checklist=req.body.checklist.slice(0,100);
-  if(req.body.submitted_at!==undefined||req.body.submittedAt!==undefined)data.submitted_at=req.body.submitted_at??req.body.submittedAt||null;
-  if(req.body.decision_at!==undefined||req.body.decisionAt!==undefined)data.decision_at=req.body.decision_at??req.body.decisionAt||null;
+  if(req.body.submitted_at!==undefined||req.body.submittedAt!==undefined)data.submitted_at=(req.body.submitted_at??req.body.submittedAt)||null;
+  if(req.body.decision_at!==undefined||req.body.decisionAt!==undefined)data.decision_at=(req.body.decision_at??req.body.decisionAt)||null;
   await db.update('opportunities',opportunity.id,data);
   res.json({opportunity:await db.get('opportunities',{eq:{id:opportunity.id}})});
 });
