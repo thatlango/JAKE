@@ -67,6 +67,28 @@ function DomainKpis({productCode,domainTelemetry}){
   </>;
 }
 
+function DeviceRegistry({domainTelemetry}){
+  const registry=domainTelemetry?.payload?.fieldDevices;
+  if(!registry||!Array.isArray(registry.devices))return null;
+  const tone=status=>status==='active_now'?'success':status==='recent'?'neutral':status==='stale'?'warning':status==='dormant'?'danger':'neutral';
+  const label=status=>status==='active_now'?'Active now':status==='recent'?'Recent':status==='stale'?'Stale':status==='dormant'?'Dormant':'Unknown';
+  return <Panel title="ECITAA Field device registry" subtitle="Heartbeat activity, app versions and sync recency from the ECITAA Field device registry.">
+    <div className="px-metrics" style={{marginBottom:16}}>
+      <Metric icon="users" label="Registered" value={registry.total||0} helper="Field devices"/>
+      <Metric icon="users" label="Active now" value={registry.activeNow||0} helper="Seen within 15 min" tone="success"/>
+      <Metric icon="users" label="Seen / 24h" value={registry.recent24h||0} helper="Recent field activity"/>
+      <Metric icon="warning" label="Dormant" value={registry.dormant||0} helper="No use in 7+ days" tone={registry.dormant?'warning':'neutral'}/>
+    </div>
+    {registry.devices.length?<div className="px-list">{registry.devices.map(device=><div className="px-list-row" key={device.deviceUid}>
+      <div className="px-list-main">
+        <div className="px-between" style={{gap:8,justifyContent:'flex-start',flexWrap:'wrap'}}><div className="px-list-title">{device.actorName||device.deviceName||'Unassigned ECITAA device'}</div><Pill tone={tone(device.activityStatus)}>{label(device.activityStatus)}</Pill></div>
+        <div className="px-list-sub">{device.organizationName||'Organisation unknown'} · {device.appVersion||'version unknown'} · last use {age(device.lastSeenAt)}</div>
+        <div className="px-list-sub" style={{marginTop:4}}>{device.devicePlatform||'platform unknown'} · last sync {device.lastSyncAt?age(device.lastSyncAt):'not recorded'} · {device.pendingTotal||0} pending · {String(device.deviceUid||'').slice(0,8)}…</div>
+      </div>
+    </div>)}</div>:<EmptyState icon="warning" title="No ECITAA Field devices registered" body="Device heartbeat records will appear here after Field devices contact Core."/>}
+  </Panel>;
+}
+
 function ProductDashboard({productCode,onBack}){
   const[state,setState]=useState({loading:true,data:null,error:''});
   const load=useCallback(async(force=false)=>{setState(s=>({...s,loading:!s.data,error:''}));try{const r=await fetch(`/api/estate/products/${encodeURIComponent(productCode)}${force?'?refresh=1':''}`),d=await r.json();if(!r.ok&&!d.detail)throw new Error(d.error||'Product telemetry unavailable');setState({loading:false,data:d,error:d.error||''});}catch(e){setState(s=>({...s,loading:false,error:e.message}))}},[productCode]);
@@ -90,6 +112,7 @@ function ProductDashboard({productCode,onBack}){
     <div className="px-metrics estate-product-metrics"><Metric icon="users" label="Users" value={productUserCount(product,domainTelemetry?.payload?.kpis||{}).toLocaleString()} helper={hasDomainUserCount(domainTelemetry?.payload?.kpis)?'Authoritative product count':`${product.reach?.organizations||0} organisations with access`}/><Metric icon="users" label="Active / 24h" value={product.activeUsers24h||0} helper="Observed users"/><Metric icon="users" label="Active / 7d" value={product.activeUsers7d||0} helper={growthLabel(product)} tone={growthTone(product.growth7dPercent)}/><Metric icon="users" label="Active / 30d" value={product.activeUsers30d||0} helper={`${product.newUsers7d||0} new / 7d`}/><Metric icon="target" label="Live orders" value={totalLiveOrders} helper={commerce.length?'Canonical commerce':'Not reported'}/><Metric icon="money" label="Realized" value={formatMoney(realizedUGX,'UGX')} helper={commerce.some(c=>c.currency==='UGX')?'UGX reported':'No UGX commerce'}/></div>
 
     <DomainKpis productCode={productCode} domainTelemetry={domainTelemetry}/>
+    {productCode==='ecitaa'&&<DeviceRegistry domainTelemetry={domainTelemetry}/>}
 
     <div className="estate-product-grid">
       <Panel title="14-day activity" subtitle="Distinct active users observed each day."><TrendBars rows={detail?.usageTrend||[]}/></Panel>
