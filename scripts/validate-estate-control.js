@@ -30,4 +30,6 @@ function visit(id){
 }
 for(const id of ids)visit(id);
 
-console.log(`Estate Control registry OK: ${registry.repositories.length} repositories, acyclic dependency graph`);
+const dockerfile=fs.readFileSync(path.join(__dirname,'..','Dockerfile'),'utf8');
+if(!/COPY\s+estate-control\s+\.\/estate-control/.test(dockerfile))throw new Error('Dockerfile must package estate-control/ for runtime API access');
+console.log(`Estate Control registry OK: ${registry.repositories.length} repositories, acyclic dependency graph, runtime registry packaged`);
