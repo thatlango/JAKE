@@ -14,7 +14,7 @@ JakeOS owns the canonical view of:
 - Projects and workstreams
 - Tasks, milestones, dependencies and deadlines
 - Program and consulting delivery
-- Business-development pipeline
+- Canonical opportunity management across discovery, pursuits, applications and outcomes
 - CRM and relationships
 - Calendar and schedule context
 - Finance, invoices, cash-flow and revenue signals
@@ -82,11 +82,10 @@ Momentum may use Firebase for its mobile concerns, but Firebase must not become 
 |---|---|
 | **Command Center** | Cross-work operating picture, decisions and attention signals |
 | **Projects** | Workstreams, tasks, milestones, owners, status and dependencies |
-| **Pipeline** | Consulting, partnerships, proposals and business development |
+| **Opportunities** | Discovery, watch profiles, pursuit pipeline, proposals/applications, submissions and outcomes |
 | **Calendar** | Meetings, deadlines, delivery dates and available execution windows |
 | **Finance** | Revenue, expenses, invoices, payments and cash-flow visibility |
 | **CRM** | Client/contact relationships, commitments and follow-ups |
-| **Opportunity Radar** | Grants, tenders, consulting and strategic opportunities |
 | **Research** | MSME/BDS/incubation evidence briefs and saved analysis |
 | **Alerts** | Deadline, risk, payment, project and priority alerts |
 | **Integrations** | Calendar, email and other approved data connections |
