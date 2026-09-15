@@ -12,6 +12,8 @@ const {tukuPayRouter}=require('./tukupay');
 const {opsIngestRouter}=require('./ops-ingest');
 const {accountsRouter}=require('./accounts');
 const {subscriptionRouter,momentumSubscriptionRouter}=require('./ops-subscriptions');
+const {opportunitiesConnectorRouter}=require('./opportunities-connector');
+const {authenticateOpportunityConnector}=require('./opportunities-connector-auth');
 const {startJobs}=require('./jobs');
 const {requireJakeAuth,webAuthRouter,momentumAuthRouter}=require('./tuku-auth');
 const gcal=require('./gcal');
@@ -35,6 +37,11 @@ app.use('/api/momentum/v1/projects',momentumProjectsRouter);
 app.use('/api/momentum/v1',momentumRouter);
 app.use('/api/integrations/v1/ops',opsIngestRouter);
 app.use('/api/integrations/v1',integrationsRouter);
+
+// Dedicated machine boundary for opportunity agents. This route is deliberately
+// mounted before the generic JakeOS browser-auth gate and grants no JakeOS-wide access.
+app.use('/api/connectors/v1/opportunities',authenticateOpportunityConnector,opportunitiesConnectorRouter);
+
 app.use('/api/estate/control',requireJakeAuth,estateControlRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
 app.use('/api/accounts',requireJakeAuth,accountsRouter);

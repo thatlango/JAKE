@@ -28,6 +28,7 @@ jobs:
       JAKEOS_TEST_AUTH_TOKEN: ci_jakeos_token
       MOMENTUM_API_TOKEN: ci_momentum_token
       JAKEOS_INGEST_TOKEN: ci_ingest_token
+      JAKEOS_OPPORTUNITIES_CONNECTOR_TOKEN: ci_opportunities_connector_token_0123456789
       SMS_WEBHOOK_SECRET: ci_sms_token
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +59,17 @@ jobs:
           test "$(curl -s -o /tmp/jake-unauth -w '%{http_code}' http://127.0.0.1:3100/api/projects)" = "401"
           curl -fsS -H 'Authorization: Bearer ci_jakeos_token' http://127.0.0.1:3100/api/projects > /tmp/projects-auth.json
           grep -q 'projects' /tmp/projects-auth.json
+      - name: Exercise narrowly scoped Opportunities connector
+        run: |
+          test "$(curl -s -o /tmp/opportunities-unauth -w '%{http_code}' http://127.0.0.1:3100/api/connectors/v1/opportunities/capabilities)" = "401"
+          curl -fsS -H 'Authorization: Bearer ci_opportunities_connector_token_0123456789'             http://127.0.0.1:3100/api/connectors/v1/opportunities/capabilities > /tmp/opportunities-capabilities.json
+          jq -e '.scopes == ["opportunities:read","opportunities:write"] and .delete == false' /tmp/opportunities-capabilities.json
+          curl -fsS -H 'Authorization: Bearer ci_opportunities_connector_token_0123456789' -H 'Content-Type: application/json'             -d '{"id":"ci-scoped-opportunity","title":"Scoped connector CI","org":"Tuku CI","sourceUrl":"https://example.invalid/ci-scoped-opportunity"}'             http://127.0.0.1:3100/api/connectors/v1/opportunities > /tmp/opportunity-created.json
+          jq -e '.opportunity.id=="ci-scoped-opportunity"' /tmp/opportunity-created.json
+          curl -fsS -H 'Authorization: Bearer ci_opportunities_connector_token_0123456789'             http://127.0.0.1:3100/api/connectors/v1/opportunities/ci-scoped-opportunity > /tmp/opportunity-read.json
+          jq -e '.opportunity.title=="Scoped connector CI"' /tmp/opportunity-read.json
+          test "$(curl -s -o /tmp/opportunities-no-general-access -w '%{http_code}' -H 'Authorization: Bearer ci_opportunities_connector_token_0123456789' http://127.0.0.1:3100/api/projects)" = "401"
+
       - name: Exercise Momentum API
         run: |
           test "$(curl -s -o /tmp/unauth -w '%{http_code}' http://127.0.0.1:3100/api/momentum/v1/today)" = "401"
