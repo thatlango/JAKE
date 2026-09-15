@@ -22,6 +22,10 @@ POSTGRES_PASSWORD=<strong-password>
 DATABASE_URL=postgresql://jakeos:<password>@jakeos-db:5432/jakeos
 JAKEOS_INGEST_TOKEN=<strong-random-token>
 
+# Dedicated machine credential for the Opportunities connector.
+# JakeOS binds it to exactly opportunities:read and opportunities:write.
+JAKEOS_OPPORTUNITIES_CONNECTOR_TOKEN=<strong-random-token>
+
 # Human authentication
 TUKU_CORE_INTERNAL_URL=http://tuku-core-api:3000
 TUKU_AUTH_PUBLIC_URL=https://core.tukutuku.org
@@ -32,6 +36,15 @@ JAKEOS_SESSION_TTL_SECONDS=43200
 ```
 
 Momentum uses the same Tuku identity. Its login/refresh endpoints delegate to Tuku Core, and protected Momentum APIs validate the Tuku access token against Core. Firebase may still be configured separately for FCM/mobile telemetry, but it is not the human identity authority.
+
+### Opportunities connector security boundary
+
+The machine connector is isolated at `/api/connectors/v1/opportunities`. A valid connector credential receives exactly these server-defined scopes:
+
+- `opportunities:read` — capabilities, dedupe checks, list and single-record reads.
+- `opportunities:write` — create, import, update, status changes and notes.
+
+The caller cannot request or supply additional scopes. The connector has no hard-delete endpoint and the credential does not authenticate against any other JakeOS API. If `JAKEOS_OPPORTUNITIES_CONNECTOR_TOKEN` is absent, the connector fails closed with HTTP 503 rather than falling back to browser authentication.
 
 Optional integrations:
 
@@ -64,12 +77,13 @@ Route Caddy/edge traffic for `jakeos.tukutuku.org` to `jakeos-web:3000` on the s
 - `/health` — public application/database health
 - `/auth/tuku/start` — starts JakeOS PKCE handoff to Tuku Auth
 - `/auth/session` — current JakeOS Tuku-derived browser session
+- `/api/connectors/v1/opportunities/capabilities` — authenticated connector capability/scope check
 - `/api/momentum/v1/auth/login` — Momentum login via Tuku Core
 - `/api/momentum/v1/auth/refresh` — Momentum token refresh via Tuku Core
 - `/api/momentum/v1/auth/me` — authenticated Momentum identity
 - `/api/momentum/v1/health` — authenticated Momentum API health
 
-Unauthenticated JakeOS data APIs and Momentum data APIs must return HTTP 401.
+Unauthenticated JakeOS data APIs and Momentum data APIs must return HTTP 401. The Opportunities connector returns HTTP 401 for an invalid credential and HTTP 503 when its dedicated credential is not configured.
 
 ## Momentum
 
