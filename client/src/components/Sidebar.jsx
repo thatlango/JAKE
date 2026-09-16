@@ -30,7 +30,7 @@ const GROUPS=[
 export default function Sidebar({active,onChange}){
   return <aside className="sidebar jd-sidebar">
     <div className="sidebar-brand jd-sidebar-brand">
-      <span className="brand-mark jd-brand-mark"><Icon name="target" size={22}/></span>
+      <span className="brand-mark jd-brand-mark"><img src="/brand/jakeos-primary.svg" alt="" aria-hidden="true"/></span>
       <div><div className="brand-name">JakeOS</div><div className="brand-sub">Command center</div></div>
     </div>
     <nav className="sidebar-nav jd-sidebar-nav" aria-label="JakeOS navigation">
