@@ -60,7 +60,7 @@ export default function ECITAADeviceTelemetry({domainTelemetry}){
     subtitle="Live fleet telemetry from Field heartbeats, queue reports and the server sync intake journal."
   >
     <div className="px-metrics estate-device-metrics">
-      <Metric icon="users" label="Registered" value={registry.total||0} helper="Field devices"/>
+      <Metric icon="users" label="Current devices" value={registry.total||0} helper={String(registry.installationRecords||registry.total||0)+" install records"}/>
       <Metric icon="check" label="Online now" value={registry.activeNow||0} helper="Heartbeat within 15 min" tone={registry.activeNow?'success':'neutral'}/>
       <Metric icon="clock" label="Active / 24h" value={registry.recent24h||0} helper={String(registry.recent7d||0)+' active / 7d'}/>
       <Metric icon="warning" label="Queued devices" value={registry.queuedDevices||0} helper={String(registry.pendingItems||0)+' pending items'} tone={registry.queuedDevices?'warning':'neutral'}/>
@@ -85,7 +85,7 @@ export default function ECITAADeviceTelemetry({domainTelemetry}){
       {visibleDevices.map(device=><div className="px-list-row" key={device.deviceUid}>
         <div className="px-list-main">
           <div className="estate-device-title-row">
-            <div className="px-list-title">{device.actorName||device.deviceName||'Unassigned ECITAA device'}</div>
+            <div className="px-list-title">{device.actorName||device.deviceName||'Unassigned ECITAA device'}</div>{Number(device.installationRecords||1)>1&&<span className="px-kicker">{device.installationRecords} installs consolidated</span>}
             <div className="estate-device-pills">
               <Pill tone={activityTone(device.activityStatus)}>{activityLabel(device.activityStatus)}</Pill>
               {device.syncRequestPending&&<Pill tone="warning">Sync requested</Pill>}
@@ -114,7 +114,7 @@ export default function ECITAADeviceTelemetry({domainTelemetry}){
       Showing the 20 most recently seen devices of {registry.devices.length} returned by ECITAA.
     </div>}
     <div className="px-kicker estate-device-foot">
-      Queue counts are the latest values reported by each Field device. Local work created after a device goes offline is not visible to JakeOS until that device reconnects.
+      JakeOS shows one current device per signed-in user, using the most recently seen install. Reinstalls remain preserved as installation history instead of creating duplicate device rows. Queue counts are still last-reported values while a device is offline.
     </div>
   </Panel>;
 }
