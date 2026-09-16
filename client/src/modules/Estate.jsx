@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, EmptyState, LoadingRows, Metric, PageHeader, Panel, Pill, StateBanner, formatMoney, formatDate } from '../components/ProductUI';
+import ECITAADeviceTelemetry from '../components/ECITAADeviceTelemetry';
 import './Estate.css';
 
 const PRODUCT_URLS={
@@ -118,7 +119,7 @@ function ProductDashboard({productCode,onBack}){
     <div className="px-metrics estate-product-metrics"><Metric icon="users" label="Users" value={productUserCount(product,domainTelemetry?.payload?.kpis||{}).toLocaleString()} helper={hasDomainUserCount(domainTelemetry?.payload?.kpis)?'Authoritative product count':`${product.reach?.organizations||0} organisations with access`}/><Metric icon="users" label="Active / 24h" value={product.activeUsers24h||0} helper="Observed users"/><Metric icon="users" label="Active / 7d" value={product.activeUsers7d||0} helper={growthLabel(product)} tone={growthTone(product.growth7dPercent)}/><Metric icon="users" label="Active / 30d" value={product.activeUsers30d||0} helper={`${product.newUsers7d||0} new / 7d`}/><Metric icon="target" label="Live orders" value={totalLiveOrders} helper={commerce.length?'Canonical commerce':'Not reported'}/><Metric icon="money" label="Realized" value={formatMoney(realizedUGX,'UGX')} helper={commerce.some(c=>c.currency==='UGX')?'UGX reported':'No UGX commerce'}/></div>
 
     <DomainKpis productCode={productCode} domainTelemetry={domainTelemetry}/>
-    {productCode==='ecitaa'&&<DeviceRegistry domainTelemetry={domainTelemetry}/>}
+    {productCode==='ecitaa'&&<ECITAADeviceTelemetry domainTelemetry={domainTelemetry}/>}
 
     <div className="estate-product-grid">
       <Panel title="14-day activity" subtitle="Distinct active users observed each day."><TrendBars rows={detail?.usageTrend||[]}/></Panel>
