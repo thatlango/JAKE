@@ -30,13 +30,15 @@ const GROUPS=[
 export default function Sidebar({active,onChange}){
   return <aside className="sidebar jd-sidebar">
     <div className="sidebar-brand jd-sidebar-brand">
-      <span className="brand-mark jd-brand-mark"><img src="/brand/jakeos-primary.svg" alt="" aria-hidden="true"/></span>
-      <div><div className="brand-name">JakeOS</div><div className="brand-sub">Command center</div></div>
+      <div className="jd-brand-lockup">
+        <img src="/brand/jakeos-primary.svg" alt="JakeOS"/>
+        <small>Tuku estate command center</small>
+      </div>
     </div>
     <nav className="sidebar-nav jd-sidebar-nav" aria-label="JakeOS navigation">
       {GROUPS.map(group=><div className="jd-nav-group" key={group.label}>
         <div className="px-nav-section">{group.label}</div>
-        {group.items.map(item=><button key={item.id} className={`nav-item ${active===item.id?'nav-item--active':''}`} onClick={()=>onChange(item.id)}>
+        {group.items.map(item=><button key={item.id} className={`nav-item ${active===item.id?'nav-item--active':''}`} aria-current={active===item.id?'page':undefined} onClick={()=>onChange(item.id)}>
           <span className="nav-icon"><Icon name={item.icon}/></span><span className="nav-label">{item.label}</span>
           {item.id==='work'&&<span className="jd-nav-badge">12+</span>}
         </button>)}
