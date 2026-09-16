@@ -27,6 +27,28 @@ import Operations from './modules/Operations';
 import Payments from './modules/Payments';
 
 const KNOWN_MODULES=new Set(['dashboard','work','projects','calendar','crm','cashflow','opportunities','pipeline','radar','estate','estate-control','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
+const MODULE_META={
+  dashboard:{title:'Command center',subtitle:'Today across work, money and the Tuku estate'},
+  work:{title:'Work',subtitle:'Priorities, actions and execution'},
+  projects:{title:'Projects',subtitle:'Delivery, milestones and project health'},
+  calendar:{title:'Calendar',subtitle:'Schedule, deadlines and commitments'},
+  crm:{title:'Relationships',subtitle:'People, organisations and follow-ups'},
+  cashflow:{title:'Money',subtitle:'Cash movement, invoices and financial attention'},
+  opportunities:{title:'Opportunities',subtitle:'Discovery, pipeline and applications'},
+  estate:{title:'Tuku Estate',subtitle:'Products, usage and commercial signals'},
+  'estate-control':{title:'Estate Control',subtitle:'Cross-product controls and estate status'},
+  operations:{title:'Operations',subtitle:'Infrastructure, continuity and service health'},
+  payments:{title:'Payments',subtitle:'Collections, movements and exceptions'},
+  accounts:{title:'Accounts',subtitle:'Users, access and product activity'},
+  finance:{title:'Revenue plan',subtitle:'Targets, forecasts and growth assumptions'},
+  'ai-search':{title:'Search',subtitle:'Search and interpret JakeOS operating context'},
+  integrations:{title:'Integrations',subtitle:'Connected systems and data flows'},
+  alerts:{title:'Alerts',subtitle:'Notification rules and operational signals'},
+  platforms:{title:'Platforms',subtitle:'Tuku products and system access'},
+  'voice-memo':{title:'Voice capture',subtitle:'Capture ideas and actions quickly'},
+  'personal-finance':{title:'Personal finance',subtitle:'Personal cashflow and obligations'},
+  export:{title:'Export',subtitle:'Reports, extracts and shareable outputs'}
+};
 const readLocation=()=>{
   const match=window.location.pathname.match(/^\/estate(?:\/([^/?#]+))?\/?$/i);
   if(window.location.pathname==='/estate/control'||window.location.pathname==='/estate/control/')return{module:'estate-control',estateProduct:null};
@@ -39,7 +61,7 @@ function AuthGate({checking}){
   const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[submitting,setSubmitting]=useState(false),[error,setError]=useState('');
   const returnTo=`${window.location.pathname}${window.location.search}`||'/';
   const signIn=async event=>{event.preventDefault();if(!email.trim()||!password||submitting)return;setSubmitting(true);setError('');try{const response=await fetch('/auth/tuku/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email:email.trim(),password})});const data=await response.json().catch(()=>({}));if(!response.ok||data.authenticated!==true)throw new Error(data.error||'Tuku sign-in failed.');window.location.replace(returnTo);}catch(err){setError(err.message||'Tuku sign-in failed.');setSubmitting(false);}};
-  return <main className="px-auth-page"><section className="px-auth-card"><div className="px-auth-mark px-auth-mark--logo"><img src="/brand/jakeos-primary.svg" alt="JakeOS"/></div><div className="px-eyebrow">JakeOS</div><h1>Your command center.</h1><p>Use the same Tuku identity you use across the estate. JakeOS verifies it with Tuku Core and keeps no separate password.</p>{checking?<div className="px-kicker">Checking your Tuku session…</div>:<form onSubmit={signIn} className="px-stack"><div className="px-field"><label>Tuku email</label><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></div><div className="px-field"><label>Password</label><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></div>{error&&<div className="px-banner px-banner--danger"><div>{error}</div></div>}<Button type="submit" disabled={submitting}>{submitting?'Signing in…':'Sign in to JakeOS'}</Button><a className="px-auth-fallback" href={`/auth/tuku/start?return_to=${encodeURIComponent(returnTo)}`}>Use Tuku SSO redirect instead</a></form>}<div className="px-auth-note">Your password is sent over HTTPS to Tuku Core for verification and is not stored by JakeOS.</div></section></main>;
+  return <main className="px-auth-page" data-product="jakeos"><section className="px-auth-card"><div className="px-auth-mark px-auth-mark--logo"><img src="/brand/jakeos-primary.svg" alt="JakeOS"/></div><div className="px-eyebrow">JakeOS</div><h1>Your command center.</h1><p>Use the same Tuku identity you use across the estate. JakeOS verifies it with Tuku Core and keeps no separate password.</p>{checking?<div className="px-kicker">Checking your Tuku session…</div>:<form onSubmit={signIn} className="px-stack"><div className="px-field"><label>Tuku email</label><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></div><div className="px-field"><label>Password</label><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></div>{error&&<div className="px-banner px-banner--danger"><div>{error}</div></div>}<Button type="submit" disabled={submitting}>{submitting?'Signing in…':'Sign in to JakeOS'}</Button><a className="px-auth-fallback" href={`/auth/tuku/start?return_to=${encodeURIComponent(returnTo)}`}>Use Tuku SSO redirect instead</a></form>}<div className="px-auth-note">Your password is sent over HTTPS to Tuku Core for verification and is not stored by JakeOS.</div></section></main>;
 }
 
 export default function App(){
@@ -63,10 +85,14 @@ export default function App(){
   const opportunityModules=new Set(['opportunities','pipeline','radar','proposals','grants']);
   const opportunityView=module==='pipeline'?'pipeline':module==='radar'?'discover':module==='proposals'||module==='grants'?'applications':(new URLSearchParams(window.location.search).get('view')||'overview');
   const navActive=opportunityModules.has(module)?'opportunities':module;
-  return <div className="app-layout">
+  const moduleMeta=MODULE_META[navActive]||MODULE_META[module]||MODULE_META.dashboard;
+  return <div className="app-layout" data-product="jakeos">
     <Sidebar active={navActive} onChange={navigate}/><MobileNav active={navActive} onChange={navigate}/>
     <header className="jd-topbar">
-      <button className="jd-search-command" onClick={openJake}><Icon name="search" size={19}/><span>Search task, project or relationship</span><kbd>⌘F</kbd></button>
+      <div className="jd-topbar-left">
+        <div className="jd-topbar-context"><strong>{moduleMeta.title}</strong><small>{moduleMeta.subtitle}</small></div>
+        <button className="jd-search-command" onClick={openJake}><Icon name="search" size={18}/><span>Search or ask Jake</span><kbd>⌘K</kbd></button>
+      </div>
       <div className="jd-topbar-actions">
         <button className="jd-top-icon" onClick={()=>navigate('crm')} aria-label="Relationships"><Icon name="document" size={17}/></button>
         <button className="jd-top-icon" onClick={()=>navigate('alerts')} aria-label="Alerts"><Icon name="bell" size={17}/></button>
