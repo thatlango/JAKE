@@ -502,6 +502,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   min-height:2.75rem!important;border-radius:var(--radius-full)!important;background:var(--primary)!important;
   color:var(--primary-foreground)!important;box-shadow:var(--shadow-e2)!important;
 }
+.px-jake-fab img{width:1.15rem;height:1.15rem;object-fit:contain;filter:brightness(0) invert(1)}
 .px-jake-panel{
   background:var(--surface-raised)!important;border:1px solid var(--border)!important;border-radius:var(--radius-xl)!important;
   box-shadow:var(--shadow-e3)!important;
