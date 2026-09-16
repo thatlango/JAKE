@@ -121,7 +121,7 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
 
   if (!open) return (
     <button className="px-jake-fab" onClick={() => setOpen(true)} title="Ask Jake (⌘K)">
-      <span>✦</span><span className="px-jake-fab-label">Ask Jake</span>
+      <img src="/brand/tuku-ai.svg" alt="" aria-hidden="true"/><span className="px-jake-fab-label">Ask Jake</span>
     </button>
   );
 
@@ -129,7 +129,7 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
     <div className="px-jake-overlay" onMouseDown={e => e.target === e.currentTarget && setOpen(false)}>
       <section className="px-jake-panel" aria-label="Ask Jake">
         <div className="px-jake-head">
-          <div className="px-jake-mark">✦</div>
+          <div className="px-jake-mark"><img src="/brand/tuku-ai.svg" alt="" aria-hidden="true"/></div>
           <div className="px-jake-title"><strong>Ask Jake</strong><span>Live command-center intelligence · {module}</span></div>
           <button className="px-icon-button" onClick={() => setOpen(false)} aria-label="Close Jake">×</button>
         </div>
