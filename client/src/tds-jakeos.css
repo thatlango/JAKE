@@ -182,9 +182,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   box-shadow:none!important;
 }
 .jd-sidebar-brand{
-  min-height:5rem!important;
+  min-height:6.25rem!important;
   margin:0!important;
-  padding:1rem 1rem .875rem!important;
+  padding:.875rem 1rem 1rem!important;
   border:0!important;
   border-bottom:1px solid var(--border)!important;
   display:flex!important;
@@ -192,7 +192,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 }
 .jd-brand-lockup{display:grid;gap:.15rem;min-width:0;width:100%}
 .jd-brand-lockup img{
-  display:block;width:8.65rem;height:2.35rem;object-fit:contain;object-position:left center;
+  display:block;width:10.75rem;height:3.7rem;object-fit:contain;object-position:left center;
 }
 .jd-brand-lockup small{
   color:var(--foreground-tertiary);font-size:.6875rem;line-height:1.2;letter-spacing:.01em;
@@ -528,7 +528,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   background:var(--surface)!important;box-shadow:var(--shadow-e2)!important;
 }
 .px-auth-mark--logo{
-  width:11rem!important;height:4.5rem!important;padding:0!important;margin-bottom:1.25rem!important;border-radius:0!important;
+  width:14rem!important;height:5.25rem!important;padding:0!important;margin-bottom:1.25rem!important;border-radius:0!important;
   background:transparent!important;overflow:visible!important;
 }
 .px-auth-mark--logo img{width:100%!important;height:100%!important;object-fit:contain!important;object-position:left center!important}
