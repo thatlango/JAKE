@@ -86,7 +86,7 @@ export default function Dashboard({openAI,navigate}){
     <header className="jd-dashboard-head">
       <div><h1>Dashboard</h1><p>Plan, prioritise, and move the right work forward with clarity.</p></div>
       <div className="jd-dashboard-actions">
-        <button className="jd-primary-action" onClick={()=>openAI('Use the live JakeOS context to tell me what deserves my attention now, what can wait, and what the best next action is.')}><Icon name="spark" size={17}/>Ask Jake</button>
+        <button className="jd-primary-action" onClick={()=>openAI('Use the live JakeOS context to tell me what deserves my attention now, what can wait, and what the best next action is.')}><img src="/brand/tuku-ai.svg" alt="" aria-hidden="true" width="17" height="17" style={{objectFit:'contain'}}/>Ask Jake</button>
         <button className="jd-outline-action" onClick={load}><Icon name="refresh" size={16}/>Refresh now</button>
       </div>
     </header>
