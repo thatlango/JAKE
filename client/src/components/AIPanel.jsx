@@ -78,8 +78,8 @@ export default function AIPanel({ context, module, onClose, data }) {
     <div className="ai-panel">
       <div className="ai-panel-header">
         <div className="ai-header-title">
-          <span className="ai-dot" />
-          Ask Jake
+          <img className="tuku-ai-icon tuku-ai-icon--header" src="/brand/tuku-ai.svg" alt="" aria-hidden="true" />
+          <span>Ask Jake</span>
         </div>
         <button className="ai-close" onClick={onClose} aria-label="Close AI panel">✕</button>
       </div>
@@ -100,14 +100,16 @@ export default function AIPanel({ context, module, onClose, data }) {
 
         {messages.map((m, i) => (
           <div key={i} className={`ai-message ai-message--${m.role}`}>
-            <div className="ai-message-label">{m.role === 'user' ? 'You' : 'Jake'}</div>
+            <div className="ai-message-label">
+              {m.role === 'user' ? 'You' : <><img className="tuku-ai-icon tuku-ai-icon--label" src="/brand/tuku-ai.svg" alt="" aria-hidden="true" />Jake</>}
+            </div>
             <div className="ai-message-content">{m.content}</div>
           </div>
         ))}
 
         {loading && (
           <div className="ai-message ai-message--assistant">
-            <div className="ai-message-label">Jake</div>
+            <div className="ai-message-label"><img className="tuku-ai-icon tuku-ai-icon--label" src="/brand/tuku-ai.svg" alt="" aria-hidden="true" />Jake</div>
             <div className="ai-loading">
               <span /><span /><span />
             </div>
