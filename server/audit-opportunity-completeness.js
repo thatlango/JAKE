@@ -1,0 +1,4 @@
+'use strict';
+const db=require('./db');
+const REQUIRED=['opportunity_summary','fit_status','eligibility_status','mandatory_requirements','strongest_matches','gaps','deliverables','application_requirements'];
+(async()=>{const rows=await db.all('opportunities',{order:{col:'updated_at',asc:false},limit:500});const out=rows.filter(r=>r.watch_profile_id==='watch_tuku_q4'||r.watch_profile_id==='Tuku Q4 Opportunity Hunt').map(r=>({id:r.id,title:r.title,org:r.org,deadline:r.deadline,source_url:r.source_url,missing:REQUIRED.filter(k=>r[k]==null||r[k]===''||(Array.isArray(r[k])&&r[k].length===0))})).filter(r=>r.missing.length);console.log(JSON.stringify(out,null,2));process.exit(0)})().catch(e=>{console.error(e);process.exit(1)});
