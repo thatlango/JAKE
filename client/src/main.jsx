@@ -11,6 +11,9 @@ import './dashboard-reference.css';
 import './minimal-kpi-shell.css';
 import './tds-jakeos.css';
 
+document.documentElement.dataset.tds = '2.0';
+document.documentElement.dataset.product = 'jakeos';
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
