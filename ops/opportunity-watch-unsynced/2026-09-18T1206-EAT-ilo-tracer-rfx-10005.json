@@ -1,0 +1,54 @@
+{
+  "watch_profile_id": "tuku-q4-2026",
+  "sync_status": "pending_live_jakeos",
+  "alert_worthy_sync_failure": true,
+  "captured_at": "2026-09-18T12:06:00+03:00",
+  "opportunity": {
+    "title": "National Consultancy Services On conducting Tracer Study in Uganda",
+    "org": "International Labour Organization (ILO)",
+    "source": "UNGM / ILO e-Sourcing",
+    "source_url": "https://www.ungm.org/Public/Notice/312258",
+    "deadline": "2026-09-24T23:00:00+02:00",
+    "location": "Uganda",
+    "opportunity_type": "Consultancy",
+    "procurement_type": "Request for quotation",
+    "arrangement": "Institutional consultancy / company",
+    "stage": "Qualifying",
+    "audience": "Tuku-Tuku",
+    "fit_score": 4,
+    "fit_status": "Good fit",
+    "eligibility_status": "Needs verification",
+    "assessment_status": "Verified",
+    "assessment_confidence": "Medium",
+    "bid_posture": "Recruit Specialists & Bid",
+    "opportunity_summary": "ILO Uganda institutional RFQ for a national tracer study. Original UNGM notice confirms company/organization bidding, Uganda scope, attached annexes and submission through ILO Jaggaer. Deadline is within seven days.",
+    "fit_summary": "Strong alignment with Tuku-Tuku's MSME/programme support, research, MEL, reporting and Northern Uganda implementation experience. Specialist qualifications, sampling/statistical requirements and institutional track-record thresholds still require extraction from the attached annexes before eligibility can be confirmed.",
+    "decision_rationale": "Advance immediately because the assignment is directly within research/MEL and Uganda delivery, but do not claim eligibility until the ILO annexes and proposed specialist CVs are checked.",
+    "mandatory_requirements": [
+      "Submit through the ILO e-Sourcing (Jaggaer) platform by the stated deadline",
+      "Meet all qualifications and service requirements contained in the RFQ annexes",
+      "Accept applicable ILO contract terms and conditions"
+    ],
+    "desirable_requirements": [],
+    "strongest_matches": [
+      "Programme monitoring, evaluation and reporting",
+      "MSME and enterprise-development programme experience",
+      "Uganda and Northern Uganda field implementation context",
+      "Research, facilitation and structured data-collection capability"
+    ],
+    "gaps": [
+      "Full TOR/annex technical criteria not yet extracted from the ILO authenticated attachment area",
+      "Required tracer-study lead qualifications/CVs not yet verified",
+      "Sampling, survey, statistical-analysis and field-team requirements not yet verified",
+      "Institutional past-performance and financial thresholds not yet verified"
+    ],
+    "hard_blockers": [],
+    "deliverables": ["Tracer study outputs - exact deliverable schedule pending annex extraction"],
+    "application_requirements": ["ILO e-Sourcing submission", "RFQ annex responses", "Technical and financial material as specified in the annexes"],
+    "strategic_reasons": ["Uganda institutional consultancy", "Direct MEL/research fit", "Potential ILO relationship and repeat work", "Relevant to youth/employment/programme-learning portfolio"],
+    "winning_strategy": "Position Tuku-Tuku as the Uganda implementation and enterprise/programme-learning platform, pair with a demonstrably qualified tracer-study/MEL lead and any required quantitative specialist, and ground the methodology in rigorous sampling, field QA, disaggregation, analysis and actionable programme learning once the TOR criteria are extracted.",
+    "source_context": "Original UNGM notice checked 18 Sep 2026. Reference rfx_10005_ROAF; published 25 Aug 2026; beneficiary Uganda; registration level Basic; ILO states attached annexes govern the offer and submissions are through ILO e-Sourcing/Jaggaer.",
+    "source_verified_at": "2026-09-18T12:06:00+03:00",
+    "next_action": "URGENT: access the ILO e-Sourcing attachment area today, extract all annexes into a compliance matrix, identify required specialist CVs, verify institutional eligibility, and start technical/financial drafting. Deadline is within 7 days."
+  }
+}
