@@ -11,6 +11,7 @@ const {syncOpsStatusCards}=require('./ops-mobile-status');
 const {ensureRootDomains}=require('./ops-root-domains');
 const {refreshRootDomains}=require('./ops-domain-refresh');
 const {evaluateSubscriptionSignals}=require('./ops-subscriptions');
+const {processOpportunityIntake,recoverStaleClaims}=require('./opportunity-intake');
 
 async function withJobLock(name,fn){
   const pool=db.getPool();
@@ -57,6 +58,15 @@ async function runDailyOperations(){
     const sent=await sendDeadlineDigest(events,{finance:{streams},followups,pipeline});
     console.log(`[Jobs] daily complete: calendar=${calendar.count}, followups=${followupResult.sent||0}`);
     return{calendar,followups:followupResult,sent};
+  });
+}
+
+async function runOpportunityIntake(){
+  return withJobLock('opportunity-intake',async()=>{
+    const recovered=await recoverStaleClaims();
+    const result=await processOpportunityIntake();
+    if(recovered||result.claimed)console.log(`[Jobs] opportunity intake: recovered=${recovered}, claimed=${result.claimed}`);
+    return{recovered,...result};
   });
 }
 
@@ -112,15 +122,16 @@ function startJobs(){
   }
   const timezone=process.env.JOBS_TIMEZONE||'Africa/Kampala';
   const jobs=[
+    cron.schedule('* * * * *',()=>runOpportunityIntake().catch(e=>console.error('[Jobs] opportunity intake failed:',e)),{timezone}),
     cron.schedule('*/5 * * * *',()=>runOpsChecks().catch(e=>console.error('[Jobs] ops failed:',e)),{timezone}),
     cron.schedule('20 */6 * * *',()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] ops domains failed:',e)),{timezone}),
     cron.schedule('0 7 * * *',()=>runDailyOperations().catch(e=>console.error('[Jobs] daily failed:',e)),{timezone}),
     cron.schedule('15 */6 * * *',()=>runRadarScan().catch(e=>console.error('[Jobs] radar failed:',e)),{timezone}),
     cron.schedule('15 7 * * 1',()=>runWeeklyReview().catch(e=>console.error('[Jobs] weekly failed:',e)),{timezone})
   ];
-  console.log(`[Jobs] scheduled in ${timezone}: ops every 5m, domain/SSL every 6h, daily 07:00, Radar every 6h, weekly Monday 07:15`);
+  console.log(`[Jobs] scheduled in ${timezone}: opportunity intake every 1m, ops every 5m, domain/SSL every 6h, daily 07:00, Radar every 6h, weekly Monday 07:15`);
   setTimeout(()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] initial ops failed:',e)),15000).unref?.();
   return jobs;
 }
 
-module.exports={startJobs,runDailyOperations,runRadarScan,runWeeklyReview,runOpsChecks,syncGoogleCalendar,withJobLock};
+module.exports={startJobs,runDailyOperations,runRadarScan,runOpportunityIntake,runWeeklyReview,runOpsChecks,syncGoogleCalendar,withJobLock};
