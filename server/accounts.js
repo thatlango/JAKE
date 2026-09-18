@@ -36,6 +36,11 @@ accountsRouter.get('/',async(req,res)=>{
     res.set('Cache-Control','no-store').json(await coreGet('',params));
   }catch(error){res.status(error.status||502).json({error:error.message||'Account directory unavailable'});}
 });
+accountsRouter.get('/reconciliation',async(req,res)=>{
+  try{res.set('Cache-Control','no-store').json(await coreGet('/reconciliation'));}
+  catch(error){res.status(error.status||502).json({error:error.message||'Access reconciliation unavailable'});}
+});
+
 accountsRouter.get('/:coreUserId',async(req,res)=>{
   const id=String(req.params.coreUserId||'').slice(0,64);
   try{res.set('Cache-Control','no-store').json(await coreGet(`/${encodeURIComponent(id)}`));}
