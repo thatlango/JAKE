@@ -1,8 +1,39 @@
 'use strict';
 const db = require('./db');
+const {enqueueOpportunity} = require('./opportunity-intake');
 
-const PROFILE_KEYWORDS = ['MSME','SME','capacity building','training','consultant','agriculture','Uganda','East Africa','Northern Uganda','gender','women','youth','USAID','GIZ','FCDO','incubator','entrepreneurship','cooperative','digital literacy','financial literacy'];
-const ANTI_KEYWORDS = ['engineering','construction','ICT tender','software development bid','printing services'];
+const PROFILE_KEYWORDS = [
+  'MSME','SME','entrepreneurship','enterprise development','private sector development','business development services','BDS',
+  'incubation','accelerator','innovation ecosystem','youth employment','youth livelihoods','refugee','host community','livelihoods',
+  'market systems','agribusiness','agriculture','value chain','cooperative','financial inclusion','digital transformation',
+  'AI for development','artificial intelligence','digital public infrastructure','DPI','monitoring and evaluation','MEL',
+  'research','evaluation','capacity building','training','training of trainers','ToT','curriculum','facilitation','programme design',
+  'program design','programme implementation','technical assistance','consultancy','consultant','framework agreement','roster',
+  'prequalification','supplier','grant','innovation challenge','Uganda','East Africa','Africa','remote'
+];
+const ANTI_KEYWORDS = [
+  'civil works','road construction','building construction','supply of fuel','office furniture','vehicle supply','medical supplies',
+  'pharmaceutical','armed security','catering services','cleaning services','printing only'
+];
+const HIGH_VALUE_TYPES = ['consult','technical assistance','advisory','programme','program','research','evaluation','capacity building',
+  'framework','roster','prequalification','supplier','grant','challenge','implementation','training','digital','innovation'];
+const GEO_KEYWORDS = ['uganda','east africa','africa','african','remote','global','kenya','tanzania','rwanda','burundi','south sudan','drc','congo'];
+const STRONG_THEMES = ['msme','sme','entrepreneur','enterprise','youth','refugee','livelihood','innovation','digital','artificial intelligence',
+  'ai ','market system','private sector','agribusiness','value chain','resilience','business continuity','research','evaluation','mel',
+  'capacity building','training','curriculum','facilitation','programme','program','financial inclusion','cooperative'];
+
+function qualifiesForJacobOrTuku(item={}) {
+  const haystack=[item.title,item.description,item.org,item.source].filter(Boolean).join(' ').toLowerCase();
+  const anti=ANTI_KEYWORDS.filter(k=>haystack.includes(k));
+  const themes=STRONG_THEMES.filter(k=>haystack.includes(k));
+  const types=HIGH_VALUE_TYPES.filter(k=>haystack.includes(k));
+  const geos=GEO_KEYWORDS.filter(k=>haystack.includes(k));
+  // Keep the intake deliberately narrow: thematic fit plus a monetisable/strategic opportunity signal.
+  // Uganda is implicitly acceptable; broader opportunities need an Africa/remote/global signal.
+  const geographicFit=geos.length>0 || haystack.includes('uganda');
+  const qualified=anti.length===0 && themes.length>0 && types.length>0 && geographicFit;
+  return {qualified,themes,types,geos,anti};
+}
 
 function scoreOpportunity(title='', description='') {
   const text = (title+' '+description).toLowerCase();
@@ -34,14 +65,20 @@ async function fetchSource(source) {
       if (existing.has(item.link)) continue;
       const { score, matched } = scoreOpportunity(item.title, item.description);
       if (score < 30) continue;
+      const fit=qualifiesForJacobOrTuku({...item,source:source.name,org:source.name});
+      if(!fit.qualified) continue;
       const deadlineM = item.description.match(/deadline[:\s]+(\d{1,2}[\s\-/]\w+[\s\-/]20\d\d|\w+ \d{1,2},? 20\d\d)/i);
       const budgetM = item.description.match(/\$[\d,]+|\d+,000\s*USD|USD\s*[\d,]+/i);
-      const id = `opp_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-      await db.insert('opportunities', { id, title:item.title.slice(0,200), org:source.name, source:source.name,
-        source_url:(item.link||'').slice(0,500), deadline:deadlineM?deadlineM[1]:null,
-        budget:budgetM?budgetM[0]:'', description:item.description.slice(0,1000),
-        relevance_score:score, relevance_reason:matched.slice(0,5).join(', '), status:'New',
-        tags:matched.slice(0,5).join(','), saved:false, seen:false });
+      await enqueueOpportunity({
+        title:item.title.slice(0,200),org:source.name,source:source.name,source_url:(item.link||'').slice(0,500),
+        deadline:deadlineM?deadlineM[1]:null,budget:budgetM?budgetM[0]:'',description:item.description.slice(0,1000),
+        relevance_score:score,relevance_reason:matched.slice(0,8).join(', '),status:'New',tags:[...fit.themes,...fit.types].slice(0,10).join(','),
+        saved:false,seen:false,audience:'Both',stage:'Discover',fit_status:'Needs assessment',eligibility_status:'Needs verification',
+        assessment_status:'Unassessed',assessment_confidence:'Low',
+        opportunity_summary:'Radar-qualified lead awaiting source verification and full JakeOS assessment.',
+        next_action:'Verify the original issuer source, assess mandatory eligibility and enrich before bid/apply decision.',
+        source_context:`Radar source: ${source.name}. Narrow-route themes: ${fit.themes.join(', ')}. Opportunity signals: ${fit.types.join(', ')}.`
+      },{source:'radar'});
       added++;
     }
     await db.update('opportunity_sources', source.id, { last_checked: new Date().toISOString() });
@@ -70,4 +107,4 @@ async function updateOpportunity(id, updates) {
 
 async function getSources() { return db.all('opportunity_sources', { order:{ col:'name' } }); }
 
-module.exports = { scanAll, fetchSource, getOpportunities, updateOpportunity, getSources, scoreOpportunity };
+module.exports = { scanAll, fetchSource, getOpportunities, updateOpportunity, getSources, scoreOpportunity, qualifiesForJacobOrTuku };

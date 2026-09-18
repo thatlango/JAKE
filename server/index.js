@@ -14,6 +14,7 @@ const {accountsRouter}=require('./accounts');
 const {subscriptionRouter,momentumSubscriptionRouter}=require('./ops-subscriptions');
 const {opportunitiesConnectorRouter}=require('./opportunities-connector');
 const {opportunitiesMcpRouter}=require('./opportunities-mcp');
+const {opportunityIntakeRouter}=require('./opportunity-intake-router');
 const {authenticateOpportunityConnector}=require('./opportunities-connector-auth');
 const {startJobs}=require('./jobs');
 const {requireJakeAuth,webAuthRouter,momentumAuthRouter}=require('./tuku-auth');
@@ -43,6 +44,7 @@ app.use('/api/integrations/v1',integrationsRouter);
 // mounted before the generic JakeOS browser-auth gate and grant no JakeOS-wide access.
 app.use('/api/connectors/v1/opportunities',authenticateOpportunityConnector,opportunitiesConnectorRouter);
 app.use('/mcp/opportunities',authenticateOpportunityConnector,opportunitiesMcpRouter);
+app.use('/api/connectors/v1/opportunity-intake',authenticateOpportunityConnector,opportunityIntakeRouter);
 
 app.use('/api/estate/control',requireJakeAuth,estateControlRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
