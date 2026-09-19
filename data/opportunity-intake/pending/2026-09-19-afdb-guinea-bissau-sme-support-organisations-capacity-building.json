@@ -1,0 +1,120 @@
+{
+  "watch_profile": "Tuku-Tuku Q4 Opportunity Hunt & Watch",
+  "sync_status": "pending_canonical_upsert",
+  "sync_alert": true,
+  "discovered_at": "2026-09-19T09:18:23+03:00",
+  "issuer": "Government of Guinea-Bissau / African Development Bank",
+  "title": "Recruitment of a Training Institution for Capacity Building of 30 SME Support Organisations in Guinea-Bissau – Youth and Women Entrepreneurship and SME Development – Lusophone Compact Phase I",
+  "country": "Guinea-Bissau",
+  "deadline": "2026-09-30",
+  "deadline_evidence": "Deadline surfaced as 30 September 2026 by current procurement index; official AfDB notice was checked but the deadline was not exposed in the indexed AfDB page text. Reconfirm from the downloadable EOI before submission.",
+  "procurement_type": "Expression of Interest / consulting institution",
+  "arrangement": "Institutional consulting / training and capacity building",
+  "source_url": "https://www.afdb.org/en/documents/ami-guinee-bissau-recrutement-dune-institution-de-formation-pour-le-renforcement-des-capacites-de-trente-30-organisations-dappui-aux-pme-en-guinee-bissau-entrepreneuriat-des-jeunes-et-des-femmes-et-developpement-des-pme-compact-lusophone",
+  "source_context": "Original AfDB procurement notice published 16 September 2026. AfDB states that the Government of Guinea-Bissau is recruiting a training institution to strengthen the capacity of 30 SME support organisations under the Youth and Women Entrepreneurship and SME Development – Lusophone Compact Phase I project. The underlying AfDB project appraisal states that the relevant subcomponent is intended to create/train 30 business-support organisations to improve the quality of business development support services.",
+  "source_verified_at": "2026-09-19T09:18:23+03:00",
+  "assessment_status": "Verified",
+  "assessment_confidence": "Medium",
+  "fit_score": 5,
+  "fit_status": "Strong fit",
+  "eligibility_status": "Conditional",
+  "bid_posture": "Consortium Bid",
+  "opportunity_summary": "AfDB-financed institutional assignment to strengthen 30 SME/business-support organisations in Guinea-Bissau. The thematic core—BDS quality, entrepreneurship support, institutional capacity building, training/ToT and SME ecosystem strengthening—is exceptionally close to Tuku-Tuku's operating domain. Actual bid eligibility remains conditional pending the full EOI's corporate-experience, language, geography and specialist thresholds.",
+  "fit_summary": "Exceptional thematic alignment with Tuku-Tuku's MSME/BDS, entrepreneurship, curriculum/training, ToT and support-provider strengthening capabilities. A Lusophone/local consortium structure is likely the strongest commercial posture because Tuku-Tuku's verified evidence does not establish Portuguese capability or Guinea-Bissau delivery history.",
+  "decision_rationale": "Advance to EOI qualification immediately, but do not bid as a standalone firm until the original downloadable EOI is checked for language, corporate-reference, turnover, local-registration, key-expert and geographic requirements. Consortium Bid is the prudent posture because local/Lusophone capacity is currently an evidence gap.",
+  "mandatory_requirements": [
+    "Training institution/consulting organisation capable of delivering capacity building to 30 SME support organisations",
+    "Full corporate and specialist qualification thresholds to be extracted from the downloadable AfDB EOI",
+    "Submission language and Portuguese/French requirements to be verified from the EOI",
+    "Deadline and submission channel to be reconfirmed from the original EOI attachment"
+  ],
+  "desirable_requirements": [
+    "Demonstrated BDS-provider institutional strengthening",
+    "SME/entrepreneurship ecosystem experience",
+    "Youth and women entrepreneurship experience",
+    "Training-of-trainers and adult-learning capability",
+    "Lusophone West Africa / Guinea-Bissau contextual and language capability"
+  ],
+  "strongest_matches": [
+    "Tuku-Tuku's enterprise/MSME support and BDS orientation",
+    "Curriculum, manual and training/ToT design capability",
+    "Entrepreneurship/incubation and enterprise-growth programming",
+    "Programme implementation and digital monitoring/tooling capability",
+    "Jacob's verified PRUDEV II work includes MSME training/support in compliance, governance, finance, market access, digital literacy and resilience"
+  ],
+  "gaps": [
+    "No verified Portuguese-language capability in current evidence",
+    "No verified Guinea-Bissau corporate delivery history",
+    "Full corporate past-performance threshold not yet extracted",
+    "Turnover/financial-capacity requirements not yet extracted",
+    "Required key-expert profiles and degree/experience thresholds not yet extracted",
+    "Local registration or consortium requirements not yet extracted"
+  ],
+  "hard_blockers": [
+    "Do not represent Portuguese capability, Guinea-Bissau experience, turnover, corporate references or specialist credentials until evidenced",
+    "Full original EOI attachment must be retrieved before a final go/no-go"
+  ],
+  "deliverables": [
+    "Capacity building/training of 30 SME support organisations",
+    "Improvement in quality of business development support services",
+    "Detailed deliverables to be extracted from the original EOI/TOR"
+  ],
+  "application_requirements": [
+    "Expression of Interest package",
+    "Corporate experience/references as specified in the EOI",
+    "Evidence of technical and organisational capacity",
+    "Consortium/JV documentation if used",
+    "Other mandatory forms and submission instructions to be extracted from the original attachment"
+  ],
+  "strategic_reasons": [
+    "Directly matches Tuku-Tuku's core BDS and SME-support-provider proposition",
+    "Creates AfDB institutional past performance if won",
+    "Provides West Africa/Lusophone market entry",
+    "Could position Tuku-Tuku as a BDS systems/methodology partner beyond Uganda",
+    "Relevant to Tuku BDS platform and reusable provider-strengthening methodologies"
+  ],
+  "winning_strategy": "Pursue as a consortium with a credible Guinea-Bissau/Lusophone partner that supplies Portuguese/local delivery capability and any country-specific corporate references. Position Tuku-Tuku as BDS methodology, provider-capacity, curriculum/ToT, quality-assurance and digital-support-system partner. Build the EOI around institutional strengthening of SME-support organisations rather than generic entrepreneurship training.",
+  "compensation": null,
+  "start_window": "Q4 2026 / subject to procurement award",
+  "duration": null,
+  "next_action": "URGENT QUALIFICATION: download and deeply extract the original AfDB EOI attachment; confirm 30 September deadline and submission method; build a pass/fail matrix for corporate references, turnover, key experts, language and local requirements; identify a Lusophone/Guinea-Bissau consortium partner; then decide lead vs consortium member.",
+  "bid_ready_artifact": {
+    "status": "qualification_pack_draft",
+    "proposal_positioning": "Strengthening the institutional quality, consistency and reach of SME support organisations through diagnostics, competency-based BDS capacity building, reusable tools, ToT, coaching, service-quality standards, digital monitoring and post-training application support.",
+    "technical_sections": [
+      "Understanding of the 30 SME-support-organisation strengthening objective",
+      "Institutional/BDS provider diagnostic and segmentation",
+      "Competency framework and modular curriculum",
+      "Training-of-trainers and participatory adult-learning approach",
+      "Applied coaching and post-training implementation support",
+      "BDS service-quality standards, tools and templates",
+      "Digital monitoring, evidence and learning loop",
+      "Youth/women entrepreneurship and inclusion lens",
+      "Localisation and Portuguese-language delivery model",
+      "Quality assurance, sustainability and handover"
+    ],
+    "workplan_skeleton": [
+      "Inception and organisational diagnostics",
+      "Segmentation and learning-needs analysis",
+      "Curriculum/tool adaptation and validation",
+      "Training/ToT delivery",
+      "Applied coaching and organisation-level action plans",
+      "Service-quality observation and follow-up",
+      "Learning capture, final assessment and handover"
+    ],
+    "evidence_needed": [
+      "Comparable BDS/provider-capacity assignments",
+      "Curriculum/ToT samples and completion evidence",
+      "Corporate registration and financial-capacity evidence",
+      "Named key-expert CVs after TOR extraction",
+      "Portuguese/local delivery partner evidence",
+      "Client references only where independently substantiated"
+    ]
+  },
+  "notification_event": {
+    "type": "new_high_fit_opportunity",
+    "severity": "high",
+    "message": "5/5 AfDB Guinea-Bissau BDS opportunity: training institution to strengthen 30 SME support organisations; reported deadline 30 Sep. Qualify EOI and secure Lusophone/local partner.",
+    "delivery_status": "pending_jakeos_sync"
+  }
+}
