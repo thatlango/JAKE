@@ -1,0 +1,84 @@
+{
+  "watch_profile": "Tuku-Tuku Q4 Opportunity Hunt & Watch",
+  "sync_status": "pending_canonical_jakeos_upsert",
+  "sync_failure_alert": true,
+  "captured_at": "2026-09-19T08:12:16+03:00",
+  "issuer": "International Organization for Migration (IOM)",
+  "title": "External Evaluators (Roster for Consultancies) — Evaluator, IOM Deployment Roster",
+  "opportunity_summary": "IOM is establishing a deployment roster of evaluation consultants for decentralized evaluations. Assignments cover theory-of-change reconstruction, inception/evaluation matrices, mixed-methods data collection and analysis, participatory evaluation, OECD-DAC/ALNAP criteria, UNEG standards, reporting and validation. Expected first deployment window begins 1 November 2026; indicative deployment duration is 29 days.",
+  "fit_score": 4,
+  "fit_status": "Conditional fit",
+  "eligibility_status": "Needs verification",
+  "assessment_status": "Partial",
+  "assessment_confidence": "Medium",
+  "fit_summary": "Strong strategic fit for Tuku-Tuku's emerging research/MEL specialist bench, but this is an individual evaluator roster rather than a firm contract. Candidate-level eligibility must be tested against the available and incoming MEAL CVs.",
+  "decision_rationale": "Worth pursuing through a qualified Tuku-associated MEAL specialist because roster admission can create recurring UN evaluation access and strengthen Tuku's specialist network. Do not submit Jacob or any specialist until mandatory degree and evaluation-lead experience are evidenced.",
+  "bid_posture": "Recruit Specialists & Bid",
+  "mandatory_requirements": [
+    "Master's degree in Evaluation, Social Sciences, International Development, Economics, Public Policy, Public Administration, Statistics or related field",
+    "At least five years relevant professional evaluation experience",
+    "At least three evaluations conducted as sole evaluator or team leader",
+    "Evaluation experience in at least two countries",
+    "Theory-based and mixed-method evaluation experience",
+    "Remote evaluation and virtual data collection experience",
+    "Professional proficiency in English, French or Spanish",
+    "Register on IOM Deployment Roster and upload the Mandatory Application Form"
+  ],
+  "desirable_requirements": [
+    "Professional evaluation certification/training",
+    "Migration, displacement, humanitarian or international-development evaluation experience",
+    "Knowledge of UNEG standards, OECD-DAC/ALNAP, contribution analysis, outcome harvesting, process tracing and realist evaluation",
+    "Qualitative-analysis software and quantitative/statistical software capability",
+    "Ethical application of AI to evaluation",
+    "Arabic or Portuguese"
+  ],
+  "strongest_matches": [
+    "Tuku-Tuku now has access to at least one MEAL CV with another expected, enabling candidate screening for evaluator-led assignments",
+    "Tuku-Tuku programme work includes monitoring/reporting, field implementation, research-adjacent enterprise diagnostics and digital data workflows",
+    "Uganda and East Africa development-programme operating context"
+  ],
+  "gaps": [
+    "Candidate-level Master's degree not yet verified in this run",
+    "Three sole/team-lead evaluations not yet verified",
+    "Two-country evaluation record not yet verified",
+    "UNEG/OECD-DAC and specialist evaluation-method evidence not yet verified"
+  ],
+  "hard_blockers": [
+    "Do not apply a candidate who cannot evidence the Master's + 5 years + 3 lead evaluations + 2-country experience thresholds"
+  ],
+  "deliverables": [
+    "Inception report and evaluation matrix",
+    "Sampling strategy and data collection instruments",
+    "Mixed-methods data collection and analysis",
+    "Evaluation report",
+    "Debrief/validation presentation",
+    "Prioritized recommendations"
+  ],
+  "application_requirements": [
+    "IOM Deployment Roster registration/profile",
+    "Mandatory Application Form uploaded under Supporting Documents",
+    "Application to the specific Evaluator roster opportunity"
+  ],
+  "strategic_reasons": [
+    "Creates access to recurring IOM decentralized evaluation assignments",
+    "Builds Tuku-Tuku's external evaluator bench and UN-system positioning",
+    "Highly relevant to the research/MEL capability currently being assembled"
+  ],
+  "winning_strategy": "Screen both MEAL CVs against every mandatory criterion, nominate only a fully compliant evaluator, foreground three strongest led evaluations, two-country experience, theory-based mixed methods, OECD-DAC/UNEG practice, remote evaluation and humanitarian/development context. Treat this as specialist-network positioning rather than a Tuku corporate prime bid.",
+  "compensation": "Not publicly specified",
+  "start_window": "Expected deployment from 2026-11-01",
+  "duration": "Indicative 29-day deployments",
+  "procurement_type": "Individual consultant roster",
+  "arrangement": "Deployment roster; duty station to be announced",
+  "location": "Global / deployment-based",
+  "deadline": "2026-09-30T23:59:00Z",
+  "source_url": "https://reliefweb.int/job/4227866/external-evaluators-roster-consultancies",
+  "source_context": "Fresh cross-source discovery. Detailed vacancy text reproduced by current tender/consultancy aggregators and linked to IOM Deployment Roster/ReliefWeb. Original IOM source was not directly retrievable in this run, therefore assessment is Partial rather than Verified.",
+  "source_verified_at": null,
+  "next_action": "Retrieve the IOM/ReliefWeb original vacancy and Mandatory Application Form; screen the available and incoming MEAL CVs against all mandatory thresholds; if one qualifies, complete roster profile and application before 30 September.",
+  "alert": {
+    "type": "new_4_of_5_opportunity_and_sync_failure",
+    "message": "New 4/5 IOM External Evaluators roster closes 30 Sep. Screen MEAL CVs against Master's + 5 years + 3 lead evaluations + 2-country threshold. JakeOS canonical upsert pending.",
+    "push_status": "not_available_in_runtime"
+  }
+}
