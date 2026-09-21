@@ -75,10 +75,20 @@ test('existing JakeOS dashboard UI remains unchanged by the Agents feature', asy
   await page.screenshot({ path: testInfo.outputPath('dashboard-preserved.png'), fullPage: true });
 });
 
-test('Agents is an additive desktop section with live states, runs and decisions', async ({ page }) => {
+async function openAgents(page) {
+  const agents = page.getByRole('button', { name: /^Agents$/ });
+  if (await agents.count()) {
+    await agents.first().click();
+    return;
+  }
+  await page.getByRole('button', { name: /^More$/ }).click();
+  await page.getByRole('button', { name: /^Agents$/ }).click();
+}
+
+test('Agents is an additive section with live states, runs and decisions', async ({ page }) => {
   await installMocks(page);
   await page.goto('/');
-  await page.getByRole('button', { name: /^Agents$/ }).click();
+  await openAgents(page);
 
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
   await expect(page.getByText('Command Orchestrator').first()).toBeVisible();
@@ -93,9 +103,9 @@ test('agent API failure stays inside the Agents section', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  await page.getByRole('button', { name: /^Agents$/ }).click();
+  await openAgents(page);
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
-  await expect(page.getByText(/Agent telemetry unavailable/i)).toBeVisible();
+  await expect(page.getByText('Agent telemetry unavailable', { exact: true }).first()).toBeVisible();
 });
 
 test('mobile keeps the original primary navigation and exposes Agents under More', async ({ page }) => {
