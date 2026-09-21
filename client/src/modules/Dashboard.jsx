@@ -1,144 +1,271 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, StateBanner, formatMoney, relativeDate } from '../components/ProductUI';
+import { Icon, StateBanner, formatDate, formatMoney, relativeDate } from '../components/ProductUI';
+import { DonutChart, HorizontalBars, LineChart, MiniBars, ProgressBar, Sparkline } from '../components/CommandCharts';
 
-const DAY_LABELS=['S','M','T','W','T','F','S'];
-const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
-const dateKey=value=>{if(!value)return null;const d=new Date(value);return Number.isNaN(d.getTime())?null:d.toISOString().slice(0,10);};
-const toneForStatus=value=>String(value||'').toLowerCase().includes('ready')?'ready':String(value||'').toLowerCase().includes('pending')?'pending':'progress';
+const num = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+const compact = value => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(num(value));
+const healthLabel = value => {
+  const v = String(value || 'unknown').toLowerCase();
+  if (v === 'healthy') return 'Healthy';
+  if (v === 'degraded') return 'Degraded';
+  if (v === 'down') return 'Down';
+  return 'Unknown';
+};
 
-function ArrowButton({label,onClick}){return <button className="jd-arrow-button" aria-label={label} onClick={onClick}><Icon name="arrow" size={15}/></button>;}
-
-function StatCard({label,value,helper,icon,highlight=false,onClick}){
-  return <button className={`jd-stat-card ${highlight?'jd-stat-card--highlight':''}`} onClick={onClick}>
-    <div className="jd-stat-top"><span>{label}</span><ArrowButton label={`Open ${label}`}/></div>
-    <strong>{value}</strong>
-    <div className="jd-stat-helper">{icon&&<Icon name={icon} size={14}/>}<span>{helper}</span></div>
+function MetricCard({ testId, label, value, helper, icon, tone = 'blue', onClick }) {
+  return <button data-testid={testId} className={'cc-kpi cc-kpi--' + tone} onClick={onClick}>
+    <span className="cc-kpi-icon"><Icon name={icon} size={18} /></span>
+    <span className="cc-kpi-copy"><small>{label}</small><strong>{value}</strong><em>{helper}</em></span>
   </button>;
 }
 
-function TimerCard({minutes=30}){
-  const initial=Math.max(5,Number(minutes)||30)*60;
-  const[remaining,setRemaining]=useState(initial),[running,setRunning]=useState(false);
-  useEffect(()=>{setRemaining(initial);setRunning(false);},[initial]);
-  useEffect(()=>{if(!running||remaining<=0)return;const t=setInterval(()=>setRemaining(v=>v>0?v-1:0),1000);return()=>clearInterval(t);},[running,remaining]);
-  const h=Math.floor(remaining/3600),m=Math.floor((remaining%3600)/60),s=remaining%60;
-  const display=[h,m,s].map(v=>String(v).padStart(2,'0')).join(':');
-  return <section className="jd-timer-card">
-    <div className="jd-card-title jd-card-title--light">Time block</div>
-    <div className="jd-timer-pattern" aria-hidden="true"/>
-    <div className="jd-timer-value">{display}</div>
-    <div className="jd-timer-controls">
-      <button className="jd-timer-control" onClick={()=>setRunning(v=>!v)} aria-label={running?'Pause timer':'Start timer'}>{running?'Ⅱ':'▶'}</button>
-      <button className="jd-timer-control jd-timer-control--stop" onClick={()=>{setRunning(false);setRemaining(initial);}} aria-label="Reset timer">■</button>
+function PanelHead({ icon, title, meta, action }) {
+  return <div className="cc-panel-head">
+    <div className="cc-panel-title">
+      <span><Icon name={icon} size={16} /></span>
+      <div><h2>{title}</h2>{meta && <small>{meta}</small>}</div>
     </div>
-  </section>;
+    {action}
+  </div>;
 }
 
-export default function Dashboard({openAI,navigate}){
-  const[data,setData]=useState({overview:null,today:null,projects:[],clients:[],items:[],events:[],accounts:null});
-  const[loading,setLoading]=useState(true),[error,setError]=useState('');
-  const load=useCallback(async()=>{
-    setLoading(true);setError('');
-    try{
-      const now=new Date(),to=new Date(Date.now()+7*86400000);
-      const endpoints=[
-        '/api/overview','/api/work/today?limit=7','/api/work/projects','/api/crm/clients','/api/work/items?limit=300',
-        `/api/calendar/events?from=${now.toISOString().slice(0,10)}&to=${to.toISOString().slice(0,10)}`
-      ];
-      const responses=await Promise.all(endpoints.map(url=>fetch(url)));
-      if(responses.some(r=>!r.ok))throw new Error('Command-center data could not be loaded.');
-      const[overview,today,projects,crm,items,events]=await Promise.all(responses.map(r=>r.json()));
-      let accounts=null;try{const ar=await fetch('/api/accounts?limit=1');if(ar.ok)accounts=await ar.json();}catch{}
-      setData({overview,today,projects:projects.projects||[],clients:crm.clients||[],items:items.items||[],events:events.events||[],accounts});
-    }catch(e){setError(e.message||'JakeOS could not load the dashboard.');}
-    setLoading(false);
-  },[]);
-  useEffect(()=>{load();},[load]);
+function EmptyLocal({ children }) {
+  return <div className="cc-local-empty">{children}</div>;
+}
 
-  const overview=data.overview||{},tasks=overview.tasks||{},pipeline=overview.pipeline||{},estate=overview.estate||{},estateTotal=estate.totals||{};
-  const priorities=data.today?.priorities||[],focus=priorities[0]||null;
-  const upcoming=data.events.filter(e=>!e.done);
-  const collaborators=useMemo(()=>[...data.clients].sort((a,b)=>{
-    const af=a.next_followup?new Date(a.next_followup).getTime():Infinity,bf=b.next_followup?new Date(b.next_followup).getTime():Infinity;
-    if(af!==bf)return af-bf;
-    return String(a.name||'').localeCompare(String(b.name||''));
-  }).slice(0,4),[data.clients]);
+export default function Dashboard({ openAI, navigate }) {
+  const [state, setState] = useState({ overview: null, agents: null, decisions: [], priorities: [], events: [], accounts: null });
+  const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState({});
 
-  const week=useMemo(()=>{
-    const now=new Date(),sunday=new Date(now);sunday.setHours(0,0,0,0);sunday.setDate(now.getDate()-now.getDay());
-    const days=Array.from({length:7},(_,i)=>{const d=new Date(sunday);d.setDate(sunday.getDate()+i);return d;});
-    const counts=days.map(day=>{
-      const key=day.toISOString().slice(0,10);
-      return data.items.filter(item=>dateKey(item.scheduled_start||item.due_at)===key&& !['done','cancelled'].includes(item.status)).length;
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrors({});
+    const now = new Date();
+    const to = new Date(Date.now() + 7 * 86400000);
+    const request = async url => {
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(url + ' returned ' + response.status);
+      return response.json();
+    };
+    const entries = [
+      ['overview', '/api/overview'],
+      ['agents', '/api/agents/overview'],
+      ['decisions', '/api/agents/decisions?status=open'],
+      ['priorities', '/api/work/today?limit=7'],
+      ['events', '/api/calendar/events?from=' + now.toISOString().slice(0, 10) + '&to=' + to.toISOString().slice(0, 10)],
+      ['accounts', '/api/accounts?limit=1']
+    ];
+    const results = await Promise.allSettled(entries.map(([, url]) => request(url)));
+    const next = { overview: null, agents: null, decisions: [], priorities: [], events: [], accounts: null };
+    const nextErrors = {};
+    results.forEach((result, index) => {
+      const key = entries[index][0];
+      if (result.status === 'fulfilled') {
+        const data = result.value;
+        if (key === 'decisions') next.decisions = data.decisions || [];
+        else if (key === 'priorities') next.priorities = data.priorities || [];
+        else if (key === 'events') next.events = data.events || [];
+        else next[key] = data;
+      } else {
+        nextErrors[key] = result.reason?.message || 'Unavailable';
+      }
     });
-    const max=Math.max(...counts,1);
-    return days.map((d,i)=>({label:DAY_LABELS[i],count:counts[i],height:counts[i]?clamp(38+(counts[i]/max)*54,38,92):34,today:d.toDateString()===now.toDateString()}));
-  },[data.items]);
+    setState(next);
+    setErrors(nextErrors);
+    setLoading(false);
+  }, []);
 
-  const projectTotals=useMemo(()=>data.projects.reduce((acc,p)=>{
-    acc.total+=Number(p.total_tasks||0);acc.complete+=Number(p.completed_tasks||0);acc.open+=Number(p.open_tasks||0);return acc;
-  },{total:0,complete:0,open:0}),[data.projects]);
-  const projectPct=projectTotals.total?Math.round(projectTotals.complete/projectTotals.total*100):0;
-  const priorityHigh=priorities.filter(x=>['high','critical'].includes(String(x.priority).toLowerCase())).length;
+  useEffect(() => { load(); }, [load]);
 
-  return <div className="module jd-dashboard">
-    {error&&<StateBanner tone="danger" title="Dashboard could not refresh">{error}</StateBanner>}
-    <header className="jd-dashboard-head">
-      <div><h1>Dashboard</h1><p>Plan, prioritise, and move the right work forward with clarity.</p></div>
-      <div className="jd-dashboard-actions">
-        <button className="jd-primary-action" onClick={()=>openAI('Use the live JakeOS context to tell me what deserves my attention now, what can wait, and what the best next action is.')}><img src="/brand/tuku-ai.svg" alt="" aria-hidden="true" width="17" height="17" style={{objectFit:'contain'}}/>Ask Jake</button>
-        <button className="jd-outline-action" onClick={load}><Icon name="refresh" size={16}/>Refresh now</button>
+  const overview = state.overview || {};
+  const tasks = overview.tasks || {};
+  const pipeline = overview.pipeline || {};
+  const invoices = overview.invoices || {};
+  const finance = overview.finance || {};
+  const opportunities = overview.opportunities || {};
+  const estate = overview.estate || {};
+  const agentTotals = state.agents?.totals || {};
+  const products = Array.isArray(estate.products) ? estate.products : [];
+  const signals = Array.isArray(overview.attention_signals) ? overview.attention_signals : [];
+  const criticalAlerts = signals.filter(item => String(item.severity).toLowerCase() === 'critical').length;
+  const healthy = num(estate.totals?.healthy);
+  const productTotal = num(estate.totals?.products) || products.length;
+  const confirmed = num(finance.confirmed_usd);
+  const target = num(finance.quarterly_target_usd);
+  const targetPct = target ? Math.round(confirmed / target * 100) : 0;
+
+  const stageOrder = ['New', 'Qualifying', 'Pursuing', 'Drafting', 'Submitted', 'Won', 'Lost', 'Closed', 'Other'];
+  const stageData = stageOrder.map(label => ({ label, value: num(opportunities.stages?.[label]) })).filter(item => item.value > 0);
+  const unknownStageCount = Object.entries(opportunities.stages || {})
+    .filter(([key]) => !stageOrder.includes(key))
+    .reduce((sum, [, value]) => sum + num(value), 0);
+  if (unknownStageCount) stageData.push({ label: 'Other', value: unknownStageCount });
+
+  const statusCounts = tasks.status_counts || {};
+  const workSegments = [
+    { label: 'Inbox', value: num(statusCounts.inbox) },
+    { label: 'Doing', value: num(statusCounts.doing) },
+    { label: 'Ready', value: num(statusCounts.ready) },
+    { label: 'Waiting', value: num(statusCounts.waiting) }
+  ].filter(item => item.value > 0);
+  if (!workSegments.length && num(tasks.open) > 0) workSegments.push({ label: 'Open', value: num(tasks.open) });
+
+  const agentBars = useMemo(() => {
+    if (!state.agents?.activity?.length) return [];
+    const counts = {};
+    state.agents.activity.slice(0, 30).forEach(item => {
+      const label = (item.agent_name || item.agent_id || 'Agent').split(' ')[0];
+      counts[label] = (counts[label] || 0) + 1;
+    });
+    return Object.entries(counts).slice(0, 8).map(([label, value]) => ({ label, value }));
+  }, [state.agents]);
+
+  const liveActivity = useMemo(() => {
+    const agent = (state.agents?.activity || []).map(item => ({
+      id: 'a-' + item.id,
+      time: item.created_at || item.event_at,
+      title: item.summary,
+      source: item.agent_name || item.agent_id || 'Agent'
+    }));
+    const work = (overview.recent_activity || []).map(item => ({
+      id: 'w-' + item.id,
+      time: item.created_at,
+      title: item.title || item.event_type,
+      source: item.project_id || 'Work'
+    }));
+    return [...agent, ...work]
+      .filter(item => item.time)
+      .sort((a, b) => new Date(b.time) - new Date(a.time))
+      .slice(0, 8);
+  }, [state.agents, overview.recent_activity]);
+
+  const milestones = [...state.events]
+    .filter(item => !item.done)
+    .sort((a, b) => new Date(a.starts_at || a.date) - new Date(b.starts_at || b.date))
+    .slice(0, 5);
+  const urgent = [...state.priorities].slice(0, 5);
+
+  return <div className="module cc-dashboard">
+    {errors.overview && <StateBanner tone="danger" title="Command-center overview is partially unavailable">Some operational metrics could not be refreshed. Other panels remain usable.</StateBanner>}
+
+    <header className="cc-hero">
+      <div className="cc-hero-mark"><img src="/brand/jakeos-icon.svg" alt="" aria-hidden="true" /></div>
+      <div className="cc-hero-copy">
+        <div className="cc-eyebrow">Operating picture</div>
+        <h1>JakeOS Command Center</h1>
+        <p>People, products, opportunities and operations — one glance before you decide what moves next.</p>
+      </div>
+      <div className="cc-hero-actions">
+        <button className="cc-ghost-btn" onClick={load}><Icon name="refresh" size={16} />Refresh</button>
+        <button className="cc-primary-btn" onClick={() => openAI('Read the current JakeOS command-center state and tell me the three decisions or actions with the highest operational and commercial impact today.')}><img src="/brand/tuku-ai.svg" alt="" aria-hidden="true" />Ask Jake</button>
       </div>
     </header>
 
-    <section className="jd-stats-grid" aria-label="Command center metrics">
-      <StatCard label="Open work" value={loading?'—':tasks.open??0} helper={`${priorityHigh} high priority`} icon="warning" highlight onClick={()=>navigate('work')}/>
-      <StatCard label="Active pipeline" value={loading?'—':pipeline.active??0} helper={`${formatMoney(pipeline.active_value_usd||0,'USD')} tracked`} icon="money" onClick={()=>navigate('opportunities',{view:'pipeline'})}/>
-      <StatCard label="Upcoming events" value={loading?'—':upcoming.length} helper="Next 7 days" icon="calendar" onClick={()=>navigate('calendar')}/>
-      <StatCard label="Active accounts" value={loading?'—':data.accounts?.totals?.active7d??estateTotal.activeUsers7d??0} helper={`${data.accounts?.totals?.totalAccounts??'—'} total accounts · 7 days`} icon="users" onClick={()=>navigate('accounts',{activity:'7d'})}/>
+    <section className="cc-kpi-grid" aria-label="Executive command-center metrics">
+      <MetricCard testId="kpi-active-agents" label="Active Agents" value={state.agents ? num(agentTotals.active) : '—'} helper={state.agents ? num(agentTotals.blocked) + ' blocked · ' + num(agentTotals.queued) + ' queued' : 'Telemetry unavailable'} icon="users" tone="green" onClick={() => navigate('agents')} />
+      <MetricCard testId="kpi-open-work" label="Open Work" value={loading ? '—' : num(tasks.open)} helper={num(tasks.blocked) + ' blocked · ' + num(tasks.overdue) + ' overdue'} icon="check" tone="blue" onClick={() => navigate('work')} />
+      <MetricCard testId="kpi-opportunities" label="Opportunities" value={loading ? '—' : num(pipeline.active || opportunities.open)} helper={formatMoney(pipeline.active_value_usd || 0, 'USD') + ' active value'} icon="target" tone="blue" onClick={() => navigate('opportunities')} />
+      <MetricCard label="Revenue at Risk" value={formatMoney(invoices.overdue_value || 0, 'USD')} helper={num(invoices.overdue_count) + ' overdue receivables'} icon="warning" tone="red" onClick={() => navigate('cashflow')} />
+      <MetricCard label="Confirmed Revenue" value={formatMoney(confirmed, 'USD')} helper={target ? Math.min(999, targetPct) + '% of quarterly target' : 'Target not set'} icon="money" tone="green" onClick={() => navigate('finance')} />
+      <MetricCard label="Products Healthy" value={productTotal ? healthy + '/' + productTotal : '—'} helper={estate.stale ? 'Estate telemetry stale' : estate.available === false ? 'Estate telemetry unavailable' : 'Latest estate health'} icon="estate" tone="green" onClick={() => navigate('estate')} />
+      <MetricCard label="Decisions Needed" value={state.agents ? num(agentTotals.decisions_open || state.decisions.length) : state.decisions.length || '—'} helper={state.decisions.filter(item => String(item.priority).toLowerCase() === 'high').length + ' high priority'} icon="document" tone="amber" onClick={() => navigate('agents')} />
+      <MetricCard label="Critical Alerts" value={criticalAlerts} helper={signals.length + ' open signals'} icon="bell" tone="red" onClick={() => navigate('alerts')} />
     </section>
 
-    <section className="jd-mid-grid">
-      <article className="jd-card jd-work-rhythm">
-        <div className="jd-card-title">Work rhythm</div>
-        <div className="jd-rhythm-chart">
-          {week.map((d,i)=><div className="jd-rhythm-day" key={`${d.label}-${i}`}><div className={`jd-rhythm-bar ${d.count?'jd-rhythm-bar--active':'jd-rhythm-bar--idle'} ${d.today?'jd-rhythm-bar--today':''}`} style={{height:`${d.height}%`}}>{d.today&&<span>{d.count||0}</span>}</div><small>{d.label}</small></div>)}
+    <section className="cc-main-grid">
+      <article className="cc-panel cc-panel--agents" data-testid="panel-agent-command-center">
+        <PanelHead icon="users" title="Agent Command Center" meta="Live agent workforce" action={<button className="cc-link-btn" onClick={() => navigate('agents')}>View agents <Icon name="arrow" size={14} /></button>} />
+        {state.agents ? <>
+          <div className="cc-mini-metrics">
+            <div><span className="cc-status-dot cc-status-dot--working" /><strong>{num(agentTotals.active)}</strong><small>Working</small></div>
+            <div><span className="cc-status-dot cc-status-dot--queued" /><strong>{num(agentTotals.queued)}</strong><small>Queued</small></div>
+            <div><span className="cc-status-dot cc-status-dot--blocked" /><strong>{num(agentTotals.blocked)}</strong><small>Blocked</small></div>
+            <div><Icon name="clock" size={14} /><strong>{agentTotals.avg_completion_minutes == null ? '—' : agentTotals.avg_completion_minutes + 'm'}</strong><small>Avg completion</small></div>
+            <div><Icon name="check" size={14} /><strong>{agentTotals.success_rate == null ? '—' : agentTotals.success_rate + '%'}</strong><small>Success rate</small></div>
+          </div>
+          <div className="cc-chart-title">Recent event volume by agent</div>
+          <MiniBars data={agentBars} ariaLabel="Recent agent event volume by agent" />
+        </> : <EmptyLocal>{errors.agents ? 'Agent telemetry unavailable' : 'No agent telemetry connected yet.'}</EmptyLocal>}
+      </article>
+
+      <article className="cc-panel cc-panel--pipeline" data-testid="panel-opportunity-pipeline">
+        <PanelHead icon="target" title="Opportunity Pipeline" meta={num(pipeline.active || opportunities.open) + ' active · ' + formatMoney(pipeline.active_value_usd || 0, 'USD')} action={<button className="cc-link-btn" onClick={() => navigate('opportunities')}>Open pipeline <Icon name="arrow" size={14} /></button>} />
+        <HorizontalBars data={stageData} valueFormatter={value => compact(value)} ariaLabel="Opportunities by pipeline stage" />
+        <div className="cc-panel-foot"><span><strong>{num(opportunities.high_relevance)}</strong> high-relevance</span><span><strong>{num(opportunities.deadlines_14d || pipeline.deadlines_14d)}</strong> deadlines in 14d</span></div>
+      </article>
+
+      <article className="cc-panel cc-panel--work" data-testid="panel-work-execution">
+        <PanelHead icon="check" title="Work & Execution" meta={num(tasks.open) + ' open items'} action={<button className="cc-link-btn" onClick={() => navigate('work')}>Open work <Icon name="arrow" size={14} /></button>} />
+        <div className="cc-work-layout">
+          <div>
+            <DonutChart segments={workSegments} centerValue={num(tasks.open)} centerLabel="Open work" ariaLabel="Open work distribution" />
+            <div className="cc-donut-legend">{workSegments.map((item, index) => <span key={item.label}><i className={'cc-legend-dot cc-series-' + index % 6} />{item.label} <strong>{item.value}</strong></span>)}</div>
+          </div>
+          <div className="cc-urgent">
+            <div className="cc-chart-title">Urgent work</div>
+            {urgent.length ? urgent.map(item => <button key={item.id} onClick={() => navigate('work')}>
+              <span className={'cc-priority-mark cc-priority-mark--' + String(item.priority || 'medium').toLowerCase()} />
+              <span><strong>{item.title}</strong><small>{(item.project_name || 'Work') + ' · ' + (item.due_at ? relativeDate(item.due_at) : 'No due date')}</small></span>
+              <em>{item.estimated_minutes ? item.estimated_minutes + 'm' : ''}</em>
+            </button>) : <EmptyLocal>No urgent work right now.</EmptyLocal>}
+          </div>
         </div>
-        <p className="jd-chart-caption">Scheduled and due work across this week</p>
       </article>
 
-      <article className="jd-card jd-focus-card">
-        <div className="jd-card-title">Focus now</div>
-        {focus?<><h2>{focus.title}</h2><p>{focus.project_name||'Canonical JakeOS work'}</p><div className="jd-focus-time"><Icon name="clock" size={16}/>{focus.estimated_minutes||30} min</div><button className="jd-primary-action jd-focus-action" onClick={()=>navigate('work')}><span className="jd-play">▶</span>Start next action</button></>:<div className="jd-empty-compact">Nothing is forcing attention right now.</div>}
+      <article className="cc-panel cc-panel--estate" data-testid="panel-estate-health">
+        <PanelHead icon="estate" title="Estate Health" meta={estate.stale ? 'Telemetry stale' : estate.available === false ? 'Telemetry unavailable' : 'Cross-product operating health'} action={<button className="cc-link-btn" onClick={() => navigate('estate')}>View estate <Icon name="arrow" size={14} /></button>} />
+        {products.length ? <div className="cc-product-grid">{products.slice(0, 10).map((product, index) => {
+          const health = healthLabel(product.health || product.status);
+          const tone = health.toLowerCase();
+          const availability = num(product.availability);
+          const spark = Array.isArray(product.trend) ? product.trend : [availability - .4, availability - .2, availability - .3, availability];
+          return <button className="cc-product-card" key={product.code || product.name || index} onClick={() => navigate('estate')}>
+            <div className="cc-product-top"><span className={'cc-product-icon cc-product-icon--' + index % 5}><Icon name="grid" size={14} /></span><strong>{product.name || product.code || 'Product'}</strong></div>
+            <div className={'cc-health cc-health--' + tone}><i />{health}</div>
+            <small>{product.availability != null ? availability.toFixed(1) + '% availability' : num(product.activeUsers7d) + ' active users'}</small>
+            <Sparkline values={spark} ariaLabel={(product.name || 'Product') + ' recent health trend'} />
+          </button>;
+        })}</div> : <EmptyLocal>{estate.available === false ? 'Estate telemetry unavailable.' : 'No estate products reported yet.'}</EmptyLocal>}
       </article>
 
-      <article className="jd-card jd-priority-card">
-        <div className="jd-card-head-row"><div className="jd-card-title">Priority queue</div><button className="jd-mini-action" onClick={()=>navigate('work')}><Icon name="plus" size={14}/>New</button></div>
-        <div className="jd-priority-list">
-          {priorities.slice(0,5).map((item,index)=><button key={item.id} className="jd-priority-row" onClick={()=>navigate('work')}><span className={`jd-priority-icon jd-priority-icon--${index%5}`}><Icon name={['spark','target','document','estate','chart'][index%5]} size={16}/></span><span><strong>{item.title}</strong><small>{item.due_at?relativeDate(item.due_at):item.project_name||'Ready when you are'}</small></span></button>)}
-          {!loading&&!priorities.length&&<div className="jd-empty-compact">No ranked work in the queue.</div>}
+      <article className="cc-panel cc-panel--finance" data-testid="panel-financial-overview">
+        <PanelHead icon="chart" title="Financial Overview" meta="USD-only aggregate where currencies differ" action={<button className="cc-link-btn" onClick={() => navigate('finance')}>View finance <Icon name="arrow" size={14} /></button>} />
+        <div className="cc-finance-metrics"><div><small>Confirmed</small><strong>{formatMoney(finance.confirmed_usd || 0, 'USD')}</strong></div><div><small>Pending</small><strong>{formatMoney(finance.pending_usd || 0, 'USD')}</strong></div><div><small>Monthly costs</small><strong>{formatMoney(finance.monthly_costs_usd || 0, 'USD')}</strong></div></div>
+        <div className="cc-finance-target"><span>Quarterly target</span><strong>{target ? Math.min(999, targetPct) + '%' : 'Not set'}</strong><ProgressBar value={confirmed} max={target || 1} label="Confirmed revenue against quarterly target" /></div>
+        <div className="cc-chart-title">Revenue and recurring cost trend</div>
+        <LineChart data={finance.trend || []} series={[{ key: 'inflow', label: 'Inflow' }, { key: 'outflow', label: 'Outflow' }]} ariaLabel="Revenue and monthly recurring cost trend" />
+      </article>
+
+      <article className="cc-panel cc-panel--alerts" data-testid="panel-alerts-decisions" aria-label="Alerts and decisions">
+        <PanelHead icon="bell" title="Alerts & Decisions" meta={signals.length + ' signals · ' + state.decisions.length + ' decisions'} action={<button className="cc-link-btn" onClick={() => navigate('agents')}>Review <Icon name="arrow" size={14} /></button>} />
+        <div className="cc-alert-tabs"><span className="cc-alert-tab cc-alert-tab--red">Critical <b>{criticalAlerts}</b></span><span className="cc-alert-tab cc-alert-tab--amber">Decisions <b>{state.decisions.length}</b></span><span className="cc-alert-tab">Blocked <b>{num(tasks.blocked) + num(agentTotals.blocked)}</b></span></div>
+        <div className="cc-alert-list">
+          {[...signals.slice(0, 4), ...state.decisions.slice(0, 2).map(item => ({ ...item, severity: 'decision', source: 'Agents' }))].slice(0, 6).map((item, index) => <button key={item.id || index} onClick={() => item.severity === 'decision' ? navigate('agents') : navigate('alerts')}>
+            <span className={'cc-alert-icon cc-alert-icon--' + String(item.severity || 'info').toLowerCase()}><Icon name={item.severity === 'decision' ? 'document' : 'warning'} size={14} /></span>
+            <span><strong>{item.title}</strong><small>{(item.source || 'JakeOS') + ' · ' + (item.due_at ? relativeDate(item.due_at) : 'Needs review')}</small></span>
+          </button>)}
+          {!signals.length && !state.decisions.length && <EmptyLocal>No open alerts or decisions.</EmptyLocal>}
         </div>
       </article>
     </section>
 
-    <section className="jd-bottom-grid">
-      <article className="jd-card jd-collaborators-card">
-        <div className="jd-card-head-row"><div className="jd-card-title">Key collaborators</div><button className="jd-mini-action" onClick={()=>navigate('crm')}><Icon name="plus" size={14}/>Add contact</button></div>
-        <div className="jd-collaborator-list">
-          {collaborators.map((person,index)=>{const state=person.next_followup?'Pending':person.status||'Active';return <button className="jd-collaborator-row" key={person.id} onClick={()=>navigate('crm')}><span className={`jd-avatar jd-avatar--${index%4}`}>{person.avatar_emoji||String(person.name||'?').slice(0,1)}</span><span className="jd-collaborator-copy"><strong>{person.name}</strong><small>{person.org||person.role||person.type||'Relationship'}</small></span><em className={`jd-status jd-status--${toneForStatus(state)}`}>{state}</em></button>;})}
-          {!loading&&!collaborators.length&&<div className="jd-empty-compact">Relationship intelligence will surface collaborators here.</div>}
-        </div>
+    <section className="cc-bottom-grid">
+      <article className="cc-panel" data-testid="panel-live-activity">
+        <PanelHead icon="spark" title="Live Activity" meta="Latest work and agent events" />
+        <div className="cc-activity-list">{liveActivity.length ? liveActivity.map(item => <div key={item.id}><time>{formatDate(item.time, { time: true })}</time><span className="cc-activity-dot" /><span><strong>{item.title}</strong><small>{item.source}</small></span></div>) : <EmptyLocal>No recent activity.</EmptyLocal>}</div>
       </article>
 
-      <article className="jd-card jd-progress-card">
-        <div className="jd-card-title">Project progress</div>
-        <div className="jd-progress-wrap">
-          <div className="jd-progress-gauge" style={{'--progress':`${projectPct*1.8}deg`}}><div><strong>{projectPct}%</strong><span>Projects moved</span></div></div>
-        </div>
-        <div className="jd-progress-legend"><span><i className="jd-dot jd-dot--complete"/>Completed</span><span><i className="jd-dot jd-dot--progress"/>In progress</span><span><i className="jd-dot jd-dot--pending"/>Pending</span></div>
+      <article className="cc-panel" data-testid="panel-upcoming-milestones">
+        <PanelHead icon="calendar" title="Upcoming Milestones" meta="Next seven days" action={<button className="cc-link-btn" onClick={() => navigate('calendar')}>Calendar <Icon name="arrow" size={14} /></button>} />
+        <div className="cc-milestone-list">{milestones.length ? milestones.map(item => <button key={item.id} onClick={() => navigate('calendar')}><span className="cc-date-chip"><strong>{formatDate(item.starts_at || item.date)}</strong></span><span><strong>{item.title}</strong><small>{(item.project || item.type || 'Calendar') + ' · ' + relativeDate(item.starts_at || item.date)}</small></span></button>) : <EmptyLocal>No milestones in the next seven days.</EmptyLocal>}</div>
       </article>
 
-      <TimerCard minutes={focus?.estimated_minutes||30}/>
+      <article className="cc-panel cc-panel--reach">
+        <PanelHead icon="estate" title="Estate Reach" meta="Current connected estate signal" />
+        <div className="cc-reach-stats"><div><strong>{productTotal}</strong><span>Products</span></div><div><strong>{num(estate.totals?.activeUsers7d || state.accounts?.totals?.active7d)}</strong><span>Active users · 7d</span></div><div><strong>{num(state.accounts?.totals?.totalAccounts)}</strong><span>Accounts</span></div></div>
+        <div className="cc-reach-note"><span className="cc-pulse-ring" /><div><strong>{estate.available === false ? 'Estate telemetry unavailable' : estate.stale ? 'Estate telemetry is stale' : 'Estate telemetry connected'}</strong><p>Verified estate usage only; no estimated impact numbers are shown.</p></div></div>
+      </article>
     </section>
   </div>;
 }
