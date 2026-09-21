@@ -10,7 +10,6 @@ import './layout-fix.css';
 import './dashboard-reference.css';
 import './minimal-kpi-shell.css';
 import './tds-jakeos.css';
-import './command-center-v2.css';
 
 document.documentElement.dataset.tds = '2.0';
 document.documentElement.dataset.product = 'jakeos';

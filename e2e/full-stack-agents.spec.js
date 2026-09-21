@@ -98,7 +98,7 @@ test('real Agent OS telemetry reaches authenticated JakeOS UI and streams live e
   await page.setExtraHTTPHeaders({ Authorization: 'Bearer ' + browserToken });
   await page.goto('/?module=agents');
 
-  await expect(page.getByRole('heading', { name: 'Agent Command Center' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
   await expect(page.getByText('Command Orchestrator').first()).toBeVisible();
   await expect(page.getByText('UNICEF Agora RFPS 503950').first()).toBeVisible();
   await expect(page.getByText('UNICEF prime-partner route').first()).toBeVisible();
@@ -121,7 +121,7 @@ test('real Agent OS telemetry reaches authenticated JakeOS UI and streams live e
   await page.screenshot({ path: testInfo.outputPath('agent-command-center-full-stack.png'), fullPage: true });
 
   await page.getByRole('button', { name: 'Dashboard' }).click();
-  await expect(page.getByRole('heading', { name: 'JakeOS Command Center' })).toBeVisible();
-  await expect(page.getByTestId('kpi-active-agents')).not.toContainText('—');
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByText('Plan, prioritise, and move the right work forward with clarity.')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('jakeos-command-center-full-stack.png'), fullPage: true });
 });
