@@ -134,11 +134,11 @@ test('agents view shows canonical states, live work, blockers, runs and decision
   await page.getByRole('button', { name: /^Agents$/ }).click();
 
   await expect(page.getByRole('heading', { name: /Agent Command Center/i })).toBeVisible();
-  await expect(page.getByText('Command Orchestrator')).toBeVisible();
-  await expect(page.getByText('Independent Assurance')).toBeVisible();
-  await expect(page.getByText('UNICEF Agora RFPS 503950')).toBeVisible();
-  await expect(page.getByText('Premium Moodle Partner evidence not verified')).toBeVisible();
-  await expect(page.getByText('UNICEF prime-partner route')).toBeVisible();
+  await expect(page.getByText('Command Orchestrator').first()).toBeVisible();
+  await expect(page.getByText('Independent Assurance').first()).toBeVisible();
+  await expect(page.getByText('UNICEF Agora RFPS 503950').first()).toBeVisible();
+  await expect(page.getByText('Premium Moodle Partner evidence not verified').first()).toBeVisible();
+  await expect(page.getByText('UNICEF prime-partner route').first()).toBeVisible();
 });
 
 test('partial API failure degrades locally instead of blanking the whole command center', async ({ page }) => {
