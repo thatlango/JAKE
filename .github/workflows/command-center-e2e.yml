@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  e2e:
+  ui-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,15 +19,83 @@ jobs:
         run: cd client && npm ci --no-audit --no-fund
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run command-center E2E
-        run: npm run e2e
-      - name: Upload repeatable E2E evidence
+      - name: Run dashboard contract E2E
+        run: npx playwright test e2e/command-center.spec.js
+      - name: Upload UI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jakeos-command-center-e2e-${{ github.run_id }}
+          name: jakeos-command-center-ui-${{ github.run_id }}
           path: |
             artifacts/playwright-report
             artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 21
+
+  full-stack-agent-flow:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: jakeos
+          POSTGRES_USER: jakeos
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jakeos -d jakeos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      PORT: 3100
+      DATABASE_URL: postgresql://jakeos:ci_password@127.0.0.1:5432/jakeos
+      JAKEOS_TEST_AUTH_TOKEN: ci_jakeos_token
+      JAKEOS_AGENT_CONNECTOR_TOKEN: ci_agent_connector_token
+      JAKEOS_SESSION_SECRET: ci-jakeos-session-secret
+      E2E_FULL_STACK: "1"
+      E2E_EXTERNAL_SERVER: "1"
+      E2E_BASE_URL: http://127.0.0.1:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install root dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install and build client
+        run: |
+          cd client
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Migrate PostgreSQL
+        run: npm run migrate
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Start real JakeOS
+        run: |
+          npm start > /tmp/jakeos-command-center.log 2>&1 &
+          echo $! > /tmp/jakeos-command-center.pid
+          for i in {1..40}; do
+            curl -fsS http://127.0.0.1:3100/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3100/health
+      - name: Run real Agent OS to JakeOS browser flow
+        run: npx playwright test e2e/full-stack-agents.spec.js --project=desktop-chromium --workers=1
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/jakeos-command-center.log || true
+      - name: Upload full-stack E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jakeos-agent-full-stack-${{ github.run_id }}
+          path: |
+            artifacts/playwright-report
+            artifacts/test-results
+            /tmp/jakeos-command-center.log
           if-no-files-found: warn
           retention-days: 21
