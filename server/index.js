@@ -16,6 +16,7 @@ const {opportunitiesConnectorRouter}=require('./opportunities-connector');
 const {opportunitiesMcpRouter}=require('./opportunities-mcp');
 const {opportunityIntakeRouter}=require('./opportunity-intake-router');
 const {authenticateOpportunityConnector}=require('./opportunities-connector-auth');
+const {agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector}=require('./agent-control');
 const {startJobs}=require('./jobs');
 const {requireJakeAuth,webAuthRouter,momentumAuthRouter}=require('./tuku-auth');
 const gcal=require('./gcal');
@@ -27,7 +28,7 @@ app.set('trust proxy',1);
 app.use(express.json({limit:'15mb'}));
 app.use(express.urlencoded({extended:false,limit:'1mb'}));
 
-app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'6.0',db:await db.ping(),auth:'tuku',time:new Date().toISOString()}));
+app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'6.1',db:await db.ping(),auth:'tuku',time:new Date().toISOString()}));
 app.use('/auth',webAuthRouter());
 app.use('/api/mobile/v1/auth',momentumAuthRouter());
 app.use('/api/mobile/v1',mobileRouter);
@@ -40,12 +41,14 @@ app.use('/api/momentum/v1',momentumRouter);
 app.use('/api/integrations/v1/ops',opsIngestRouter);
 app.use('/api/integrations/v1',integrationsRouter);
 
-// Dedicated machine boundary for opportunity agents. These routes are deliberately
-// mounted before the generic JakeOS browser-auth gate and grant no JakeOS-wide access.
+// Dedicated machine boundaries are mounted before the generic browser-auth gate.
+// Each token is scoped to its own connector and cannot access general JakeOS APIs.
 app.use('/api/connectors/v1/opportunities',authenticateOpportunityConnector,opportunitiesConnectorRouter);
 app.use('/mcp/opportunities',authenticateOpportunityConnector,opportunitiesMcpRouter);
 app.use('/api/connectors/v1/opportunity-intake',authenticateOpportunityConnector,opportunityIntakeRouter);
+app.use('/api/connectors/v1/agents',authenticateAgentConnector,agentConnectorRouter);
 
+app.use('/api/agents',requireJakeAuth,agentBrowserRouter);
 app.use('/api/estate/control',requireJakeAuth,estateControlRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
 app.use('/api/accounts',requireJakeAuth,accountsRouter);
