@@ -1,0 +1,33 @@
+name: JakeOS Command Center E2E
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install root test tooling
+        run: npm install --no-audit --no-fund
+      - name: Install client
+        run: cd client && npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run command-center E2E
+        run: npm run e2e
+      - name: Upload repeatable E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jakeos-command-center-e2e-${{ github.run_id }}
+          path: |
+            artifacts/playwright-report
+            artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 21
