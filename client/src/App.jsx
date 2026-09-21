@@ -29,20 +29,20 @@ import Payments from './modules/Payments';
 
 const KNOWN_MODULES=new Set(['dashboard','agents','work','projects','calendar','crm','cashflow','opportunities','pipeline','radar','estate','estate-control','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
 const MODULE_META={
-  dashboard:{title:'Command Center',subtitle:'People, products, operations and decisions at a glance'},
-  agents:{title:'Agents',subtitle:'Watch the Tuku agent workforce execute, verify and escalate'},
+  dashboard:{title:'Command center',subtitle:'Today across work, money and the Tuku estate'},
+  agents:{title:'Agents',subtitle:'Live agent runs, blockers, evidence and decisions'},
   work:{title:'Work',subtitle:'Priorities, actions and execution'},
   projects:{title:'Projects',subtitle:'Delivery, milestones and project health'},
   calendar:{title:'Calendar',subtitle:'Schedule, deadlines and commitments'},
   crm:{title:'Relationships',subtitle:'People, organisations and follow-ups'},
   cashflow:{title:'Money',subtitle:'Cash movement, invoices and financial attention'},
   opportunities:{title:'Opportunities',subtitle:'Discovery, pipeline and applications'},
-  estate:{title:'Estate',subtitle:'Products, usage and commercial signals'},
+  estate:{title:'Tuku Estate',subtitle:'Products, usage and commercial signals'},
   'estate-control':{title:'Estate Control',subtitle:'Cross-product controls and estate status'},
   operations:{title:'Operations',subtitle:'Infrastructure, continuity and service health'},
   payments:{title:'Payments',subtitle:'Collections, movements and exceptions'},
   accounts:{title:'Accounts',subtitle:'Users, access and product activity'},
-  finance:{title:'Finance',subtitle:'Revenue, targets, costs and growth assumptions'},
+  finance:{title:'Revenue plan',subtitle:'Targets, forecasts and growth assumptions'},
   'ai-search':{title:'Search',subtitle:'Search and interpret JakeOS operating context'},
   integrations:{title:'Integrations',subtitle:'Connected systems and data flows'},
   alerts:{title:'Alerts',subtitle:'Notification rules and operational signals'},
@@ -88,42 +88,21 @@ export default function App(){
   const opportunityView=module==='pipeline'?'pipeline':module==='radar'?'discover':module==='proposals'||module==='grants'?'applications':(new URLSearchParams(window.location.search).get('view')||'overview');
   const navActive=opportunityModules.has(module)?'opportunities':module;
   const moduleMeta=MODULE_META[navActive]||MODULE_META[module]||MODULE_META.dashboard;
-  return <div className="app-layout cc-app" data-product="jakeos">
+  return <div className="app-layout" data-product="jakeos">
     <Sidebar active={navActive} onChange={navigate}/><MobileNav active={navActive} onChange={navigate}/>
-    <header className="jd-topbar cc-topbar">
+    <header className="jd-topbar">
       <div className="jd-topbar-left">
         <div className="jd-topbar-context"><strong>{moduleMeta.title}</strong><small>{moduleMeta.subtitle}</small></div>
-        <button className="jd-search-command cc-search-command" onClick={openJake}><Icon name="search" size={18}/><span>Search anything or ask Jake…</span><kbd>⌘K</kbd></button>
+        <button className="jd-search-command" onClick={openJake}><Icon name="search" size={18}/><span>Search or ask Jake</span><kbd>⌘K</kbd></button>
       </div>
       <div className="jd-topbar-actions">
+        <button className="jd-top-icon" onClick={()=>navigate('crm')} aria-label="Relationships"><Icon name="document" size={17}/></button>
         <button className="jd-top-icon" onClick={()=>navigate('alerts')} aria-label="Alerts"><Icon name="bell" size={17}/></button>
         <button className="jd-profile-chip" onClick={signOut} title="Sign out of JakeOS"><span className="jd-profile-avatar">{initials}</span><span className="jd-profile-copy"><strong>{userName}</strong><small>{userEmail}</small></span></button>
       </div>
     </header>
-    <main className="main-content cc-main">
-      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>}
-      {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>}
-      {module==='work'&&<Work openAI={openAI}/>}
-      {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>}
-      {module==='estate-control'&&<EstateControl/>}
-      {module==='operations'&&<Operations/>}
-      {module==='payments'&&<Payments/>}
-      {module==='accounts'&&<Accounts/>}
-      {module==='projects'&&<Projects openAI={openAI}/>}
-      {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>}
-      {module==='calendar'&&<CalendarModule openAI={openAI}/>}
-      {module==='finance'&&<Finance openAI={openAI}/>}
-      {module==='crm'&&<CRM openAI={openAI}/>}
-      {module==='cashflow'&&<CashFlow openAI={openAI}/>}
-      {module==='integrations'&&<Integrations/>}
-      {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>}
-      {module==='alerts'&&<AlertsSettings/>}
-      {module==='ai-search'&&<AISearch navigate={navigate}/>}
-      {module==='voice-memo'&&<VoiceMemo/>}
-      {module==='export'&&<ExportCentre/>}
-      {module==='platforms'&&<Platforms openAI={openAI}/>}
-    </main>
-    {aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}
-    <CommandCenter navigate={navigate} module={navActive}/><InstallPrompt/>
+    <main className="main-content">
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+    </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={navActive}/><InstallPrompt/>
   </div>;
 }
