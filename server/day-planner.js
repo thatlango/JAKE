@@ -9,8 +9,11 @@ const UTC_OFFSET='+03:00';
 const FIXED_BLOCKS=[
   {key:'learning',title:'Cloud and Infrastructure Study',start:'07:30',end:'09:30',type:'learning',notes:'Protected learning: 40 min learn, 60 min hands-on lab, 20 min runbook/notes.'},
   {key:'break-am',title:'Break',start:'09:30',end:'09:45',type:'break',notes:'Step away from the desk. Water, stretch and reset.'},
+  {key:'deep-work-1',title:'Deep Work',start:'09:45',end:'12:15',type:'focus',notes:'Protected high-concentration work. JakeOS schedules the highest-value active outcomes inside this window.'},
   {key:'lunch',title:'Lunch and walk',start:'12:15',end:'13:00',type:'break',notes:'Lunch away from the desk plus a short walk.'},
+  {key:'deep-work-2',title:'Deep Work',start:'13:00',end:'15:00',type:'focus',notes:'Second protected high-concentration block for completion, delivery and market-moving work.'},
   {key:'break-pm',title:'Break',start:'15:00',end:'15:15',type:'break',notes:'Short reset before collaboration and admin.'},
+  {key:'execution',title:'Collaboration and execution',start:'15:15',end:'16:45',type:'execution',notes:'Meetings, coordination, approvals, correspondence and shorter execution work.'},
   {key:'break-close',title:'Break',start:'16:45',end:'17:00',type:'break',notes:'Transition break before closing the workday.'},
   {key:'closeout',title:'Daily close-out',start:'17:00',end:'17:45',type:'review',notes:'Close loops, clear urgent correspondence, capture carry-over and set tomorrow up.'},
   {key:'exercise',title:'Exercise',start:'17:45',end:'18:30',type:'exercise',notes:'Protected movement: strength, cardio or mobility. Keep the block even on busy days.'}
