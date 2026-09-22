@@ -12,7 +12,7 @@ const tone=value=>{
 };
 
 export default function Agents({openAI}){
-  const[state,setState]=useState({overview:null,runs:[],decisions:[]});
+  const[state,setState]=useState({overview:null,runs:[],decisions:[],delegated:[]});
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState('');
   const[live,setLive]=useState('connecting');
@@ -26,12 +26,13 @@ export default function Agents({openAI}){
         if(!r.ok)throw new Error(d.error||(url+' returned '+r.status));
         return d;
       };
-      const[overview,runs,decisions]=await Promise.all([
+      const[overview,runs,decisions,delegated]=await Promise.all([
         get('/api/agents/overview'),
         get('/api/agents/runs?limit=20'),
-        get('/api/agents/decisions?status=open')
+        get('/api/agents/decisions?status=open'),
+        get('/api/agents/work?limit=30')
       ]);
-      setState({overview,runs:runs.runs||[],decisions:decisions.decisions||[]});
+      setState({overview,runs:runs.runs||[],decisions:decisions.decisions||[],delegated:delegated.dispatches||[]});
     }catch(err){setError(err.message||'Agent telemetry unavailable.');}
     setLoading(false);
   },[]);
@@ -121,6 +122,14 @@ export default function Agents({openAI}){
         </Panel>
       </div>
     </div>
+
+    <Panel title="Delegated from Work" subtitle="Agent assignments remain linked to the same canonical JakeOS Work items.">
+      {state.delegated.length?<div className="agents-work-list">{state.delegated.map(item=><div className="agents-work-row" key={item.id}>
+        <span className="agents-event-icon"><Icon name="spark" size={14}/></span>
+        <span><strong>{item.work_title}</strong><small>{(item.requested_agent_name||item.requested_agent_id)+' · '+(item.project_name||'Work')}</small></span>
+        <Pill tone={tone(item.state)}>{titleCase(item.state)}</Pill>
+      </div>)}</div>:<EmptyState icon="check" title="No delegated Work yet" body="Use Ask Jake in Agent mode or delegate an existing Work item. It will appear here while the Work queue remains canonical."/>}
+    </Panel>
 
     <Panel title="Live activity" subtitle="Latest agent events, evidence handoffs and blockers.">
       {activity.length?<div className="agents-activity">{activity.slice(0,20).map(event=><div key={event.id}>
