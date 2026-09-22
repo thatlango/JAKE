@@ -3,15 +3,16 @@ import { askClaude } from '../api/claude';
 
 const QUICK_PROMPTS = {
   dashboard: [
-    'What should I focus on today?',
-    'What are my biggest risks this week?',
-    'Give me a Monday morning priority plan',
+    'What are the three decisions only I should make now?',
+    'What must finish before I start anything else?',
+    'What should move to market this week, and what should I park?',
+    'What can I delegate immediately?',
   ],
   projects: [
-    'Which project needs attention most urgently?',
-    'What tasks should I complete this week across all projects?',
-    "What's blocking Radar from launching?",
-    'Help me plan the Ajura Clothes website sprint',
+    'Which active project is closest to a verified outcome?',
+    'Where is WIP too high or completion stalled?',
+    'Which project should be parked or narrowed?',
+    'Which delivery needs an executive decision from me?',
   ],
   pipeline: [
     'What\'s the best follow-up move for the 2X Global deal?',
@@ -26,10 +27,10 @@ const QUICK_PROMPTS = {
     'What happens if the Excel workbook is delayed?',
   ],
   finance: [
-    'What\'s my cash flow projection for Q2 2026?',
-    'How much runway do I have at current expense levels?',
-    'What revenue gap do I need to fill after 4Africa ends?',
-    'Should I prioritize closing 2X Global or find new work?',
+    'What cash needs collecting or protecting first?',
+    'Where is the revenue gap against the current plan?',
+    'Which market action has the strongest near-term cash effect?',
+    'What spending or work should I stop if cash tightens?',
   ]
 };
 
@@ -57,14 +58,33 @@ export default function AIPanel({ context, module, onClose, data }) {
     setMessages(newMessages);
     setLoading(true);
 
-    const extraContext = context
-      ? `User context: ${context}`
-      : `Current data snapshot: ${JSON.stringify({
-          projectCount: data?.projects?.length,
-          activeProjects: data?.projects?.filter(p => p.status === 'Active').length,
-          pipelineItems: data?.pipeline?.length,
-          upcomingEvents: data?.calendar?.filter(e => !e.done)?.length,
-        })}`;
+    let live={};
+    try{
+      const [overviewR,todayR,opportunitiesR]=await Promise.all([
+        fetch('/api/overview'),
+        fetch('/api/work/today?limit=12'),
+        fetch('/api/opportunities?limit=80')
+      ]);
+      const [overview,today,opportunities]=await Promise.all([
+        overviewR.ok?overviewR.json():{},
+        todayR.ok?todayR.json():{},
+        opportunitiesR.ok?opportunitiesR.json():{}
+      ]);
+      live={
+        tasks:overview.tasks,
+        pipeline:overview.pipeline,
+        invoices:overview.invoices,
+        finance:overview.finance,
+        attentionSignals:(overview.attention_signals||[]).slice(0,8),
+        rankedWork:(today.priorities||[]).slice(0,12),
+        opportunitySummary:opportunities.summary,
+        activeOpportunities:(opportunities.opportunities||[]).filter(o=>!['Won','Lost','Closed'].includes(o.stage)).slice(0,15)
+      };
+    }catch{}
+    const extraContext=[
+      context?`User context: ${context}`:'',
+      `Current executive operating snapshot: ${JSON.stringify(live)}`
+    ].filter(Boolean).join('\n\n');
 
     const reply = await askClaude(newMessages, module, extraContext);
 
@@ -87,7 +107,7 @@ export default function AIPanel({ context, module, onClose, data }) {
       <div className="ai-messages">
         {messages.length === 0 && (
           <div className="ai-empty">
-            <div className="ai-empty-title">Ask about your {module}</div>
+            <div className="ai-empty-title">Use Jake for decisions, closure and market movement</div>
             <div className="ai-quick-prompts">
               {quickPrompts.map((p, i) => (
                 <button key={i} className="quick-prompt" onClick={() => send(p)}>
@@ -131,7 +151,7 @@ export default function AIPanel({ context, module, onClose, data }) {
               send();
             }
           }}
-          placeholder="Ask anything… (Enter to send)"
+          placeholder="Ask what to decide, finish, move, delegate or park…"
           rows={2}
         />
         <button className="ai-send" onClick={() => send()} aria-label="Send">↑</button>

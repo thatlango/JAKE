@@ -1,8 +1,13 @@
 const { test, expect } = require('@playwright/test');
 
 const overview = {
-  tasks: { open: 48 },
-  pipeline: { active: 23, active_value_usd: 148000 },
+  tasks: { open: 48, inbox: 20, doing: 4, overdue: 3, blocked: 2, completed_this_week: 9 },
+  pipeline: { active: 23, active_value_usd: 148000, deadlines_14d: 4 },
+  invoices: { receivables: 3, receivables_value: 18400, overdue_count: 1, overdue_value: 4200 },
+  finance: { confirmed_usd: 52000, pending_usd: 18000, projected_usd: 90000, monthly_costs_usd: 12000 },
+  attention_signals: [
+    { id: 'sig-1', signal_type: 'decision', title: 'Approve ImpactOS demo release', summary: 'Release is ready for executive approval', severity: 'high' }
+  ],
   estate: { totals: { activeUsers7d: 126 } }
 };
 
@@ -46,34 +51,49 @@ async function installMocks(page, options = {}) {
   await mockJson(page, '**/api/agents/decisions*', decisions);
   await mockJson(page, '**/api/agents/work*', { dispatches: [] });
   await mockJson(page, '**/api/work/today*', { priorities: [
-    { id: 'w1', title: 'Resolve LendFlow queue', priority: 'critical', estimated_minutes: 30, project_name: 'LendFlow', due_at: '2026-09-21T17:00:00Z' }
+    { id: 'w1', title: 'Finish LendFlow production cutover', status: 'doing', priority: 'critical', estimated_minutes: 30, project_name: 'LendFlow', due_at: '2026-09-23T17:00:00Z', metadata: { outcome_type: 'delivery', completion_definition: 'Production smoke test passes' } },
+    { id: 'w2', title: 'Approve consultant network launch copy', status: 'waiting', priority: 'high', estimated_minutes: 15, project_name: 'Tuku-Tuku', metadata: { outcome_type: 'decision', decision_required: true } }
   ]});
   await mockJson(page, '**/api/work/projects', { projects: [
     { id: 'impactos', name: 'ImpactOS', total_tasks: 20, completed_tasks: 14, open_tasks: 6 }
   ]});
   await mockJson(page, '**/api/crm/clients', { clients: [] });
-  await mockJson(page, '**/api/work/items*', { items: [] });
+  await mockJson(page, '**/api/work/items*', { items: [
+    { id: 'w1', title: 'Finish LendFlow production cutover', status: 'doing', priority: 'critical', project_name: 'LendFlow', updated_at: '2026-09-22T10:00:00Z', metadata: { outcome_type: 'delivery', completion_definition: 'Production smoke test passes' } },
+    { id: 'w2', title: 'Approve consultant network launch copy', status: 'waiting', priority: 'high', project_name: 'Tuku-Tuku', updated_at: '2026-09-22T11:00:00Z', metadata: { outcome_type: 'decision', decision_required: true } },
+    { id: 'w3', title: 'Submit UNICEF regional evidence application', status: 'ready', priority: 'high', project_name: 'Business development', tags: ['market','proposal'], updated_at: '2026-09-22T09:00:00Z', metadata: { outcome_type: 'market', market_stage: 'submit', completion_definition: 'Submission receipt saved' } },
+    { id: 'w4', title: 'Rewrite internal notes', status: 'inbox', priority: 'low', project_name: 'Admin', created_at: '2026-09-01T09:00:00Z', updated_at: '2026-09-01T09:00:00Z', metadata: { outcome_type: 'internal' } },
+    { id: 'w5', title: 'Review agent evidence pack', status: 'waiting', priority: 'high', project_name: 'Bid', agent_name: 'Document & Knowledge', agent_state: 'review', updated_at: '2026-09-22T12:00:00Z', metadata: { outcome_type: 'market', market_stage: 'bid' } }
+  ] });
   await mockJson(page, '**/api/calendar/events*', { events: [] });
+  await mockJson(page, '**/api/opportunities*', { summary: { active: 3, due14: 2, submitted: 1, won: 0 }, opportunities: [
+    { id: 'o1', title: 'UNICEF Regional Evidence Compendium', org: 'UNICEF', stage: 'Drafting', fit_score: 4.5, deadline: '2026-09-25T17:00:00Z', next_action: 'Finish technical response', value_amount: 35000, currency: 'USD' },
+    { id: 'o2', title: 'Warehouse management assignment', org: 'DRC', stage: 'Pursuing', fit_score: 4, deadline: '2026-09-28T17:00:00Z', next_action: 'Close eligibility gaps', value_amount: 18000, currency: 'USD' },
+    { id: 'o3', title: 'Long-shot challenge', org: 'Other', stage: 'Watching', fit_score: 1, deadline: null, next_action: '' }
+  ], watches: [], proposals: [], sources: [] });
   await mockJson(page, '**/api/accounts*', { totals: { active7d: 126, totalAccounts: 184 } });
 }
 
-test('existing JakeOS dashboard UI remains unchanged by the Agents feature', async ({ page }, testInfo) => {
+test('Executive home is organized around decisions, market movement and verified completion', async ({ page }, testInfo) => {
   await installMocks(page);
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  await expect(page.getByText('Plan, prioritise, and move the right work forward with clarity.')).toBeVisible();
-  await expect(page.getByText('Open work')).toBeVisible();
-  await expect(page.getByText('Active pipeline')).toBeVisible();
-  await expect(page.getByText('Upcoming events')).toBeVisible();
-  await expect(page.getByText('Active accounts')).toBeVisible();
-  await expect(page.getByText('Focus now')).toBeVisible();
-  await expect(page.getByText('Priority queue')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
+  await expect(page.getByText('Decide what matters. Move it to market. Finish before starting more.')).toBeVisible();
+  await expect(page.getByText('Decisions waiting')).toBeVisible();
+  await expect(page.getByText('Market moves')).toBeVisible();
+  await expect(page.getByText('Completed this week')).toBeVisible();
+  await expect(page.getByText('Cash to collect')).toBeVisible();
+  await expect(page.getByText('Decide now')).toBeVisible();
+  await expect(page.getByText('Move to market')).toBeVisible();
+  await expect(page.getByText('Finish what is started')).toBeVisible();
+  await expect(page.getByText('Delegated engine')).toBeVisible();
+  await expect(page.getByText('Candidates to park')).toBeVisible();
+  await expect(page.getByText('Review agent evidence pack')).toHaveCount(2);
+  await expect(page.getByText('Review agent evidence pack').first()).toBeVisible();
+  await expect(page.getByText('UNICEF Regional Evidence Compendium')).toBeVisible();
 
-  await expect(page.getByRole('heading', { name: 'JakeOS Command Center' })).toHaveCount(0);
-  await expect(page.getByText('Agent Command Center')).toHaveCount(0);
-
-  await page.screenshot({ path: testInfo.outputPath('dashboard-preserved.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('executive-home.png'), fullPage: true });
 });
 
 async function openAgents(page) {
@@ -103,7 +123,7 @@ test('agent API failure stays inside the Agents section', async ({ page }) => {
   await installMocks(page, { agentsStatus: 503 });
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
   await openAgents(page);
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
   await expect(page.getByText('Agent telemetry unavailable', { exact: true }).first()).toBeVisible();
@@ -114,15 +134,42 @@ test('mobile keeps the original primary navigation and exposes Agents under More
   await installMocks(page);
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Home$/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Work$/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Projects$/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Estate$/ })).toBeVisible();
 
   await page.getByRole('button', { name: /^More$/ }).click();
-  await expect(page.getByRole('button', { name: /^Agents$/ })).toBeVisible();
+  await expect(page.locator('.more-menu').getByRole('button', { name: /^Agents$/ })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
+});
+
+
+test('Work captures outcome, completion, market and delegation intent', async ({ page }) => {
+  await installMocks(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Work$/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Work' })).toBeVisible();
+  await page.getByRole('button', { name: 'New task' }).click();
+
+  await expect(page.getByLabel('Definition of done')).toBeVisible();
+  await expect(page.getByLabel('Outcome')).toBeVisible();
+  await expect(page.getByLabel('Market stage')).toBeVisible();
+  await expect(page.getByLabel('Execution mode')).toBeVisible();
+  await expect(page.getByLabel('Completion evidence')).toBeVisible();
+  await expect(page.getByText('This requires an executive decision from me')).toBeVisible();
+
+  await page.getByLabel('Outcome').selectOption('market');
+  await page.getByLabel('Market stage').selectOption('submit');
+  await page.getByLabel('Execution mode').selectOption('agent');
+  await page.getByLabel('Definition of done').fill('Submission receipt saved');
+  await page.getByLabel('Completion evidence').fill('Receipt URL');
+  await page.getByText('This requires an executive decision from me').click();
+
+  await expect(page.getByLabel('Outcome')).toHaveValue('market');
+  await expect(page.getByLabel('Market stage')).toHaveValue('submit');
+  await expect(page.getByLabel('Execution mode')).toHaveValue('agent');
 });
