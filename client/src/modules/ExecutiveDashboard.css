@@ -1,0 +1,87 @@
+.exec-dashboard{max-width:1680px;margin:0 auto}
+.exec-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.exec-head h1{margin:0;font-size:2rem;line-height:1.05;letter-spacing:-.035em}
+.exec-head p{margin:.45rem 0 0;color:var(--foreground-secondary);font-size:.95rem}
+.exec-head-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+
+.exec-rulebar{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin:0 0 1rem;padding:.65rem .75rem;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-muted);color:var(--foreground-secondary);font-size:.75rem}
+.exec-rulebar span{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .45rem;border-radius:var(--radius-full);background:var(--surface)}
+.exec-rulebar strong{display:grid;place-items:center;width:1.25rem;height:1.25rem;border-radius:999px;background:var(--primary);color:var(--primary-foreground);font-size:.65rem}
+
+.exec-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;margin-bottom:1rem;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;background:var(--border)}
+.exec-metric{min-width:0;min-height:7.35rem;display:grid;grid-template-columns:auto 1fr auto;align-items:start;gap:.7rem;padding:1rem;border:0;background:var(--surface);text-align:left;color:var(--foreground);cursor:pointer}
+.exec-metric:hover{background:var(--surface-muted)}
+.exec-metric-icon{display:grid;place-items:center;width:2.25rem;height:2.25rem;border-radius:var(--radius-md);background:var(--surface-muted);color:var(--foreground-secondary)}
+.exec-metric-copy{display:grid;min-width:0}
+.exec-metric-copy strong{font-size:1.65rem;line-height:1.05;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.exec-metric-copy>span{margin-top:.28rem;font-size:.78rem;font-weight:600}
+.exec-metric-copy small{margin-top:.2rem;color:var(--foreground-tertiary);font-size:.7rem;line-height:1.35}
+.exec-metric--brand .exec-metric-icon{background:var(--primary-soft);color:var(--primary)}
+.exec-metric--success .exec-metric-icon{background:var(--success-soft);color:var(--success)}
+.exec-metric--warning .exec-metric-icon{background:var(--warning-soft);color:var(--warning-text)}
+.exec-metric--danger .exec-metric-icon{background:var(--danger-soft);color:var(--danger)}
+
+.exec-primary-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:1rem;margin-top:1rem}
+.exec-secondary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin-top:1rem}
+.exec-panel,.exec-market-work{min-width:0;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-e0)}
+.exec-panel{padding:1rem}
+.exec-panel--decision{border-top:3px solid var(--warning)}
+.exec-panel--market{border-top:3px solid var(--primary)}
+.exec-panel--park{border-top:3px solid var(--border)}
+.exec-panel-head,.exec-section-title{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:.85rem}
+.exec-panel-head h2,.exec-section-title h2{margin:.15rem 0 .2rem;font-size:1rem;letter-spacing:-.015em}
+.exec-panel-head p{margin:0;max-width:36rem;color:var(--foreground-secondary);font-size:.76rem;line-height:1.45}
+.exec-panel-head>button,.exec-section-title>button{display:inline-flex;align-items:center;gap:.3rem;min-height:2rem;padding:.35rem .55rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--foreground-secondary);font-size:.7rem;font-weight:600;white-space:nowrap}
+.exec-panel-head>button:hover,.exec-section-title>button:hover{background:var(--surface-muted);color:var(--foreground)}
+.exec-panel-kicker{display:block;color:var(--primary);font-size:.64rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+
+.exec-list{display:grid;gap:0;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+.exec-line{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:.8rem;padding:.78rem .8rem;background:var(--surface);border-bottom:1px solid var(--border)}
+.exec-line:last-child{border-bottom:0}
+.exec-line:hover{background:var(--surface-muted)}
+.exec-line-main{min-width:0}
+.exec-line-title{font-size:.8rem;font-weight:600;line-height:1.35}
+.exec-line-meta{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-top:.32rem;color:var(--foreground-tertiary);font-size:.66rem}
+.exec-line-meta span{display:inline-flex;align-items:center;gap:.2rem}
+.exec-line-meta span+span:before{content:"·";margin-right:.15rem;color:var(--border-strong)}
+.exec-next,.exec-done-definition{margin-top:.42rem;color:var(--foreground-secondary);font-size:.7rem;line-height:1.42}
+.exec-next strong,.exec-done-definition strong{color:var(--foreground)}
+.exec-line-action{display:inline-flex;align-items:center;gap:.25rem;min-height:2rem;padding:.35rem .5rem;border:0;border-radius:var(--radius-md);background:transparent;color:var(--primary);font-size:.68rem;font-weight:700;cursor:pointer}
+.exec-line-action:hover{background:var(--primary-soft)}
+
+.exec-market-work{margin-top:1rem;padding:1rem}
+.exec-market-work-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;background:var(--border)}
+.exec-market-work-grid .exec-line{border:0}
+
+.exec-dashboard .px-banner{margin:.75rem 0 0}
+.exec-dashboard .px-empty{padding:1.3rem .8rem}
+.exec-dashboard .px-empty h3{font-size:.82rem}
+.exec-dashboard .px-empty p{font-size:.72rem;max-width:30rem}
+
+@media(max-width:1399px){
+  .exec-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .exec-secondary-grid{grid-template-columns:1fr 1fr}
+  .exec-panel--park{grid-column:1/-1}
+}
+@media(max-width:999px){
+  .exec-primary-grid,.exec-secondary-grid{grid-template-columns:1fr}
+  .exec-panel--park{grid-column:auto}
+  .exec-market-work-grid{grid-template-columns:1fr}
+}
+@media(max-width:839px){
+  .exec-head{flex-direction:column}
+  .exec-head-actions{width:100%}
+  .exec-head-actions>*{flex:1}
+  .exec-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:599px){
+  .exec-head h1{font-size:1.6rem}
+  .exec-metrics{grid-template-columns:1fr}
+  .exec-metric{min-height:6.4rem}
+  .exec-rulebar{display:grid;grid-template-columns:1fr}
+  .exec-rulebar span{width:100%}
+  .exec-panel-head,.exec-section-title{align-items:flex-start}
+  .exec-panel-head>button,.exec-section-title>button{padding:.3rem .45rem}
+  .exec-line{grid-template-columns:1fr}
+  .exec-line-action{justify-self:start}
+}
