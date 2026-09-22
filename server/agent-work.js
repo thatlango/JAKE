@@ -3,6 +3,7 @@ const express=require('express');
 const crypto=require('crypto');
 const db=require('./db');
 const localAi=require('./ai');
+const {broadcastAgentEvent}=require('./agent-control');
 
 const agentWorkBrowserRouter=express.Router();
 const agentWorkConnectorRouter=express.Router();
@@ -67,12 +68,15 @@ async function recordWorkEvent(client,workId,type,payload={}){
   await client.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[workId,type,JSON.stringify(payload)]);
 }
 async function recordAgentEvent(client,{runId,agentId,agentName,eventType,state,summary,artifactRef=null,human=false,metadata={}}){
-  await client.query(`INSERT INTO agent_events(id,run_id,agent_id,agent_name,event_type,state,summary,artifact_ref,requires_human_action,event_at,dedupe_key,metadata)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,$11::jsonb)`,[
+  const event=(await client.query(`INSERT INTO agent_events(id,run_id,agent_id,agent_name,event_type,state,summary,artifact_ref,requires_human_action,event_at,dedupe_key,metadata)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,$11::jsonb)
+    RETURNING id,run_id,agent_id,agent_name,event_type,state,summary,artifact_ref,requires_human_action,event_at,event_at AS created_at,metadata`,[
       makeId('evt'),runId,agentId,agentName,eventType,state,summary,artifactRef,human,
       crypto.createHash('sha256').update([runId,agentId,eventType,summary,Date.now()].join('|')).digest('hex'),
       JSON.stringify(metadata)
-    ]);
+    ])).rows[0];
+  if(event)queueMicrotask(()=>broadcastAgentEvent(event));
+  return event;
 }
 async function createDispatchForWork(workId,{requestText,agentId,requestKey=null,requestedBy='jake',deliverable=null}={}){
   const existing=await getDispatchByWork(workId);
