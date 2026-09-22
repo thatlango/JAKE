@@ -66,3 +66,36 @@ Each CI run must produce a repeatable evidence bundle:
 - browser/project metadata in the Playwright report.
 
 The build is not considered verified merely because the React bundle compiles.
+
+## Jake AI ↔ Work Queue ↔ Agent OS failures
+
+31. Jake creates a delegated request without a canonical Work item.
+    - Expected: every delegation has exactly one work_items record and one linked dispatch.
+32. A retried Jake request creates duplicate work.
+    - Expected: a stable request_id is idempotent and returns the original Work item/dispatch.
+33. Delegating an existing Work item creates duplicate dispatches.
+    - Expected: one active dispatch per Work item; retries return the existing dispatch.
+34. A connector token can read general JakeOS work APIs.
+    - Expected: denied. It may only read the scoped agent dispatch payload.
+35. Two workers claim the same queued dispatch.
+    - Expected: only one atomic claim succeeds.
+36. An agent result is applied to a different Work item or run.
+    - Expected: rejected by the dispatch/work/run linkage.
+37. A draft result automatically marks human work complete.
+    - Expected: never. Draft/results enter review; the Work item becomes waiting until accepted.
+38. A failed agent run disappears from the Work queue.
+    - Expected: Work item remains visible with failed/blocked agent state and error context.
+39. Revision feedback overwrites the original request with no history.
+    - Expected: feedback is recorded, dispatch returns to queued, and the same Work item remains canonical.
+40. Accepting a reviewed result does not close the linked Work item.
+    - Expected: explicit acceptance marks dispatch completed and Work item done.
+41. Jake AI agent mode silently delegates ordinary questions.
+    - Expected: delegation occurs only when Agent mode is enabled or the user explicitly says Delegate / Ask the agents to.
+42. Jake reports delegated work but no dispatch was created.
+    - Expected: the UI only reports success from the server response containing both Work item and dispatch ids.
+43. Agent result content is inaccessible from Work.
+    - Expected: Work shows assigned agent, agent state and result/review actions on the canonical item.
+44. Agent OS is offline.
+    - Expected: work remains safely queued and visible; no fabricated progress is shown.
+45. Local fallback and external Agent OS both execute the same job.
+    - Expected: atomic claim/lease permits only one executor.
