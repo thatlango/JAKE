@@ -99,3 +99,25 @@ The build is not considered verified merely because the React bundle compiles.
     - Expected: work remains safely queued and visible; no fabricated progress is shown.
 45. Local fallback and external Agent OS both execute the same job.
     - Expected: atomic claim/lease permits only one executor.
+
+
+## Executive market/completion operating failures
+
+46. The Executive home becomes another task list.
+    - Expected: the first screen separates executive decisions, market movement, completion pressure, delegated execution and park/defer candidates.
+47. New/internal work outranks work already in progress without a market, deadline or executive-decision reason.
+    - Expected: completion momentum wins unless a stronger market/deadline/decision signal exists.
+48. Work already delegated to an agent remains high in Jacob's personal execution queue.
+    - Expected: queued/running agent work is deprioritized; review-ready agent results are promoted.
+49. An opportunity is high-fit and near deadline but invisible from the Executive home.
+    - Expected: active market pursuits surface with stage, fit, deadline and concrete next action.
+50. The system optimizes for open-work volume instead of closure.
+    - Expected: completed-this-week, WIP pressure and finish queue are first-class executive signals.
+51. A low-priority, old, undated internal item rises merely because it is old.
+    - Expected: age alone never makes low-value backlog an executive priority; it becomes a park/defer candidate.
+52. Work lacks a definition of done or outcome classification.
+    - Expected: the Work editor can persist outcome type, market stage, completion definition, decision requirement, execution mode and completion evidence in canonical work metadata.
+53. Executive UI automatically makes a consequential decision.
+    - Expected: JakeOS surfaces evidence/recommendations and leaves the approve/decline/park/pursue decision to Jacob.
+54. Executive dashboard cannot be understood on mobile without horizontal scrolling.
+    - Expected: no page-level horizontal overflow at 390px.
