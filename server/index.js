@@ -29,7 +29,7 @@ app.set('trust proxy',1);
 app.use(express.json({limit:'15mb'}));
 app.use(express.urlencoded({extended:false,limit:'1mb'}));
 
-app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'6.1',db:await db.ping(),auth:'tuku',time:new Date().toISOString()}));
+app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'6.2',db:await db.ping(),auth:'tuku',time:new Date().toISOString()}));
 app.use('/auth',webAuthRouter());
 app.use('/api/mobile/v1/auth',momentumAuthRouter());
 app.use('/api/mobile/v1',mobileRouter);
