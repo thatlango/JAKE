@@ -125,3 +125,134 @@ test('real Agent OS telemetry reaches authenticated JakeOS UI and streams live e
   await expect(page.getByText('Plan, prioritise, and move the right work forward with clarity.')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('jakeos-command-center-full-stack.png'), fullPage: true });
 });
+
+test('Jake delegation stays in the canonical Work queue through claim, review, revision and acceptance', async ({ page, request }, testInfo) => {
+  const unique = 'delegate-' + testInfo.retry + '-' + testInfo.workerIndex + '-' + Date.now();
+  const userHeaders = { Authorization: 'Bearer ' + browserToken, 'Content-Type': 'application/json' };
+
+  const first = await request.post('/api/jake/delegate', {
+    headers: userHeaders,
+    data: {
+      request_id: unique,
+      request: 'Draft a concise two-paragraph concept note for a youth entrepreneurship bootcamp in Northern Uganda.',
+      module: 'work'
+    }
+  });
+  expect(first.status(), await first.text()).toBe(201);
+  const delegated = await first.json();
+  expect(delegated.work?.id).toBeTruthy();
+  expect(delegated.dispatch?.id).toBeTruthy();
+  expect(delegated.dispatch.state).toBe('queued');
+  expect(delegated.dispatch.requested_agent_id).toBe('document-knowledge');
+
+  const replay = await request.post('/api/jake/delegate', {
+    headers: userHeaders,
+    data: {
+      request_id: unique,
+      request: 'Draft a concise two-paragraph concept note for a youth entrepreneurship bootcamp in Northern Uganda.',
+      module: 'work'
+    }
+  });
+  expect(replay.ok()).toBeTruthy();
+  const replayBody = await replay.json();
+  expect(replayBody.replayed).toBe(true);
+  expect(replayBody.work.id).toBe(delegated.work.id);
+  expect(replayBody.dispatch.id).toBe(delegated.dispatch.id);
+
+  const forbidden = await request.get('/api/work/items?limit=5', {
+    headers: { Authorization: 'Bearer ' + connectorToken }
+  });
+  expect(forbidden.status()).toBe(401);
+
+  const queue = await request.get('/api/connectors/v1/agents/work?state=queued&limit=50', {
+    headers: { Authorization: 'Bearer ' + connectorToken }
+  });
+  expect(queue.ok(), await queue.text()).toBeTruthy();
+  const queueBody = await queue.json();
+  const queued = queueBody.dispatches.find(item => item.id === delegated.dispatch.id);
+  expect(queued).toBeTruthy();
+  expect(queued.work_item_id).toBe(delegated.work.id);
+  expect(queued.request_text).toContain('concept note');
+
+  const claim = await connectorPost(request, '/api/connectors/v1/agents/work/' + encodeURIComponent(delegated.dispatch.id) + '/claim', {
+    executor_id: 'e2e-agent-worker',
+    lease_seconds: 300
+  });
+  expect(claim.dispatch.state).toBe('working');
+  expect(claim.dispatch.executor_id).toBe('e2e-agent-worker');
+
+  const duplicateClaim = await request.post('/api/connectors/v1/agents/work/' + encodeURIComponent(delegated.dispatch.id) + '/claim', {
+    headers: connectorHeaders,
+    data: { executor_id: 'second-worker', lease_seconds: 300 }
+  });
+  expect(duplicateClaim.status()).toBe(409);
+
+  const resultText = 'Youth Enterprise Bootcamp\n\nThe programme will equip young entrepreneurs with practical business skills, market access and guided venture development.\n\nDelivery will combine structured bootcamps, coaching and evidence-based follow-up.';
+  const result = await connectorPost(request, '/api/connectors/v1/agents/work/' + encodeURIComponent(delegated.dispatch.id) + '/result', {
+    executor_id: 'e2e-agent-worker',
+    status: 'review',
+    summary: 'Concept note draft ready for review.',
+    result_content: resultText,
+    artifact_uri: 'jakeos://work/' + delegated.work.id + '/deliverable'
+  });
+  expect(result.dispatch.state).toBe('review');
+  expect(result.work.status).toBe('waiting');
+
+  const workDetail = await request.get('/api/work/items/' + encodeURIComponent(delegated.work.id), { headers: { Authorization: 'Bearer ' + browserToken } });
+  expect(workDetail.ok()).toBeTruthy();
+  const workBody = await workDetail.json();
+  expect(workBody.item.agent_state).toBe('review');
+  expect(workBody.item.agent_name).toBe('Document & Knowledge');
+  expect(workBody.agent_dispatch.result_content).toContain('Youth Enterprise Bootcamp');
+
+  await page.setExtraHTTPHeaders({ Authorization: 'Bearer ' + browserToken });
+  await page.goto('/?module=work');
+  await expect(page.getByText(delegated.work.title).first()).toBeVisible();
+  await expect(page.getByText(/Document & Knowledge/i).first()).toBeVisible();
+  await expect(page.getByText(/Review/i).first()).toBeVisible();
+
+  const revise = await request.post('/api/work/items/' + encodeURIComponent(delegated.work.id) + '/agent/revise', {
+    headers: userHeaders,
+    data: { feedback: 'Add a short paragraph on graduation pitches and post-bootcamp coaching.' }
+  });
+  expect(revise.ok(), await revise.text()).toBeTruthy();
+  const reviseBody = await revise.json();
+  expect(reviseBody.dispatch.state).toBe('queued');
+  expect(reviseBody.work.status).toBe('ready');
+
+  const reclaim = await connectorPost(request, '/api/connectors/v1/agents/work/' + encodeURIComponent(delegated.dispatch.id) + '/claim', {
+    executor_id: 'e2e-agent-worker',
+    lease_seconds: 300
+  });
+  expect(reclaim.dispatch.state).toBe('working');
+
+  const revisedText = resultText + '\n\nGraduation will culminate in pitch sessions, followed by structured coaching to support implementation and early growth.';
+  const revisedResult = await connectorPost(request, '/api/connectors/v1/agents/work/' + encodeURIComponent(delegated.dispatch.id) + '/result', {
+    executor_id: 'e2e-agent-worker',
+    status: 'review',
+    summary: 'Revised concept note ready.',
+    result_content: revisedText
+  });
+  expect(revisedResult.dispatch.state).toBe('review');
+  expect(revisedResult.work.status).toBe('waiting');
+
+  const accept = await request.post('/api/work/items/' + encodeURIComponent(delegated.work.id) + '/agent/accept', {
+    headers: userHeaders,
+    data: {}
+  });
+  expect(accept.ok(), await accept.text()).toBeTruthy();
+  const accepted = await accept.json();
+  expect(accepted.dispatch.state).toBe('completed');
+  expect(accepted.work.status).toBe('done');
+
+  await page.goto('/');
+  await page.getByTitle(/Ask Jake/i).click();
+  await expect(page.getByRole('button', { name: /Agents/i })).toBeVisible();
+  await page.getByRole('button', { name: /Agents/i }).click();
+  const input = page.getByPlaceholder(/Describe the work to delegate/i);
+  await input.fill('Draft a one-page partner briefing note for a donor meeting.');
+  await page.getByRole('button', { name: /Send/i }).click();
+  await expect(page.getByText(/added to Work/i).first()).toBeVisible({ timeout: 10000 });
+
+  await page.screenshot({ path: testInfo.outputPath('jake-agent-work-bridge.png'), fullPage: true });
+});
