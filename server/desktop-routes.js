@@ -53,7 +53,11 @@ async function recordEvent(workId,eventType,payload={}){await db.query('INSERT I
 router.get('/work/today',async(req,res)=>{
   const now=new Date(),limit=int(req.query.limit,7,1,20);
   const result=await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status NOT IN ('done','cancelled') AND (wi.deferred_until IS NULL OR wi.deferred_until<=NOW()) ORDER BY wi.updated_at DESC LIMIT 300`);
-  const ranked=await decorateWorkRows(rankItems(result.rows,{now,limit}).map(item=>({...item,why_now:buildReason(item)})));
+  const decorated=await decorateWorkRows(result.rows);
+  const reviews=decorated.filter(item=>item.agent_state==='review').map(item=>({...item,why_now:'Agent deliverable ready for your review.'}));
+  const reviewIds=new Set(reviews.map(item=>item.id));
+  const rankedBase=rankItems(decorated.filter(item=>!reviewIds.has(item.id)),{now,limit}).map(item=>({...item,why_now:buildReason(item)}));
+  const ranked=[...reviews,...rankedBase].slice(0,limit);
   const events=(await db.query(`SELECT id,title,date,project,type,done,starts_at,ends_at,all_day,source FROM calendar_events WHERE done=FALSE AND (starts_at::date=CURRENT_DATE OR (starts_at IS NULL AND LEFT(date,10)=CURRENT_DATE::text)) ORDER BY COALESCE(starts_at,NOW()) LIMIT 20`)).rows;
   res.json({generated_at:now.toISOString(),priorities:ranked,events});
 });
