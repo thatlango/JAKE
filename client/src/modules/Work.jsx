@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, EmptyState, Icon, LoadingRows, PageHeader, Panel, Pill, StateBanner, formatDate, relativeDate } from '../components/ProductUI';
 
-const DEFAULT_TASK={title:'',description:'',project_id:'',status:'inbox',priority:'medium',impact:3,strategic_weight:3,estimated_minutes:30,due_at:'',pinned:false,blocked:false,blocked_reason:''};
+const DEFAULT_META={outcome_type:'delivery',market_stage:'none',completion_definition:'',decision_required:false,delegation_preference:'me',evidence_required:''};
+const DEFAULT_TASK={title:'',description:'',project_id:'',status:'inbox',priority:'medium',impact:3,strategic_weight:3,estimated_minutes:30,due_at:'',pinned:false,blocked:false,blocked_reason:'',metadata:{...DEFAULT_META}};
 const toneForPriority=p=>p==='critical'?'danger':p==='high'?'warning':p==='low'?'neutral':'info';
 
 function guidanceFor(item,rank){
@@ -17,6 +18,7 @@ function guidanceFor(item,rank){
 function TaskRow({item,onComplete,onEdit,onDefer,onAgent,rank=null}){
   const overdue=item.due_at&&new Date(item.due_at)<new Date();
   const guidance=guidanceFor(item,rank);
+  const meta=item.metadata&&typeof item.metadata==='object'?item.metadata:{};
   return <div className="px-task">
     <button className="px-check" onClick={()=>onComplete(item)} title="Complete"><Icon name="check" size={15}/></button>
     <div>
@@ -25,11 +27,14 @@ function TaskRow({item,onComplete,onEdit,onDefer,onAgent,rank=null}){
       <div className="px-task-meta">
         {guidance&&<span className="px-guidance">{guidance}</span>}
         {item.project_name&&<Pill tone="brand">{item.project_name}</Pill>}
+        {meta.outcome_type&&<Pill tone={meta.outcome_type==='market'||meta.outcome_type==='revenue'?'success':meta.outcome_type==='decision'?'warning':'neutral'}>{meta.outcome_type}</Pill>}
+        {meta.market_stage&&meta.market_stage!=='none'&&<Pill tone="brand">{meta.market_stage}</Pill>}
         <Pill tone={toneForPriority(item.priority)}>{item.priority}</Pill>
         {item.due_at&&<Pill tone={overdue?'danger':'neutral'}>{relativeDate(item.due_at)}</Pill>}
         {item.estimated_minutes&&<span className="px-kicker">{item.estimated_minutes} min</span>}
         {item.agent_name&&<Pill tone={item.agent_state==='review'?'warning':item.agent_state==='completed'?'success':item.agent_state==='failed'||item.agent_state==='blocked'?'danger':'info'}>{item.agent_name} · {item.agent_state||'queued'}</Pill>}
       </div>
+      {meta.completion_definition&&<div className="px-task-reason"><strong>Done:</strong> {meta.completion_definition}</div>}
     </div>
     <div className="px-row">
       <button className="px-icon-button" title={item.agent_dispatch_id?"Agent work":"Delegate to agent"} onClick={()=>onAgent(item)}><Icon name="spark"/></button>
@@ -68,8 +73,8 @@ export default function Work(){
   },[]);
   useEffect(()=>{load();},[load]);
 
-  const openNew=(seed={})=>{setForm({...DEFAULT_TASK,...seed});setDrawer('new');};
-  const openEdit=item=>{setForm({...DEFAULT_TASK,...item,due_at:item.due_at?new Date(item.due_at).toISOString().slice(0,16):''});setDrawer(item.id);};
+  const openNew=(seed={})=>{setForm({...DEFAULT_TASK,...seed,metadata:{...DEFAULT_META,...(seed.metadata||{})}});setDrawer('new');};
+  const openEdit=item=>{setForm({...DEFAULT_TASK,...item,metadata:{...DEFAULT_META,...(item.metadata||{})},due_at:item.due_at?new Date(item.due_at).toISOString().slice(0,16):''});setDrawer(item.id);};
   const save=async()=>{
     if(!form.title.trim())return;setSaving(true);setError('');
     try{
@@ -128,22 +133,26 @@ export default function Work(){
   };
 
   const items=tab==='today'?today.priorities:tab==='inbox'?inbox:all.filter(x=>!['done','cancelled'].includes(x.status));
-  const completed=all.filter(x=>x.status==='done').length;
+  const weekAgo=Date.now()-7*86400000;
+  const completed=all.filter(x=>x.status==='done'&&x.completed_at&&new Date(x.completed_at).getTime()>=weekAgo).length;
+  const doing=all.filter(x=>x.status==='doing').length;
   const blocked=all.filter(x=>x.blocked||x.status==='waiting').length;
   const overdue=all.filter(x=>!['done','cancelled'].includes(x.status)&&x.due_at&&new Date(x.due_at)<new Date()).length;
   const focus=useMemo(()=>today.priorities?.[0]||null,[today]);
 
   return <div className="module">
-    <PageHeader eyebrow="Execution" title="Work" subtitle="One canonical queue shared with Momentum. Jake ranks what deserves attention; you decide what gets done." actions={<><Button variant="secondary" icon="refresh" onClick={load}>Refresh</Button><Button icon="plus" onClick={()=>openNew()}>New task</Button></>}/>
+    <PageHeader eyebrow="Execution" title="Work" subtitle="Finish active work, move market and client outcomes, delegate what others can do, and keep new WIP constrained." actions={<><Button variant="secondary" icon="refresh" onClick={load}>Refresh</Button><Button icon="plus" onClick={()=>openNew()}>New task</Button></>}/>
     {error&&<StateBanner tone="danger" title="Work needs attention">{error}</StateBanner>}
 
     <div className="px-status-ribbon" aria-label="Work status">
       <div className="px-status-ribbon-item"><strong>{today.priorities?.length||0}</strong><span>priorities now</span></div>
-      <div className="px-status-ribbon-item"><strong>{inbox.length}</strong><span>in inbox</span></div>
+      <div className="px-status-ribbon-item" data-alert={doing>3}><strong>{doing}/3</strong><span>active WIP</span></div>
       <div className="px-status-ribbon-item" data-alert={overdue>0}><strong>{overdue}</strong><span>overdue</span></div>
       <div className="px-status-ribbon-item"><strong>{blocked}</strong><span>blocked / waiting</span></div>
-      <div className="px-status-ribbon-item"><strong>{completed}</strong><span>completed</span></div>
+      <div className="px-status-ribbon-item"><strong>{completed}</strong><span>completed / 7d</span></div>
     </div>
+
+    {doing>3&&<StateBanner tone="warning" title={`WIP guardrail exceeded: ${doing} active items`}>Finish, delegate or stop work before pulling another major item into Doing.</StateBanner>}
 
     <div className="px-grid-2">
       <Panel title="Your queue" subtitle="Today is the ranked shortlist. Inbox is unprocessed capture. All is the complete open system." action={<div className="px-row">{['today','inbox','all'].map(x=><Button key={x} variant={tab===x?'tonal':'ghost'} onClick={()=>setTab(x)}>{x[0].toUpperCase()+x.slice(1)}</Button>)}</div>}>
@@ -181,9 +190,19 @@ export default function Work(){
       </div>}
     </div></div>}
 
-    {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card"><PageHeader eyebrow={drawer==='new'?'Capture':'Edit'} title={drawer==='new'?'New work item':'Work item'} subtitle="Keep the title actionable. Add only the context JakeOS needs to prioritise it." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/><div className="px-stack">
+    {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card"><PageHeader eyebrow={drawer==='new'?'Capture':'Edit'} title={drawer==='new'?'New work item':'Work item'} subtitle="Define the outcome, what done means, and whether this should move to market, stay with you, or be delegated." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/><div className="px-stack">
       <div className="px-field"><label>What needs to happen?</label><input autoFocus value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Send revised proposal to client"/></div>
       <div className="px-field"><label>Context</label><textarea value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Useful details, expected outcome, links or constraints"/></div>
+      <div className="px-field"><label>Definition of done</label><input value={form.metadata?.completion_definition||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),completion_definition:e.target.value}}))} placeholder="What evidence proves this is actually complete?"/></div>
+      <div className="px-form-grid">
+        <div className="px-field"><label>Outcome</label><select value={form.metadata?.outcome_type||'delivery'} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),outcome_type:e.target.value}}))}><option value="market">Market / revenue</option><option value="delivery">Client / delivery</option><option value="decision">Executive decision</option><option value="internal">Internal operation</option><option value="maintenance">Maintenance</option></select></div>
+        <div className="px-field"><label>Market stage</label><select value={form.metadata?.market_stage||'none'} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),market_stage:e.target.value}}))}><option value="none">Not market-facing</option><option value="validate">Validate</option><option value="sell">Sell</option><option value="bid">Bid</option><option value="submit">Submit</option><option value="deliver">Deliver</option><option value="collect">Collect</option><option value="retain">Retain</option></select></div>
+      </div>
+      <div className="px-form-grid">
+        <div className="px-field"><label>Execution mode</label><select value={form.metadata?.delegation_preference||'me'} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),delegation_preference:e.target.value}}))}><option value="me">I must execute</option><option value="delegate">Delegate to a person</option><option value="agent">Delegate to an agent</option></select></div>
+        <div className="px-field"><label>Completion evidence</label><input value={form.metadata?.evidence_required||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),evidence_required:e.target.value}}))} placeholder="e.g. receipt, URL, screenshot, signed document"/></div>
+      </div>
+      <label className="px-row" style={{justifyContent:'flex-start',gap:10}}><input type="checkbox" checked={!!form.metadata?.decision_required} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),decision_required:e.target.checked}}))}/><span>This requires an executive decision from me</span></label>
       <div className="px-form-grid"><div className="px-field"><label>Project</label><select value={form.project_id||''} onChange={e=>setForm(f=>({...f,project_id:e.target.value}))}><option value="">No project</option>{projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></div><div className="px-field"><label>Status</label><select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{['inbox','ready','doing','waiting','done'].map(x=><option key={x}>{x}</option>)}</select></div></div>
       <div className="px-form-grid"><div className="px-field"><label>Priority</label><select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>{['low','medium','high','critical'].map(x=><option key={x}>{x}</option>)}</select></div><div className="px-field"><label>Due</label><input type="datetime-local" value={form.due_at||''} onChange={e=>setForm(f=>({...f,due_at:e.target.value}))}/></div></div>
       <div className="px-form-grid"><div className="px-field"><label>Estimated minutes</label><input type="number" min="5" max="480" step="5" value={form.estimated_minutes} onChange={e=>setForm(f=>({...f,estimated_minutes:Number(e.target.value)}))}/></div><div className="px-field"><label>Impact (1–5)</label><input type="number" min="1" max="5" value={form.impact} onChange={e=>setForm(f=>({...f,impact:Number(e.target.value)}))}/></div></div>
