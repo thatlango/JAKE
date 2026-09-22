@@ -145,3 +145,30 @@ test('mobile keeps the original primary navigation and exposes Agents under More
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+
+test('Work captures outcome, completion, market and delegation intent', async ({ page }) => {
+  await installMocks(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Work$/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Work' })).toBeVisible();
+  await page.getByRole('button', { name: 'New task' }).click();
+
+  await expect(page.getByLabel('Definition of done')).toBeVisible();
+  await expect(page.getByLabel('Outcome')).toBeVisible();
+  await expect(page.getByLabel('Market stage')).toBeVisible();
+  await expect(page.getByLabel('Execution mode')).toBeVisible();
+  await expect(page.getByLabel('Completion evidence')).toBeVisible();
+  await expect(page.getByText('This requires an executive decision from me')).toBeVisible();
+
+  await page.getByLabel('Outcome').selectOption('market');
+  await page.getByLabel('Market stage').selectOption('submit');
+  await page.getByLabel('Execution mode').selectOption('agent');
+  await page.getByLabel('Definition of done').fill('Submission receipt saved');
+  await page.getByLabel('Completion evidence').fill('Receipt URL');
+  await page.getByText('This requires an executive decision from me').click();
+
+  await expect(page.getByLabel('Outcome')).toHaveValue('market');
+  await expect(page.getByLabel('Market stage')).toHaveValue('submit');
+  await expect(page.getByLabel('Execution mode')).toHaveValue('agent');
+});
