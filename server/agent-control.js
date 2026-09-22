@@ -173,7 +173,7 @@ agentBrowserRouter.get('/events/stream',async(req,res)=>{
   req.on('close',()=>{clearInterval(heartbeat);bus.off('agent-event',send);});
 });
 
-agentConnectorRouter.get('/capabilities',(req,res)=>res.json({service:'JakeOS Agent Telemetry',principal:req.agentPrincipal.id,scopes:req.agentPrincipal.scopes,write_operations:['runs','events','artifacts','decisions'],delete:false}));
+agentConnectorRouter.get('/capabilities',(req,res)=>res.json({service:'JakeOS Agent Telemetry',principal:req.agentPrincipal.id,scopes:req.agentPrincipal.scopes,write_operations:['runs','events','artifacts','decisions','work:claim','work:heartbeat','work:result'],read_operations:['work:queue'],delete:false}));
 agentConnectorRouter.post('/runs',async(req,res)=>{
   try{
     const body=req.body||{},id=text(body.id,120)||makeId('run'),title=text(body.title,500);
@@ -264,4 +264,4 @@ agentConnectorRouter.post('/decisions',async(req,res)=>{
   }catch(error){res.status(500).json({error:'Agent decision intake failed'});}
 });
 
-module.exports={agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector,AGENT_REGISTRY};
+module.exports={agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector,AGENT_REGISTRY,broadcastAgentEvent:broadcast};
