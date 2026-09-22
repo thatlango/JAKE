@@ -9,7 +9,7 @@ const agentWorkBrowserRouter=express.Router();
 const agentWorkConnectorRouter=express.Router();
 
 const AGENTS={
-  'command-orchestrator':{name:'Command Orchestrator',local:false},
+  'command-orchestrator':{name:'Command Orchestrator',local:true},
   'opportunity-watch':{name:'Opportunity Watch',local:false},
   'bid-partnerships':{name:'Bid & Partnerships',local:true},
   'document-knowledge':{name:'Document & Knowledge',local:true},
