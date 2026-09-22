@@ -3,6 +3,7 @@ const express=require('express');
 const db=require('./db');
 const gcal=require('./gcal');
 const {rankItems,buildReason}=require('./priority');
+const {decorateWorkRows,getDispatchByWork}=require('./agent-work');
 
 const router=express.Router();
 const statuses=new Set(['inbox','ready','doing','waiting','done','cancelled']);
@@ -42,20 +43,24 @@ function normalizeWork(body={},existing={}){
   };
 }
 
-async function getWorkItem(workId){return (await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.id=$1 LIMIT 1`,[text(workId,120)])).rows[0]||null;}
+async function getWorkItem(workId){
+  const row=(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.id=$1 LIMIT 1`,[text(workId,120)])).rows[0]||null;
+  if(!row)return null;
+  return (await decorateWorkRows([row]))[0]||row;
+}
 async function recordEvent(workId,eventType,payload={}){await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[workId,eventType,JSON.stringify(payload)]);}
 
 router.get('/work/today',async(req,res)=>{
   const now=new Date(),limit=int(req.query.limit,7,1,20);
   const result=await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status NOT IN ('done','cancelled') AND (wi.deferred_until IS NULL OR wi.deferred_until<=NOW()) ORDER BY wi.updated_at DESC LIMIT 300`);
-  const ranked=rankItems(result.rows,{now,limit}).map(item=>({...item,why_now:buildReason(item)}));
+  const ranked=await decorateWorkRows(rankItems(result.rows,{now,limit}).map(item=>({...item,why_now:buildReason(item)})));
   const events=(await db.query(`SELECT id,title,date,project,type,done,starts_at,ends_at,all_day,source FROM calendar_events WHERE done=FALSE AND (starts_at::date=CURRENT_DATE OR (starts_at IS NULL AND LEFT(date,10)=CURRENT_DATE::text)) ORDER BY COALESCE(starts_at,NOW()) LIMIT 20`)).rows;
   res.json({generated_at:now.toISOString(),priorities:ranked,events});
 });
 
 router.get('/work/inbox',async(req,res)=>{
   const rows=(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status='inbox' ORDER BY wi.created_at DESC LIMIT $1`,[int(req.query.limit,100,1,300)])).rows;
-  res.json({items:rows});
+  res.json({items:await decorateWorkRows(rows)});
 });
 
 router.get('/work/items',async(req,res)=>{
@@ -65,10 +70,10 @@ router.get('/work/items',async(req,res)=>{
   if(req.query.q){values.push(`%${text(req.query.q,200)}%`);clauses.push(`(wi.title ILIKE $${values.length} OR wi.description ILIKE $${values.length})`);}
   values.push(int(req.query.limit,200,1,500));
   const rows=(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE ${clauses.join(' AND ')} ORDER BY wi.pinned DESC,wi.due_at NULLS LAST,wi.updated_at DESC LIMIT $${values.length}`,values)).rows;
-  res.json({items:rows});
+  res.json({items:await decorateWorkRows(rows)});
 });
 
-router.get('/work/items/:id',async(req,res)=>{const item=await getWorkItem(req.params.id);if(!item)return res.status(404).json({error:'Work item not found'});const history=(await db.query('SELECT event_type,payload,created_at FROM work_item_events WHERE work_item_id=$1 ORDER BY created_at DESC LIMIT 60',[item.id])).rows;res.json({item,history});});
+router.get('/work/items/:id',async(req,res)=>{const item=await getWorkItem(req.params.id);if(!item)return res.status(404).json({error:'Work item not found'});const history=(await db.query('SELECT event_type,payload,created_at FROM work_item_events WHERE work_item_id=$1 ORDER BY created_at DESC LIMIT 60',[item.id])).rows;res.json({item,history,agent_dispatch:await getDispatchByWork(item.id)});});
 router.post('/work/items',async(req,res)=>{const item=normalizeWork(req.body);if(!item.title)return res.status(422).json({error:'Title is required'});const row=await db.insert('work_items',{...item,last_touched_at:new Date().toISOString()},false);if(!row)return res.status(500).json({error:'Could not create work item'});await recordEvent(row.id,'created',{actor:'jakeos-web'});res.status(201).json({item:await getWorkItem(row.id)});});
 router.patch('/work/items/:id',async(req,res)=>{const existing=await getWorkItem(req.params.id);if(!existing)return res.status(404).json({error:'Work item not found'});if(req.body.version&&Number(req.body.version)!==Number(existing.version))return res.status(409).json({error:'Work item changed elsewhere',current:existing});const item=normalizeWork(req.body,existing);if(!item.title)return res.status(422).json({error:'Title is required'});const result=await db.query(`UPDATE work_items SET project_id=$2,parent_id=$3,title=$4,description=$5,status=$6,priority=$7,impact=$8,strategic_weight=$9,estimated_minutes=$10,due_at=$11,scheduled_start=$12,scheduled_end=$13,deferred_until=$14,blocked=$15,blocked_reason=$16,pinned=$17,context_url=$18,tags=$19::jsonb,metadata=$20::jsonb,updated_at=NOW(),last_touched_at=NOW(),version=version+1,completed_at=CASE WHEN $6='done' THEN COALESCE(completed_at,NOW()) ELSE NULL END WHERE id=$1 RETURNING id`,[existing.id,item.project_id,item.parent_id,item.title,item.description,item.status,item.priority,item.impact,item.strategic_weight,item.estimated_minutes,item.due_at,item.scheduled_start,item.scheduled_end,item.deferred_until,item.blocked,item.blocked_reason,item.pinned,item.context_url,JSON.stringify(item.tags),JSON.stringify(item.metadata)]);await recordEvent(existing.id,'updated',{actor:'jakeos-web',fields:Object.keys(req.body).slice(0,30)});res.json({item:await getWorkItem(result.rows[0].id)});});
 router.post('/work/items/:id/complete',async(req,res)=>{const result=await db.query(`UPDATE work_items SET status='done',completed_at=NOW(),scheduled_start=NULL,scheduled_end=NULL,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING id`,[text(req.params.id,120)]);if(!result.rows[0])return res.status(404).json({error:'Work item not found'});await recordEvent(req.params.id,'completed',{actor:'jakeos-web'});res.json({item:await getWorkItem(req.params.id)});});
