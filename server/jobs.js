@@ -12,6 +12,7 @@ const {ensureRootDomains}=require('./ops-root-domains');
 const {refreshRootDomains}=require('./ops-domain-refresh');
 const {evaluateSubscriptionSignals}=require('./ops-subscriptions');
 const {processOpportunityIntake,recoverStaleClaims}=require('./opportunity-intake');
+const {checkSearchConsoleHealth}=require('./search-console-monitor');
 
 async function withJobLock(name,fn){
   const pool=db.getPool();
@@ -91,6 +92,14 @@ async function runOpsChecks({domains=false}={}){
   });
 }
 
+async function runSearchConsoleCheck(){
+  return withJobLock('search-console',async()=>{
+    const result=await checkSearchConsoleHealth({notify:true});
+    console.log(`[Jobs] Search Console: available=${result.available} configured=${result.searchConsoleConfigured} alerts=${(result.alerts||[]).length} notified=${result.notified}`);
+    return result;
+  });
+}
+
 async function runWeeklyReview(){
   return withJobLock('weekly-review',async()=>{
     const overview=await commandCenterOverview();
@@ -127,11 +136,13 @@ function startJobs(){
     cron.schedule('20 */6 * * *',()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] ops domains failed:',e)),{timezone}),
     cron.schedule('0 7 * * *',()=>runDailyOperations().catch(e=>console.error('[Jobs] daily failed:',e)),{timezone}),
     cron.schedule('15 */6 * * *',()=>runRadarScan().catch(e=>console.error('[Jobs] radar failed:',e)),{timezone}),
+    cron.schedule('30 */6 * * *',()=>runSearchConsoleCheck().catch(e=>console.error('[Jobs] Search Console failed:',e)),{timezone}),
     cron.schedule('15 7 * * 1',()=>runWeeklyReview().catch(e=>console.error('[Jobs] weekly failed:',e)),{timezone})
   ];
-  console.log(`[Jobs] scheduled in ${timezone}: opportunity intake every 1m, ops every 5m, domain/SSL every 6h, daily 07:00, Radar every 6h, weekly Monday 07:15`);
+  console.log(`[Jobs] scheduled in ${timezone}: opportunity intake every 1m, ops every 5m, domain/SSL every 6h, daily 07:00, Radar every 6h, Search Console every 6h, weekly Monday 07:15`);
   setTimeout(()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] initial ops failed:',e)),15000).unref?.();
+  setTimeout(()=>runSearchConsoleCheck().catch(e=>console.error('[Jobs] initial Search Console check failed:',e)),30000).unref?.();
   return jobs;
 }
 
-module.exports={startJobs,runDailyOperations,runRadarScan,runOpportunityIntake,runWeeklyReview,runOpsChecks,syncGoogleCalendar,withJobLock};
+module.exports={startJobs,runDailyOperations,runRadarScan,runOpportunityIntake,runWeeklyReview,runOpsChecks,runSearchConsoleCheck,syncGoogleCalendar,withJobLock};

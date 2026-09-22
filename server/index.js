@@ -6,6 +6,7 @@ const {momentumRouter,integrationsRouter}=require('./momentum');
 const {momentumProjectsRouter}=require('./momentum-projects');
 const {mobileRouter}=require('./mobile');
 const {estateRouter,momentumEstateRouter}=require('./estate');
+const {searchConsoleRouter}=require('./search-console');
 const {estateControlRouter}=require('./estate-control');
 const {opsRouter,momentumOpsRouter}=require('./ops');
 const {tukuPayRouter}=require('./tukupay');
@@ -52,6 +53,7 @@ app.use('/api/connectors/v1/agents',authenticateAgentConnector,agentConnectorRou
 app.use('/api/agents',requireJakeAuth,agentBrowserRouter);
 app.use('/api/estate/control',requireJakeAuth,estateControlRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
+app.use('/api/search-console',requireJakeAuth,searchConsoleRouter);
 app.use('/api/accounts',requireJakeAuth,accountsRouter);
 app.use('/api/ops/subscriptions',requireJakeAuth,subscriptionRouter);
 app.use('/api/ops',requireJakeAuth,opsRouter);
