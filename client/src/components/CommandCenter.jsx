@@ -39,6 +39,7 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [agentMode, setAgentMode] = useState(false);
   const inputRef = useRef(null);
   const bottomRef = useRef(null);
 
@@ -94,6 +95,26 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
     const newMessages = [...messages, { role: 'user', content: q }];
     setMessages(newMessages);
     setLoading(true);
+
+    const explicitlyDelegated=/^\s*(delegate\s*:|ask\s+(?:the\s+)?agents?\s+to|have\s+(?:the\s+)?agents?\s+|use\s+(?:the\s+)?agents?\s+to)/i.test(q);
+    if(agentMode||explicitlyDelegated){
+      try{
+        const requestId=(globalThis.crypto?.randomUUID?.()||('jake_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
+        const response=await fetch('/api/jake/delegate',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({request_id:requestId,request:q,module})
+        });
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok||!data.work?.id||!data.dispatch?.id)throw new Error(data.error||'JakeOS could not create delegated work.');
+        const reply=data.reply||('Added to Work and assigned to '+data.dispatch.requested_agent_name+'. It will return for review when ready.');
+        setMessages([...newMessages,{role:'assistant',content:reply,delegation:{workId:data.work.id,dispatchId:data.dispatch.id,agent:data.dispatch.requested_agent_name}}]);
+      }catch(e){
+        setMessages([...newMessages,{role:'assistant',content:'Jake could not delegate this work: '+e.message}]);
+      }
+      setLoading(false);
+      return;
+    }
 
     try {
       let liveContext = '';
@@ -151,6 +172,10 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
             <div key={i}>
               <div className="px-jake-role">{m.role === 'user' ? 'You' : 'Jake'}</div>
               <div className={`px-jake-message px-jake-message--${m.role === 'user' ? 'user' : 'assistant'}`}>{m.content}</div>
+              {m.delegation&&<div className="px-row" style={{marginTop:7}}>
+                <button className="px-jake-suggestion" onClick={()=>{navigate?.('work');setOpen(false);}}>Open Work</button>
+                <button className="px-jake-suggestion" onClick={()=>{navigate?.('agents');setOpen(false);}}>Open Agents</button>
+              </div>}
             </div>
           ))}
 
@@ -159,17 +184,26 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
         </div>
 
         <div className="px-jake-input">
+          <button
+            type="button"
+            className={`px-jake-suggestion ${agentMode?'px-jake-suggestion--active':''}`}
+            aria-pressed={agentMode}
+            aria-label="Agents"
+            title="Delegate this request to the agent workforce and add it to Work"
+            onClick={()=>setAgentMode(value=>!value)}
+            style={{alignSelf:'center',whiteSpace:'nowrap'}}
+          >Agents</button>
           <textarea
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Ask what matters, what changed, or what to do next…"
+            placeholder={agentMode?"Describe the work to delegate…":"Ask what matters, what changed, or what to do next…"}
             rows={2}
           />
-          <button className="px-jake-send" onClick={() => send()} disabled={!input.trim() || loading}>↑</button>
+          <button className="px-jake-send" aria-label="Send" onClick={() => send()} disabled={!input.trim() || loading}>↑</button>
         </div>
-        <div className="px-jake-foot">Enter to send · Shift+Enter for a new line · Esc to close</div>
+        <div className="px-jake-foot">{agentMode?'Agent mode: creates Work, delegates it, and returns the result for review · ':''}Enter to send · Shift+Enter for a new line · Esc to close</div>
       </section>
     </div>
   );
