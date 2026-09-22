@@ -33,6 +33,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-jakeos}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jakeos}
       JAKEOS_AI_ENABLED: ${JAKEOS_AI_ENABLED:-true}
       JAKEOS_AI_MODEL: ${JAKEOS_AI_MODEL:-qwen3:1.7b}
+      JAKEOS_AGENT_LOCAL_WORKER_ENABLED: ${JAKEOS_AGENT_LOCAL_WORKER_ENABLED:-true}
+      JAKEOS_AGENT_LOCAL_WORKER_INTERVAL_MS: ${JAKEOS_AGENT_LOCAL_WORKER_INTERVAL_MS:-10000}
       TUKU_CORE_INTERNAL_URL: ${TUKU_CORE_INTERNAL_URL:-http://tuku-core-api:3000}
     volumes:
       - /opt/tuku/secrets/jakeos-ai.key:/run/secrets/tuku-ai-key:ro
