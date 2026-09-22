@@ -67,12 +67,13 @@ test('Tuku Estate exposes current Search Console activation state without fake m
   await page.goto('/estate');
 
   await expect(page.getByRole('heading', { name: 'Tuku Estate' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Google Search visibility' })).toBeVisible();
-  await expect(page.getByText('19', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Google Search Console is not active yet')).toBeVisible();
-  await expect(page.getByText('Google Search Console credentials missing')).toBeVisible();
-  await expect(page.getByText('Search Console integration disabled')).toBeVisible();
-  await expect(page.getByText('Awaiting live Search Console data')).toBeVisible();
+  const searchPanel = page.locator('.estate-search-console');
+  await expect(searchPanel.getByRole('heading', { name: 'Google Search visibility' })).toBeVisible();
+  await expect(searchPanel.getByText('19', { exact: true }).first()).toBeVisible();
+  await expect(searchPanel.getByText('Google Search Console is not active yet')).toBeVisible();
+  await expect(searchPanel.getByText('Google Search Console credentials missing')).toBeVisible();
+  await expect(searchPanel.getByText('Search Console integration disabled')).toBeVisible();
+  await expect(searchPanel.getByText('Awaiting live Search Console data')).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath('estate-search-console-activation-state.png'), fullPage: true });
 });
@@ -112,11 +113,12 @@ test('Tuku Estate renders live Search Console health and product feed totals', a
 
   await page.goto('/estate');
 
-  await expect(page.getByText('Search Console is healthy')).toBeVisible();
-  await expect(page.getByText('64', { exact: true })).toBeVisible();
-  await expect(page.getByText('2,050', { exact: true })).toBeVisible();
-  await expect(page.getByText('impactos')).toBeVisible();
-  await expect(page.getByText('bds')).toBeVisible();
+  const searchPanel = page.locator('.estate-search-console');
+  await expect(searchPanel.getByText('Search Console is healthy')).toBeVisible();
+  await expect(searchPanel.getByText('64', { exact: true })).toBeVisible();
+  await expect(searchPanel.getByText('2,050', { exact: true })).toBeVisible();
+  await expect(searchPanel.getByText('impactos', { exact: true })).toBeVisible();
+  await expect(searchPanel.getByText('bds', { exact: true })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
