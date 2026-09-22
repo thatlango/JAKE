@@ -78,7 +78,7 @@ test('Executive home is organized around decisions, market movement and verified
   await installMocks(page);
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Executive' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
   await expect(page.getByText('Decide what matters. Move it to market. Finish before starting more.')).toBeVisible();
   await expect(page.getByText('Decisions waiting')).toBeVisible();
   await expect(page.getByText('Market moves')).toBeVisible();
@@ -122,7 +122,7 @@ test('agent API failure stays inside the Agents section', async ({ page }) => {
   await installMocks(page, { agentsStatus: 503 });
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Executive' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
   await openAgents(page);
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
   await expect(page.getByText('Agent telemetry unavailable', { exact: true }).first()).toBeVisible();
@@ -133,7 +133,7 @@ test('mobile keeps the original primary navigation and exposes Agents under More
   await installMocks(page);
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Executive' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Home$/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Work$/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Projects$/ })).toBeVisible();
