@@ -120,9 +120,9 @@ test('real Agent OS telemetry reaches authenticated JakeOS UI and streams live e
 
   await page.screenshot({ path: testInfo.outputPath('agent-command-center-full-stack.png'), fullPage: true });
 
-  await page.getByRole('button', { name: 'Dashboard' }).click();
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  await expect(page.getByText('Plan, prioritise, and move the right work forward with clarity.')).toBeVisible();
+  await page.getByRole('button', { name: 'Executive', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
+  await expect(page.getByText('Decide what matters. Move it to market. Finish before starting more.')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('jakeos-command-center-full-stack.png'), fullPage: true });
 });
 
