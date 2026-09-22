@@ -14,7 +14,7 @@ function guidanceFor(item,rank){
   return null;
 }
 
-function TaskRow({item,onComplete,onEdit,onDefer,rank=null}){
+function TaskRow({item,onComplete,onEdit,onDefer,onAgent,rank=null}){
   const overdue=item.due_at&&new Date(item.due_at)<new Date();
   const guidance=guidanceFor(item,rank);
   return <div className="px-task">
@@ -28,9 +28,11 @@ function TaskRow({item,onComplete,onEdit,onDefer,rank=null}){
         <Pill tone={toneForPriority(item.priority)}>{item.priority}</Pill>
         {item.due_at&&<Pill tone={overdue?'danger':'neutral'}>{relativeDate(item.due_at)}</Pill>}
         {item.estimated_minutes&&<span className="px-kicker">{item.estimated_minutes} min</span>}
+        {item.agent_name&&<Pill tone={item.agent_state==='review'?'warning':item.agent_state==='completed'?'success':item.agent_state==='failed'||item.agent_state==='blocked'?'danger':'info'}>{item.agent_name} · {item.agent_state||'queued'}</Pill>}
       </div>
     </div>
     <div className="px-row">
+      <button className="px-icon-button" title={item.agent_dispatch_id?"Agent work":"Delegate to agent"} onClick={()=>onAgent(item)}><Icon name="spark"/></button>
       <button className="px-icon-button" title="Defer one hour" onClick={()=>onDefer(item)}><Icon name="clock"/></button>
       <button className="px-icon-button" title="Edit" onClick={()=>onEdit(item)}><Icon name="dots"/></button>
     </div>
@@ -49,6 +51,10 @@ export default function Work(){
   const[form,setForm]=useState(DEFAULT_TASK);
   const[capture,setCapture]=useState('');
   const[saving,setSaving]=useState(false);
+  const[agentDrawer,setAgentDrawer]=useState(null);
+  const[agentInstruction,setAgentInstruction]=useState('');
+  const[agentFeedback,setAgentFeedback]=useState('');
+  const[agentBusy,setAgentBusy]=useState(false);
 
   const load=useCallback(async()=>{
     setLoading(true);setError('');
@@ -75,6 +81,51 @@ export default function Work(){
   const complete=async item=>{await fetch(`/api/work/items/${encodeURIComponent(item.id)}/complete`,{method:'POST'});await load();};
   const defer=async item=>{const until=new Date(Date.now()+3600000).toISOString();await fetch(`/api/work/items/${encodeURIComponent(item.id)}/defer`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({until})});await load();};
   const quickCapture=async()=>{if(!capture.trim())return;const title=capture.trim();setCapture('');const response=await fetch('/api/work/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,status:'inbox',source:'jakeos-capture'})});if(!response.ok)setError('Capture failed. Your text was not saved.');await load();};
+  const openAgent=async item=>{
+    setAgentBusy(true);setError('');
+    try{
+      const response=await fetch('/api/work/items/'+encodeURIComponent(item.id)+'/agent');
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Could not load agent work.');
+      setAgentDrawer(data);
+      setAgentInstruction(data.dispatch?.request_text||item.description||item.title||'');
+      setAgentFeedback('');
+    }catch(e){setError(e.message||'Could not load agent work.');}
+    setAgentBusy(false);
+  };
+  const delegateAgent=async()=>{
+    if(!agentDrawer?.work?.id||!agentInstruction.trim()||agentBusy)return;
+    setAgentBusy(true);setError('');
+    try{
+      const response=await fetch('/api/work/items/'+encodeURIComponent(agentDrawer.work.id)+'/delegate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_text:agentInstruction.trim()})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Could not delegate work.');
+      setAgentDrawer({work:data.work,dispatch:data.dispatch});await load();
+    }catch(e){setError(e.message||'Could not delegate work.');}
+    setAgentBusy(false);
+  };
+  const reviseAgent=async()=>{
+    if(!agentDrawer?.work?.id||!agentFeedback.trim()||agentBusy)return;
+    setAgentBusy(true);setError('');
+    try{
+      const response=await fetch('/api/work/items/'+encodeURIComponent(agentDrawer.work.id)+'/agent/revise',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feedback:agentFeedback.trim()})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Could not request revision.');
+      setAgentDrawer({work:data.work,dispatch:data.dispatch});setAgentFeedback('');await load();
+    }catch(e){setError(e.message||'Could not request revision.');}
+    setAgentBusy(false);
+  };
+  const acceptAgent=async()=>{
+    if(!agentDrawer?.work?.id||agentBusy)return;
+    setAgentBusy(true);setError('');
+    try{
+      const response=await fetch('/api/work/items/'+encodeURIComponent(agentDrawer.work.id)+'/agent/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Could not accept agent result.');
+      setAgentDrawer(null);await load();
+    }catch(e){setError(e.message||'Could not accept agent result.');}
+    setAgentBusy(false);
+  };
 
   const items=tab==='today'?today.priorities:tab==='inbox'?inbox:all.filter(x=>!['done','cancelled'].includes(x.status));
   const completed=all.filter(x=>x.status==='done').length;
@@ -97,7 +148,7 @@ export default function Work(){
     <div className="px-grid-2">
       <Panel title="Your queue" subtitle="Today is the ranked shortlist. Inbox is unprocessed capture. All is the complete open system." action={<div className="px-row">{['today','inbox','all'].map(x=><Button key={x} variant={tab===x?'tonal':'ghost'} onClick={()=>setTab(x)}>{x[0].toUpperCase()+x.slice(1)}</Button>)}</div>}>
         <div className="px-row" style={{marginBottom:12}}><input className="px-input" value={capture} onChange={e=>setCapture(e.target.value)} onKeyDown={e=>e.key==='Enter'&&quickCapture()} placeholder="Capture a task, follow-up or commitment…"/><Button icon="plus" onClick={quickCapture}>Capture</Button></div>
-        {loading?<LoadingRows/>:items.length===0?<EmptyState icon="check" title={tab==='today'?'Nothing urgent right now':tab==='inbox'?'Inbox is clear':'No open work'} body="Capture something when it arrives. JakeOS will keep it in the canonical work queue." action={<Button variant="tonal" icon="plus" onClick={()=>openNew()}>Add work</Button>}/>:<div>{items.map((item,index)=><TaskRow key={item.id} item={item} rank={tab==='today'?index:null} onComplete={complete} onEdit={openEdit} onDefer={defer}/>)}</div>}
+        {loading?<LoadingRows/>:items.length===0?<EmptyState icon="check" title={tab==='today'?'Nothing urgent right now':tab==='inbox'?'Inbox is clear':'No open work'} body="Capture something when it arrives. JakeOS will keep it in the canonical work queue." action={<Button variant="tonal" icon="plus" onClick={()=>openNew()}>Add work</Button>}/>:<div>{items.map((item,index)=><TaskRow key={item.id} item={item} rank={tab==='today'?index:null} onComplete={complete} onEdit={openEdit} onDefer={defer} onAgent={openAgent}/>)}</div>}
       </Panel>
       <div className="px-stack">
         <Panel title="Focus" subtitle="The strongest currently actionable item, translated into plain language.">
@@ -109,6 +160,26 @@ export default function Work(){
         {blocked>0&&<StateBanner tone="warning" title={`${blocked} blocked or waiting item${blocked===1?'':'s'}`}>Open All to review what is stalled and why.</StateBanner>}
       </div>
     </div>
+
+    {agentDrawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setAgentDrawer(null)}><div className="px-drawer-card">
+      <PageHeader eyebrow="Agent work" title={agentDrawer.work?.title||'Work item'} subtitle={agentDrawer.dispatch?'Review the delegated work without leaving your canonical Work queue.':'Delegate this existing Work item to the agent workforce.'} actions={<button className="px-icon-button" onClick={()=>setAgentDrawer(null)}>×</button>}/>
+      {!agentDrawer.dispatch?<div className="px-stack">
+        <div className="px-field"><label>Instruction for the agent</label><textarea value={agentInstruction} onChange={e=>setAgentInstruction(e.target.value)} placeholder="Describe the draft, research, review or other work you want the agent to produce."/></div>
+        <StateBanner tone="info" title="This stays in Work">Delegation creates an agent run linked to this same Work item. The agent result returns here for your review.</StateBanner>
+        <div className="px-form-actions"><Button variant="secondary" onClick={()=>setAgentDrawer(null)}>Cancel</Button><Button icon="spark" onClick={delegateAgent} disabled={agentBusy||!agentInstruction.trim()}>{agentBusy?'Delegating…':'Delegate to agent'}</Button></div>
+      </div>:<div className="px-stack">
+        <div className="px-row" style={{flexWrap:'wrap'}}><Pill tone="brand">{agentDrawer.dispatch.requested_agent_name}</Pill><Pill tone={agentDrawer.dispatch.state==='review'?'warning':agentDrawer.dispatch.state==='completed'?'success':agentDrawer.dispatch.state==='failed'||agentDrawer.dispatch.state==='blocked'?'danger':'info'}>{agentDrawer.dispatch.state}</Pill></div>
+        <div className="px-field"><label>Agent instruction</label><textarea readOnly value={agentDrawer.dispatch.request_text||''}/></div>
+        {agentDrawer.dispatch.result_summary&&<StateBanner tone={agentDrawer.dispatch.state==='failed'||agentDrawer.dispatch.state==='blocked'?'danger':'info'} title={agentDrawer.dispatch.state==='review'?'Ready for review':'Agent update'}>{agentDrawer.dispatch.result_summary}</StateBanner>}
+        {agentDrawer.dispatch.result_content&&<div className="px-field"><label>Deliverable</label><textarea readOnly rows={14} value={agentDrawer.dispatch.result_content}/></div>}
+        {['review','blocked','failed'].includes(agentDrawer.dispatch.state)&&<div className="px-field"><label>Revision feedback</label><textarea value={agentFeedback} onChange={e=>setAgentFeedback(e.target.value)} placeholder="Tell the agent exactly what to change, add or correct."/></div>}
+        <div className="px-form-actions">
+          <Button variant="secondary" onClick={()=>setAgentDrawer(null)}>Close</Button>
+          {['review','blocked','failed'].includes(agentDrawer.dispatch.state)&&<Button variant="tonal" icon="refresh" onClick={reviseAgent} disabled={agentBusy||!agentFeedback.trim()}>{agentBusy?'Sending…':'Request revision'}</Button>}
+          {agentDrawer.dispatch.state==='review'&&<Button icon="check" onClick={acceptAgent} disabled={agentBusy}>{agentBusy?'Accepting…':'Accept & complete'}</Button>}
+        </div>
+      </div>}
+    </div></div>}
 
     {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card"><PageHeader eyebrow={drawer==='new'?'Capture':'Edit'} title={drawer==='new'?'New work item':'Work item'} subtitle="Keep the title actionable. Add only the context JakeOS needs to prioritise it." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/><div className="px-stack">
       <div className="px-field"><label>What needs to happen?</label><input autoFocus value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Send revised proposal to client"/></div>
