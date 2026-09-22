@@ -247,11 +247,12 @@ test('Jake delegation stays in the canonical Work queue through claim, review, r
 
   await page.goto('/');
   await page.getByTitle(/Ask Jake/i).click();
-  await expect(page.getByRole('button', { name: /Agents/i })).toBeVisible();
-  await page.getByRole('button', { name: /Agents/i }).click();
-  const input = page.getByPlaceholder(/Describe the work to delegate/i);
+  const jakePanel = page.getByLabel('Ask Jake');
+  await expect(jakePanel.getByRole('button', { name: 'Agents', exact: true })).toBeVisible();
+  await jakePanel.getByRole('button', { name: 'Agents', exact: true }).click();
+  const input = jakePanel.getByPlaceholder(/Describe the work to delegate/i);
   await input.fill('Draft a one-page partner briefing note for a donor meeting.');
-  await page.getByRole('button', { name: /Send/i }).click();
+  await jakePanel.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(page.getByText(/added to Work/i).first()).toBeVisible({ timeout: 10000 });
 
   await page.screenshot({ path: testInfo.outputPath('jake-agent-work-bridge.png'), fullPage: true });
