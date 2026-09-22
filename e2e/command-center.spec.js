@@ -89,7 +89,8 @@ test('Executive home is organized around decisions, market movement and verified
   await expect(page.getByText('Finish what is started')).toBeVisible();
   await expect(page.getByText('Delegated engine')).toBeVisible();
   await expect(page.getByText('Candidates to park')).toBeVisible();
-  await expect(page.getByText('Review agent evidence pack')).toBeVisible();
+  await expect(page.getByText('Review agent evidence pack')).toHaveCount(2);
+  await expect(page.getByText('Review agent evidence pack').first()).toBeVisible();
   await expect(page.getByText('UNICEF Regional Evidence Compendium')).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath('executive-home.png'), fullPage: true });
@@ -140,7 +141,7 @@ test('mobile keeps the original primary navigation and exposes Agents under More
   await expect(page.getByRole('button', { name: /^Estate$/ })).toBeVisible();
 
   await page.getByRole('button', { name: /^More$/ }).click();
-  await expect(page.getByRole('button', { name: /^Agents$/ })).toBeVisible();
+  await expect(page.locator('.more-menu').getByRole('button', { name: /^Agents$/ })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
