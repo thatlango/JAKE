@@ -515,6 +515,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .px-jake-mark img{width:1.25rem;height:1.25rem;object-fit:contain}
 .px-jake-suggestion{border-color:var(--border)!important;background:var(--surface)!important;border-radius:var(--radius-md)!important}
 .px-jake-suggestion:hover{background:var(--surface-muted)!important;border-color:var(--control-border)!important}
+.px-jake-suggestion--active{background:var(--primary-soft)!important;color:var(--primary)!important;border-color:color-mix(in oklab,var(--primary) 45%,var(--border))!important}
 .px-jake-input textarea{border-color:var(--control-border)!important;border-radius:var(--radius-md)!important}
 .px-jake-send{background:var(--primary)!important;color:var(--primary-foreground)!important;border-radius:var(--radius-md)!important}
 

@@ -44,6 +44,7 @@ async function installMocks(page, options = {}) {
   await mockJson(page, '**/api/agents/overview', agentsStatus === 200 ? agents : { error: 'agent telemetry unavailable' }, agentsStatus);
   await mockJson(page, '**/api/agents/runs*', runs);
   await mockJson(page, '**/api/agents/decisions*', decisions);
+  await mockJson(page, '**/api/agents/work*', { dispatches: [] });
   await mockJson(page, '**/api/work/today*', { priorities: [
     { id: 'w1', title: 'Resolve LendFlow queue', priority: 'critical', estimated_minutes: 30, project_name: 'LendFlow', due_at: '2026-09-21T17:00:00Z' }
   ]});
