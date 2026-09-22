@@ -1,14 +1,14 @@
-# JakeOS — Personal Command Center
+# JakeOS — Executive Operating System
 
-JakeOS is Jacob's **system of record and cross-work command center**. It is designed to see the full operating picture across projects, consulting and program delivery, business development, calendar, finances, research, opportunities, relationships and the wider Tuku product estate.
+JakeOS is Jacob's **system of record, executive decision surface and cross-work control plane**. It is designed to move the operating picture toward market, delivery and verified completion rather than merely expose more information. Its default loop is **decide → move to market → finish → evidence → delegate → park**.
 
 JakeOS is not the lightweight task app. **Momentum** is the companion execution app that consumes JakeOS priorities and lets Jacob work, capture tasks, manage the day and update progress on the go.
 
 ## Product boundary
 
-### JakeOS — see and understand everything
+### JakeOS — decide, direct and close
 
-JakeOS owns the canonical view of:
+JakeOS owns the canonical operating picture and applies the executive model in `docs/EXECUTIVE_OPERATING_MODEL.md`. It owns:
 
 - Dashboard / command center
 - Projects and workstreams
