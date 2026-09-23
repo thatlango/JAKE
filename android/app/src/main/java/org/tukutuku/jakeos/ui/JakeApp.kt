@@ -79,11 +79,14 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.tukutuku.jakeos.data.AiHistory
 import org.tukutuku.jakeos.data.AttentionCard
+import org.tukutuku.jakeos.data.DayActivity
+import org.tukutuku.jakeos.data.DayResponse
 import org.tukutuku.jakeos.data.EstateProduct
 import org.tukutuku.jakeos.data.EstateTelemetry
 import org.tukutuku.jakeos.data.HomeResponse
@@ -110,6 +113,8 @@ class JakeViewModel(private val repo: JakeRepository) : ViewModel() {
     val busy = _busy.asStateFlow()
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
+    private val _day = MutableStateFlow<Loaded<DayResponse>?>(null)
+    val day = _day.asStateFlow()
     private val _home = MutableStateFlow<Loaded<HomeResponse>?>(null)
     val home = _home.asStateFlow()
     private val _today = MutableStateFlow<Loaded<TodayResponse>?>(null)
@@ -145,25 +150,27 @@ class JakeViewModel(private val repo: JakeRepository) : ViewModel() {
     fun logout() {
         repo.logout()
         _signedIn.value = false
-        _home.value = null; _today.value = null; _projects.value = null; _estate.value = null; _watch.value = null
+        _day.value = null; _home.value = null; _today.value = null; _projects.value = null; _estate.value = null; _watch.value = null
     }
 
     fun refreshAll() = viewModelScope.launch {
+        _day.value = repo.day()
         _home.value = repo.home()
         _today.value = repo.today()
         _projects.value = repo.projects()
         _estate.value = repo.estate()
         _watch.value = repo.watch()
     }
-    fun refreshHome() = viewModelScope.launch { _home.value = repo.home() }
-    fun refreshWork() = viewModelScope.launch { _today.value = repo.today(); _projects.value = repo.projects() }
+    fun refreshHome() = viewModelScope.launch { _day.value = repo.day(); _home.value = repo.home() }
+    fun refreshDay() = viewModelScope.launch { _day.value = repo.day() }
+    fun refreshWork() = viewModelScope.launch { _day.value = repo.day(); _today.value = repo.today(); _projects.value = repo.projects() }
     fun refreshEstate(force: Boolean = false) = viewModelScope.launch { _estate.value = repo.estate(force) }
     fun refreshWatch() = viewModelScope.launch { _watch.value = repo.watch() }
     fun loadProduct(code: String, force: Boolean = false) = viewModelScope.launch { _product.value = repo.product(code, force) }
 
     fun complete(task: WorkItem) = viewModelScope.launch {
         runCatching { repo.completeTask(task.id) }
-            .onSuccess { refreshWork(); refreshHome() }
+            .onSuccess { refreshWork(); refreshHome(); refreshDay() }
             .onFailure { _message.value = it.message ?: "Task could not be completed" }
     }
 
@@ -320,14 +327,27 @@ private fun LoginScreen(busy: Boolean, error: String?, onLogin: (String, String)
 @Composable
 private fun HomeScreen(vm: JakeViewModel, onLogout: () -> Unit) {
     val loaded by vm.home.collectAsState()
+    val dayLoaded by vm.day.collectAsState()
     val home = loaded?.data
-    LaunchedEffect(Unit) { if (loaded == null) vm.refreshHome() }
-    ScreenShell("Command centre", loaded?.stale == true, vm::refreshHome, onLogout) {
+    val day = dayLoaded?.data
+    LaunchedEffect(Unit) {
+        if (loaded == null || dayLoaded == null) vm.refreshHome()
+        while (true) {
+            delay(60_000)
+            vm.refreshDay()
+        }
+    }
+    ScreenShell("Command centre", loaded?.stale == true || dayLoaded?.stale == true, vm::refreshHome, onLogout) {
         if (home == null) item { LoadingOrError(loaded?.error) } else {
             item {
                 Text(greeting(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text(nowLabel(), color = JakeMuted)
             }
+            item { DayNowNextCard(day) { taskId ->
+                day?.currentTask?.takeIf { it.taskId == taskId }?.let { activity ->
+                    home.nextWork.firstOrNull { it.id == activity.taskId }?.let(vm::complete)
+                }
+            } }
             item { CommandSummaryCard(home) }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
@@ -646,6 +666,58 @@ private fun ScreenShell(
             if (onLogout != null) IconButton(onClick = onLogout) { Icon(Icons.Outlined.Logout, "Sign out") }
         }
         LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
+}
+
+@Composable
+private fun DayNowNextCard(day: DayResponse?, onComplete: (String) -> Unit) {
+    val now = day?.doNow
+    val next = day?.upNext
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = JakeNavy)
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("DO NOW", color = JakeLavender, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            if (now == null) {
+                Text("No active block", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    next?.let { "Prepare for ${it.title} at ${formatTime(it.startsAt)}" } ?: "Your schedule is clear right now.",
+                    color = Color.White.copy(alpha = .74f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                Text(now.title, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                val context = listOfNotNull(now.blockTitle, now.subtitle).distinct().joinToString(" · ")
+                if (context.isNotBlank()) Text(context, color = Color.White.copy(alpha = .72f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("${formatTime(now.startsAt)}–${formatTime(now.endsAt)}", color = JakeLavender, fontWeight = FontWeight.SemiBold)
+                    now.minutesRemaining?.let { Text("$it min left", color = JakeLavender, fontWeight = FontWeight.Bold) }
+                }
+                now.taskId?.let { id ->
+                    Button(onClick = { onComplete(id) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.CheckCircle, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Complete")
+                    }
+                }
+            }
+            if (next != null) {
+                HorizontalDivider(color = Color.White.copy(alpha = .16f))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.width(78.dp)) {
+                        Text("UP NEXT", color = JakeLavender, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(formatTime(next.startsAt), color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(next.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        val detail = next.blockTitle ?: next.subtitle ?: next.type?.replace('_', ' ')
+                        if (!detail.isNullOrBlank()) Text(detail, color = Color.White.copy(alpha = .64f), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
     }
 }
 
