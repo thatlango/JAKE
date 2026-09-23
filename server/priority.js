@@ -118,8 +118,10 @@ function buildReason(item){
 
 function daySlots({date,busy=[],startHour=8,endHour=18,startMinute=null,endMinute=null,offsetMinutes=180}){
   const sign=offsetMinutes>=0?'+':'-',abs=Math.abs(offsetMinutes),offset=`${sign}${String(Math.floor(abs/60)).padStart(2,'0')}:${String(abs%60).padStart(2,'0')}`;
-  const startTotal=Number.isFinite(Number(startMinute))?clamp(Number(startMinute),0,1439):clamp(Number(startHour),0,23)*60;
-  const endTotal=Number.isFinite(Number(endMinute))?clamp(Number(endMinute),1,1440):clamp(Number(endHour),1,24)*60;
+  const hasStartMinute=startMinute!==null&&startMinute!==undefined&&Number.isFinite(Number(startMinute));
+  const hasEndMinute=endMinute!==null&&endMinute!==undefined&&Number.isFinite(Number(endMinute));
+  const startTotal=hasStartMinute?clamp(Number(startMinute),0,1439):clamp(Number(startHour),0,23)*60;
+  const endTotal=hasEndMinute?clamp(Number(endMinute),1,1440):clamp(Number(endHour),1,24)*60;
   const clock=(total)=>`${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}:00`;
   const start=new Date(`${date}T${clock(startTotal)}${offset}`),end=new Date(`${date}T${clock(endTotal)}${offset}`);
   const normalized=busy.map(b=>({start:asDate(b.start),end:asDate(b.end)})).filter(b=>b.start&&b.end&&b.end>start&&b.start<end).map(b=>({start:b.start<start?start:b.start,end:b.end>end?end:b.end})).sort((a,b)=>a.start-b.start);
