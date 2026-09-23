@@ -84,8 +84,8 @@ export default function Agents({openAI}){
   return <div className="module agents-page">
     <PageHeader
       eyebrow="Agent OS"
-      title="Agents"
-      subtitle="See what each agent is doing, what is blocked, what evidence has been produced, and what needs your decision."
+      title="Agents & errands"
+      subtitle="Send work away, watch execution, approve consequential actions, and only take back decisions that need you."
       actions={<div className="agents-actions">
         <span className={'agents-live agents-live--'+live}><i/>{live==='live'?'Live':live==='reconnecting'?'Reconnecting':live==='unavailable'?'Unavailable':'Connecting'}</span>
         <Button variant="secondary" icon="refresh" onClick={load}>Refresh</Button>
@@ -93,16 +93,26 @@ export default function Agents({openAI}){
       </div>}
     />
 
-    {error&&<StateBanner tone="danger" title="Agent telemetry unavailable">{error}</StateBanner>}
+    {error&&<StateBanner tone="danger" title="Agent runtime needs attention">{error}</StateBanner>}
+    {!openai.configured&&<StateBanner tone="warning" title="OpenAI errand executor needs one credential">The governed remote runner is installed, but OPENAI_API_KEY is not configured on the JakeOS server. Local errands still work; OpenAI errands remain safely queued until the credential is provisioned.</StateBanner>}
 
     <div className="px-metrics agents-metrics">
       <Metric icon="users" label="Working" value={loading&&!state.overview?'—':num(totals.active)} helper={num(totals.registered)+' registered'} tone="success"/>
-      <Metric icon="clock" label="Queued / waiting" value={loading&&!state.overview?'—':num(totals.queued)+num(totals.waiting)} helper={num(totals.queued)+' queued · '+num(totals.waiting)+' waiting'}/>
-      <Metric icon="warning" label="Blocked" value={loading&&!state.overview?'—':num(totals.blocked)} helper={num(totals.stale)+' stale'} tone={num(totals.blocked)?'warning':'neutral'}/>
+      <Metric icon="clock" label="Errands queued" value={loading?'—':num(queue.queued)} helper={openai.enabled?(openai.model||'OpenAI'):'OpenAI setup required'} tone={num(queue.queued)?'warning':'neutral'}/>
+      <Metric icon="warning" label="Approvals" value={approvals.length} helper="External / executive actions" tone={approvals.length?'warning':'neutral'}/>
       <Metric icon="check" label="Success rate" value={totals.success_rate==null?'—':totals.success_rate+'%'} helper="Completed vs failed · 30d" tone="success"/>
       <Metric icon="clock" label="Avg completion" value={totals.avg_completion_minutes==null?'—':totals.avg_completion_minutes+'m'} helper="Completed runs · 30d"/>
-      <Metric icon="document" label="Decisions" value={num(totals.decisions_open||state.decisions.length)} helper="Waiting for Jacob" tone={state.decisions.length?'warning':'neutral'}/>
+      <Metric icon="document" label="Other decisions" value={normalDecisions.length} helper="Judgement waiting for you" tone={normalDecisions.length?'warning':'neutral'}/>
     </div>
+
+    {approvals.length>0&&<Panel title="Approval gate" subtitle="Nothing below executes until you explicitly approve it. Rejecting it returns that denial to the same errand.">
+      <div className="agents-approvals">{approvals.map(item=>{const meta=item.metadata||{};return <article className="agents-approval" key={item.id}>
+        <div className="agents-approval-head"><Pill tone={meta.action_class==='executive'?'danger':'warning'}>{titleCase(meta.action_class||'external action')}</Pill><small>{meta.tool_name?titleCase(meta.tool_name):'Tool action'}</small></div>
+        <strong>{item.title}</strong><p>{item.recommendation||'Review the proposed action before deciding.'}</p>
+        {meta.args&&<details><summary>Action arguments</summary><pre>{JSON.stringify(meta.args,null,2)}</pre></details>}
+        <div className="px-row"><Button variant="secondary" disabled={busy===item.id} onClick={()=>resolveDecision(item,false)}>Reject</Button><Button disabled={busy===item.id} onClick={()=>resolveDecision(item,true)}>{busy===item.id?'Applying…':'Approve & resume'}</Button></div>
+      </article>})}</div>
+    </Panel>}
 
     <div className="agents-layout">
       <Panel title="Agent roster" subtitle="Current state and active assignment for agents that have reported activity.">
@@ -128,12 +138,12 @@ export default function Agents({openAI}){
           </div>:<EmptyState icon="clock" title="No active run" body="New agent runs will appear here."/>}
         </Panel>
 
-        <Panel title="Decision queue" subtitle="Items that require your judgement or authority.">
-          {state.decisions.length?<div className="agents-decisions">{state.decisions.map(item=><div className="agents-decision" key={item.id}>
+        <Panel title="Decision queue" subtitle="Non-tool decisions that require your judgement or authority.">
+          {normalDecisions.length?<div className="agents-decisions">{normalDecisions.map(item=><div className="agents-decision" key={item.id}>
             <div><Pill tone={tone(item.priority==='high'?'blocked':'waiting')}>{titleCase(item.priority||'medium')}</Pill><small>{item.due_at?relativeDate(item.due_at):'No deadline'}</small></div>
             <strong>{item.title}</strong>
             <p>{item.recommendation||'Review the evidence before deciding.'}</p>
-          </div>)}</div>:<EmptyState icon="check" title="No open decisions" body="Agent work is not waiting on you right now."/>}
+          </div>)}</div>:<EmptyState icon="check" title="No open decisions" body="Execution is not waiting on another judgement call right now."/>}
         </Panel>
       </div>
     </div>
