@@ -9,6 +9,7 @@ const {overview:opsOverview}=require('./ops');
 const {rankItems,buildReason}=require('./priority');
 const {interpretJakeCommand,status:aiStatus}=require('./ai');
 const gcal=require('./gcal');
+const {daySnapshot}=require('./momentum');
 
 const router=express.Router();
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
@@ -92,6 +93,11 @@ async function createTaskFromAction(action,user){
 router.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS Mobile API',version:'1.0',db:await db.ping(),time:new Date().toISOString()}));
 router.use(momentumAuth());
 router.get('/me',(req,res)=>res.set('Cache-Control','no-store').json({authenticated:true,user:req.momentumUser,ai:aiStatus()}));
+
+router.get('/day',async(_req,res)=>{
+  try{res.set('Cache-Control','no-store').json(await daySnapshot());}
+  catch(error){res.status(500).json({error:'JakeOS day plan is unavailable',detail:process.env.NODE_ENV==='development'?error.message:undefined});}
+});
 
 router.get('/home',async(req,res)=>{
   try{
