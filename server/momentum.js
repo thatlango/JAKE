@@ -122,6 +122,109 @@ async function chatContext(){
     pipeline:pipeline.rows
   };
 }
+
+function estateMetric(value,{suffix='',currency=''}={}){
+  if(value===null||value===undefined||value==='')return 'not measured';
+  const number=Number(value);
+  if(!Number.isFinite(number))return String(value);
+  const formatted=number.toLocaleString('en-US',{maximumFractionDigits:1});
+  return `${currency?`${currency} `:''}${formatted}${suffix}`;
+}
+function estateProductMatch(message,products=[]){
+  const query=String(message||'').toLowerCase();
+  return products
+    .map(product=>({product,keys:[product.code,product.name].map(value=>String(value||'').trim().toLowerCase()).filter(value=>value.length>=3)}))
+    .filter(entry=>entry.keys.some(key=>query.includes(key)))
+    .sort((a,b)=>Math.max(...b.keys.map(key=>key.length))-Math.max(...a.keys.map(key=>key.length)))[0]?.product||null;
+}
+function estateFastReply(message,context={}){
+  const query=String(message||'').trim().toLowerCase();
+  const estate=context.estate||{},products=Array.isArray(estate.products)?estate.products:[],telemetry=Array.isArray(estate.telemetry)?estate.telemetry:[],commerce=Array.isArray(estate.commerce)?estate.commerce:[];
+  const operations=context.operations||{},subscriptions=context.subscriptions||{};
+  const product=estateProductMatch(query,products);
+  const explicitlyEstate=/\b(tuku estate|estate|tukutuku|estate-wide|across the estate|all products|our products)\b/i.test(query);
+  if(!explicitlyEstate&&!product)return null;
+  if(estate.available===false)return `The live estate snapshot is unavailable right now${estate.lastSuccessfulAt?`; the last successful snapshot was ${estate.lastSuccessfulAt}`:''}. I will not treat missing telemetry as zero.`;
+
+  const freshness=estate.stale?' The estate snapshot is marked stale, so treat these as the latest known values rather than live values.':'';
+  const totals=estate.totals||{};
+  const attentionTelemetry=telemetry.filter(item=>item.needsAttention);
+  const opsAttention=Array.isArray(operations.attention)?operations.attention:[];
+  const subs=Array.isArray(subscriptions.subscriptions)?subscriptions.subscriptions:[];
+  const dueSubs=subs.filter(item=>Number.isFinite(Number(item.dueDays))&&Number(item.dueDays)<=30).sort((a,b)=>Number(a.dueDays)-Number(b.dueDays));
+  const serviceRows=Array.isArray(operations.services)?operations.services:[];
+
+  if(product){
+    const code=String(product.code||'').toLowerCase(),name=product.name||product.code||'Product';
+    const tele=telemetry.find(item=>String(item.productCode||'').toLowerCase()===code)||null;
+    const trade=commerce.filter(item=>String(item.productCode||'').toLowerCase()===code);
+    const services=serviceRows.filter(item=>String(item.product||'').toLowerCase()===code||String(item.product||'').toLowerCase()===String(name).toLowerCase()||String(item.name||'').toLowerCase().includes(code));
+    const healthyServices=services.filter(item=>Number(item.status)>=200&&Number(item.status)<400&&Number(item.failures||0)===0).length;
+    const orderActive=trade.reduce((sum,item)=>sum+Number(item.orders?.active||0),0);
+    const orderDone=trade.reduce((sum,item)=>sum+Number(item.orders?.completed||0),0);
+    const realized=trade.reduce((sum,item)=>sum+Number(item.earnings?.realized||0),0);
+    const pending=trade.reduce((sum,item)=>sum+Number(item.earnings?.pending||0),0);
+    const lines=[
+      `${name}: ${estateMetric(product.activeUsers7d)} active users / 7d, ${estateMetric(product.activeUsers24h)} / 24h, ${estateMetric(product.activeUsers30d)} / 30d, and ${estateMetric(product.growth7dPercent,{suffix:'%'})} 7-day growth.`,
+      `Observed usage: ${estateMetric(product.usageEvents7d)} events / 7d; telemetry coverage is ${tele?.coverage||'not measured'}${tele?.needsAttention?' and it needs attention':''}.`
+    ];
+    if(tele?.message)lines.push(`Telemetry note: ${tele.message}`);
+    if(services.length)lines.push(`Operations: ${healthyServices}/${services.length} tracked services are healthy.`);
+    if(trade.length)lines.push(`Commerce: ${estateMetric(orderActive)} active orders, ${estateMetric(orderDone)} completed; realized ${estateMetric(realized,{currency:trade[0]?.currency||'UGX'})}, pending ${estateMetric(pending,{currency:trade[0]?.currency||'UGX'})}.`);
+    if(/\b(attention|problem|issue|risk|decision|focus|next|wrong|down|health|status)\b/i.test(query)){
+      const productOps=opsAttention.filter(item=>String(item.title||'').toLowerCase().includes(code)||String(item.summary||'').toLowerCase().includes(code)||String(item.title||'').toLowerCase().includes(String(name).toLowerCase()));
+      if(productOps.length)lines.push(`Needs attention: ${productOps.slice(0,3).map(item=>item.title).join('; ')}.`);
+      else if(!tele?.needsAttention)lines.push('No product-specific attention signal is present in the supplied live operations/telemetry data.');
+    }
+    return lines.join(' ')+freshness;
+  }
+
+  const topProducts=[...products].sort((a,b)=>Number(b.activeUsers7d||0)-Number(a.activeUsers7d||0)).slice(0,5);
+  if(/\b(most|top|highest|largest|active users|usage|users|growth)\b/i.test(query)){
+    const growth=/\bgrowth|growing|fastest\b/i.test(query);
+    const rows=[...products].sort((a,b)=>growth?Number(b.growth7dPercent||0)-Number(a.growth7dPercent||0):Number(b.activeUsers7d||0)-Number(a.activeUsers7d||0)).slice(0,5);
+    return `${growth?'Top 7-day growth':'Top products by 7-day active users'}: ${rows.map(item=>`${item.name||item.code} — ${growth?estateMetric(item.growth7dPercent,{suffix:'%'}):estateMetric(item.activeUsers7d)}`).join('; ')}.${freshness}`;
+  }
+
+  if(/\b(subscription|renewal|renew|expiry|expires|quota)\b/i.test(query)){
+    if(!subs.length)return 'No subscription registry data is available in the current estate context.';
+    const lines=[`Subscriptions: ${estateMetric(subscriptions.summary?.total)} tracked; ${estateMetric(subscriptions.summary?.due30)} due within 30 days; ${estateMetric(subscriptions.summary?.quotaTracked)} have quota tracking.`];
+    if(dueSubs.length)lines.push(`Upcoming: ${dueSubs.slice(0,5).map(item=>`${item.name} in ${item.dueDays} day${Number(item.dueDays)===1?'':'s'}`).join('; ')}.`);
+    return lines.join(' ')+freshness;
+  }
+
+  if(/\b(order|orders|revenue|earnings|sales|money|commerce)\b/i.test(query)){
+    return `Estate commerce: ${estateMetric(totals.ordersActive)} active orders and ${estateMetric(totals.ordersCompleted)} completed. Realized revenue is ${estateMetric(totals.realizedRevenueUGX,{currency:'UGX'})}; pending revenue is ${estateMetric(totals.pendingRevenueUGX,{currency:'UGX'})}.${freshness}`;
+  }
+
+  if(/\b(operation|operations|service|services|domain|domains|infrastructure|uptime|health|down|outage)\b/i.test(query)){
+    const summary=operations.summary||{};
+    const lines=[`Operations status is ${operations.status||'not measured'} with score ${estateMetric(operations.score)}/100. ${estateMetric(summary.servicesHealthy)}/${estateMetric(summary.servicesTotal)} tracked services are healthy; ${estateMetric(summary.domainsAttention)} of ${estateMetric(summary.domainsTotal)} domains need attention.`];
+    if(opsAttention.length)lines.push(`Current signals: ${opsAttention.slice(0,5).map(item=>`${item.severity||'attention'} — ${item.title}`).join('; ')}.`);
+    return lines.join(' ')+freshness;
+  }
+
+  const lines=[
+    `Tuku Estate currently has ${estateMetric(totals.products)} tracked products, ${estateMetric(totals.activeUsers7d)} active users / 7d and ${estateMetric(totals.activeUsers24h)} / 24h.`,
+    `Telemetry: ${estateMetric(totals.productsWithRichTelemetry)} products have rich telemetry and ${estateMetric(totals.productsNeedingTelemetryReview)} need telemetry review.`,
+    `Operations: ${operations.status||'not measured'}${operations.score!==null&&operations.score!==undefined?` (${operations.score}/100)`:''}; ${estateMetric(operations.summary?.servicesHealthy)}/${estateMetric(operations.summary?.servicesTotal)} tracked services are healthy.`,
+    `Commerce: ${estateMetric(totals.ordersActive)} active orders, ${estateMetric(totals.ordersCompleted)} completed; ${estateMetric(totals.realizedRevenueUGX,{currency:'UGX'})} realized and ${estateMetric(totals.pendingRevenueUGX,{currency:'UGX'})} pending.`
+  ];
+  const needs=[];
+  if(opsAttention.length)needs.push(...opsAttention.slice(0,3).map(item=>item.title));
+  if(attentionTelemetry.length)needs.push(`telemetry review for ${attentionTelemetry.slice(0,5).map(item=>item.productName||item.productCode).join(', ')}`);
+  if(dueSubs.length)needs.push(`${dueSubs.length} subscription${dueSubs.length===1?'':'s'} due within 30 days`);
+  if(needs.length)lines.push(`Needs attention: ${needs.slice(0,5).join('; ')}.`);
+  if(/\b(decision|decide|focus|next|priority|priorities|attention|today|doing|update|brief|summary|draft)\b/i.test(query)){
+    const decisions=[];
+    if(opsAttention.length)decisions.push('clear the highest-severity operations signals first');
+    if(attentionTelemetry.length)decisions.push('close telemetry gaps on products currently marked for review');
+    if(dueSubs.length)decisions.push('confirm the upcoming subscription renewal/expiry');
+    if(!decisions.length&&topProducts.length)decisions.push(`protect delivery around the most active products: ${topProducts.slice(0,3).map(item=>item.name||item.code).join(', ')}`);
+    lines.push(`Next decisions: ${decisions.slice(0,3).join('; ')}.`);
+  }
+  return lines.join(' ')+freshness;
+}
 function safePriority(value){return ALLOWED_PRIORITY.has(String(value||'').toLowerCase())?String(value).toLowerCase():'medium';}
 async function projectIdByName(name){const q=cleanString(name,200);if(!q)return null;const row=(await db.query('SELECT id FROM projects WHERE lower(name)=lower($1) LIMIT 1',[q])).rows[0];return row?.id||null;}
 async function executeJakeActions(actions,userKey){
@@ -152,9 +255,9 @@ router.patch('/tasks/:id',async(req,res)=>{const existing=await getWorkItem(req.
 router.post('/tasks/:id/complete',async(req,res)=>{const existing=await getWorkItem(req.params.id);if(!existing)return res.status(404).json({error:'Task not found'});const result=await db.query(`UPDATE work_items SET status='done',completed_at=NOW(),scheduled_start=NULL,scheduled_end=NULL,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING *`,[existing.id]);await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[existing.id,'completed',JSON.stringify({actor:req.momentumUser.uid})]);res.json({item:result.rows[0]});});
 router.post('/tasks/:id/defer',async(req,res)=>{const until=validDate(req.body.until||req.body.deferred_until||req.body.deferredUntil);if(!until)return res.status(422).json({error:'A valid defer-until time is required'});const result=await db.query(`UPDATE work_items SET deferred_until=$2,scheduled_start=NULL,scheduled_end=NULL,status=CASE WHEN status='doing' THEN 'ready' ELSE status END,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING *`,[cleanString(req.params.id,100),until]);if(!result.rows[0])return res.status(404).json({error:'Task not found'});await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[req.params.id,'deferred',JSON.stringify({actor:req.momentumUser.uid,until})]);res.json({item:result.rows[0]});});
 router.post('/capture',async(req,res)=>{const title=cleanString(req.body.text||req.body.title,500);if(!title)return res.status(422).json({error:'Capture text is required'});const item=normalizeWorkItem({...req.body,title,status:req.body.status||'inbox',source:'momentum-capture'},{source:'momentum-capture'});res.status(201).json({item:await upsertWorkItem(item,'captured',{actor:req.momentumUser.uid,capture_type:cleanString(req.body.type||'task',50)})});});
-router.get('/ai/status',async(_req,res)=>res.json({...localAi.status(),calendar:gcal.getStatus(),knowledge_sources:['estate','operations','subscriptions','day','work','calendar','projects','pipeline'],contracts:{chat:'/api/momentum/v1/chat',history:'/api/momentum/v1/chat/history',day:'/api/momentum/v1/day',estate:'/api/momentum/v1/estate',operations:'/api/momentum/v1/ops',subscriptions:'/api/momentum/v1/ops/subscriptions'}}));
+router.get('/ai/status',async(_req,res)=>res.json({...localAi.status(),calendar:gcal.getStatus(),knowledge_sources:['estate','operations','subscriptions','day','work','calendar','projects','pipeline'],fast_paths:['estate'],contracts:{chat:'/api/momentum/v1/chat',history:'/api/momentum/v1/chat/history',day:'/api/momentum/v1/day',estate:'/api/momentum/v1/estate',operations:'/api/momentum/v1/ops',subscriptions:'/api/momentum/v1/ops/subscriptions'}}));
 router.get('/chat/history',async(req,res)=>{const limit=asInt(req.query.limit,40,1,100),rows=(await db.query(`SELECT id,role,content,metadata,created_at FROM jake_chat_messages WHERE user_key=$1 ORDER BY created_at DESC LIMIT $2`,[req.momentumUser.uid,limit])).rows.reverse();res.json({messages:rows});});
-router.post('/chat',async(req,res)=>{const message=cleanString(req.body.message||req.body.text,5000);if(!message)return res.status(422).json({error:'Message is required'});try{const history=(await db.query(`SELECT role,content FROM jake_chat_messages WHERE user_key=$1 ORDER BY created_at DESC LIMIT 8`,[req.momentumUser.uid])).rows.reverse();await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'user',$2,$3::jsonb)`,[req.momentumUser.uid,message,JSON.stringify({source:'jakeos-mobile'})]);const result=await localAi.interpretJakeCommand({message,history,context:await chatContext()}),executed=await executeJakeActions(result.actions,req.momentumUser.uid);let reply=result.reply;if(executed.length){const titles=executed.map(x=>x.task.title);reply=`${reply}${reply.endsWith('.')?'':'.'} ${executed.length===1?`Added “${titles[0]}” to JakeOS.`:`Added ${executed.length} tasks to JakeOS.`}`;}const meta={provider:result.provider,model:result.model,actions:executed.map(x=>({type:x.type,task_id:x.task.id,calendar_event_id:x.calendar_event?.id||null}))};const inserted=(await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'assistant',$2,$3::jsonb) RETURNING id,role,content,metadata,created_at`,[req.momentumUser.uid,reply,JSON.stringify(meta)])).rows[0];res.json({message:inserted,actions:executed,provider:result.provider,model:result.model});}catch(error){res.status(error.status||502).json({error:error.message||'Ask Jake could not complete this request'});}});
+router.post('/chat',async(req,res)=>{const message=cleanString(req.body.message||req.body.text,5000);if(!message)return res.status(422).json({error:'Message is required'});try{const history=(await db.query(`SELECT role,content FROM jake_chat_messages WHERE user_key=$1 ORDER BY created_at DESC LIMIT 8`,[req.momentumUser.uid])).rows.reverse();await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'user',$2,$3::jsonb)`,[req.momentumUser.uid,message,JSON.stringify({source:'jakeos-mobile'})]);const context=await chatContext(),fastReply=estateFastReply(message,context),result=fastReply?{reply:fastReply,actions:[],provider:'jakeos-live-estate',model:'deterministic-v1'}:await localAi.interpretJakeCommand({message,history,context}),executed=await executeJakeActions(result.actions,req.momentumUser.uid);let reply=result.reply;if(executed.length){const titles=executed.map(x=>x.task.title);reply=`${reply}${reply.endsWith('.')?'':'.'} ${executed.length===1?`Added “${titles[0]}” to JakeOS.`:`Added ${executed.length} tasks to JakeOS.`}`;}const meta={provider:result.provider,model:result.model,fast_path:!!fastReply,actions:executed.map(x=>({type:x.type,task_id:x.task.id,calendar_event_id:x.calendar_event?.id||null}))};const inserted=(await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'assistant',$2,$3::jsonb) RETURNING id,role,content,metadata,created_at`,[req.momentumUser.uid,reply,JSON.stringify(meta)])).rows[0];res.json({message:inserted,actions:executed,provider:result.provider,model:result.model,fast_path:!!fastReply});}catch(error){res.status(error.status||502).json({error:error.message||'Ask Jake could not complete this request'});}});
 router.get('/schedule',async(req,res)=>{const date=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date||''))?String(req.query.date):new Date(Date.now()+180*60000).toISOString().slice(0,10);const events=await db.query(`SELECT id,title,date,project,type,done,notes,starts_at,ends_at,all_day,source FROM calendar_events WHERE (starts_at::date=$1::date OR (starts_at IS NULL AND LEFT(date,10)=($1::date)::text)) ORDER BY COALESCE(starts_at,CASE WHEN date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN date::timestamptz ELSE NOW() END) ASC`,[date]);const tasks=await db.query(`SELECT * FROM work_items WHERE scheduled_start::date=$1::date AND status NOT IN ('done','cancelled') ORDER BY scheduled_start`,[date]);res.json({date,events:events.rows,tasks:tasks.rows});});
 router.post('/schedule/items',async(req,res)=>{
   try{
@@ -182,4 +285,4 @@ integrations.use(rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-7',l
 integrations.post('/work-items',async(req,res)=>{const source=cleanString(req.body.source,100),sourceRef=cleanString(req.body.source_ref||req.body.sourceRef,300);if(!source||!sourceRef)return res.status(422).json({error:'source and source_ref are required'});const found=await db.query('SELECT * FROM work_items WHERE source=$1 AND source_ref=$2 LIMIT 1',[source,sourceRef]),existing=found.rows[0]||null,item=normalizeWorkItem({...req.body,id:existing?.id||req.body.id||id('wi'),source,source_ref:sourceRef},{existing,source});if(!item.title)return res.status(422).json({error:'title is required'});res.status(existing?200:201).json({item:await upsertWorkItem(item,existing?'external_updated':'external_created',{source,source_ref:sourceRef})});});
 integrations.post('/signals',async(req,res)=>{const source=cleanString(req.body.source,100),sourceRef=cleanString(req.body.source_ref||req.body.sourceRef,300),signalId=cleanString(req.body.id,100)||(source&&sourceRef?`sig_${crypto.createHash('sha256').update(`${source}:${sourceRef}`).digest('hex').slice(0,24)}`:id('sig')),title=cleanString(req.body.title,500);if(!title||!source)return res.status(422).json({error:'title and source are required'});const sev=cleanString(req.body.severity,20).toLowerCase(),severity=['low','medium','high','critical'].includes(sev)?sev:'medium',result=await db.query(`INSERT INTO attention_signals(id,signal_type,title,summary,severity,source,source_ref,action_url,starts_at,due_at,resolved,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb) ON CONFLICT(id) DO UPDATE SET signal_type=EXCLUDED.signal_type,title=EXCLUDED.title,summary=EXCLUDED.summary,severity=EXCLUDED.severity,source=EXCLUDED.source,source_ref=EXCLUDED.source_ref,action_url=EXCLUDED.action_url,starts_at=EXCLUDED.starts_at,due_at=EXCLUDED.due_at,resolved=EXCLUDED.resolved,metadata=EXCLUDED.metadata,updated_at=NOW() RETURNING *`,[signalId,cleanString(req.body.signal_type||req.body.type||'attention',80),title,cleanString(req.body.summary,2000),severity,source,sourceRef||null,cleanString(req.body.action_url||req.body.actionUrl,2000),validDate(req.body.starts_at||req.body.startsAt),validDate(req.body.due_at||req.body.dueAt),bool(req.body.resolved),JSON.stringify(object(req.body.metadata))]);res.status(201).json({signal:result.rows[0]});});
 integrations.patch('/signals/:id/resolve',async(req,res)=>{const result=await db.query('UPDATE attention_signals SET resolved=TRUE,resolved_at=NOW(),updated_at=NOW() WHERE id=$1 RETURNING *',[cleanString(req.params.id,100)]);if(!result.rows[0])return res.status(404).json({error:'Signal not found'});res.json({signal:result.rows[0]});});
-module.exports={momentumRouter:router,integrationsRouter:integrations,normalizeWorkItem,daySnapshot};
+module.exports={momentumRouter:router,integrationsRouter:integrations,normalizeWorkItem,daySnapshot,estateFastReply};
