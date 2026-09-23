@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, EmptyState, Icon, LoadingRows, PageHeader, Panel, Pill, StateBanner } from '../components/ProductUI';
 
 const copy={
-  'tuku-core':'Identity authority for JakeOS and Momentum.',estate:'Product usage, growth, orders and earnings from Tuku Core.','local-ai':'Private estate-aware intelligence for Ask Jake and command-center analysis.',groq:'Voice memo transcription.',resend:'Email delivery for alerts and scheduled briefs.',telegram:'Telegram alert delivery.',sms:'Protected transaction ingestion for personal finance.'
+  'tuku-core':'Identity authority for JakeOS and Momentum.',estate:'Product usage, growth, orders and earnings from Tuku Core.','local-ai':'Private estate-aware intelligence for Ask Jake and command-center analysis.','openai-errands':'Remote errands with web research, governed tools, budgets, evidence and approval gates.','google-workspace':'Gmail and Drive context/actions for governed errands after Google consent.','github-errands':'Repository read/write capability for approved software errands.','ops-executor':'Separately isolated production-action executor; JakeOS itself remains host read-only.','jakeos-mcp':'Scoped MCP boundary for approved ChatGPT/agent clients.',groq:'Voice memo transcription.',resend:'Email delivery for alerts and scheduled briefs.',telegram:'Telegram alert delivery.',sms:'Protected transaction ingestion for personal finance.'
 };
 const icon={identity:'users',data:'estate',calendar:'calendar',ai:'spark',alerts:'bell',finance:'money'};
 export default function Integrations(){
