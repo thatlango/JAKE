@@ -13,6 +13,9 @@ interface JakeApi {
     @POST("auth/refresh")
     suspend fun refresh(@Body body: RefreshRequest): AuthEnvelope
 
+    @GET("day")
+    suspend fun day(): DayResponse
+
     @GET("home")
     suspend fun home(): HomeResponse
 

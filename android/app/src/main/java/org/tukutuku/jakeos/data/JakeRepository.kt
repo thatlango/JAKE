@@ -159,6 +159,7 @@ class JakeRepository(context: Context) {
         cache.clear()
     }
 
+    suspend fun day(): Loaded<DayResponse> = cached("day", moshi.adapter(DayResponse::class.java)) { api.day() }
     suspend fun home(): Loaded<HomeResponse> = cached("home", moshi.adapter(HomeResponse::class.java)) { api.home() }
     suspend fun today(): Loaded<TodayResponse> = cached("today", moshi.adapter(TodayResponse::class.java)) { api.today() }
     suspend fun projects(): Loaded<ProjectListResponse> = cached("projects", moshi.adapter(ProjectListResponse::class.java)) { api.projects() }

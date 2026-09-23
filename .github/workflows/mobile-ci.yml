@@ -69,6 +69,8 @@ jobs:
           curl -fsS http://127.0.0.1:3100/api/mobile/v1/health | jq -e '.status=="ok" and .app=="JakeOS Mobile API"'
           curl -fsS -H 'Authorization: Bearer ci_mobile_token' http://127.0.0.1:3100/api/mobile/v1/home > /tmp/mobile-home.json
           jq -e '.commandSummary and (.kpis|length)==4 and .work and .watch' /tmp/mobile-home.json
+          curl -fsS -H 'Authorization: Bearer ci_mobile_token' http://127.0.0.1:3100/api/mobile/v1/day > /tmp/mobile-day.json
+          jq -e '.timezone=="Africa/Kampala" and .workday.starts_at=="07:30" and .workday.ends_at=="18:30" and (.timeline|type=="array")' /tmp/mobile-day.json
           curl -fsS -H 'Authorization: Bearer ci_mobile_token' http://127.0.0.1:3100/api/mobile/v1/work/today > /tmp/mobile-today.json
           jq -e '.tasks|type=="array"' /tmp/mobile-today.json
           curl -fsS -H 'Authorization: Bearer ci_mobile_token' http://127.0.0.1:3100/api/mobile/v1/watch > /tmp/mobile-watch.json

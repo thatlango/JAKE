@@ -31,6 +31,38 @@ data class TukuUser(
 data class LoginRequest(val email: String, val password: String)
 data class RefreshRequest(val refreshToken: String)
 
+data class DayResponse(
+    @Json(name = "generated_at") val generatedAt: String? = null,
+    val timezone: String = "Africa/Kampala",
+    val date: String,
+    val workday: WorkdayWindow = WorkdayWindow(),
+    @Json(name = "do_now") val doNow: DayActivity? = null,
+    @Json(name = "up_next") val upNext: DayActivity? = null,
+    @Json(name = "current_block") val currentBlock: DayActivity? = null,
+    @Json(name = "current_event") val currentEvent: DayActivity? = null,
+    @Json(name = "current_task") val currentTask: DayActivity? = null,
+    val timeline: List<DayActivity> = emptyList()
+)
+
+data class WorkdayWindow(
+    @Json(name = "starts_at") val startsAt: String = "07:30",
+    @Json(name = "ends_at") val endsAt: String = "18:30"
+)
+
+data class DayActivity(
+    val kind: String,
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    @Json(name = "starts_at") val startsAt: String? = null,
+    @Json(name = "ends_at") val endsAt: String? = null,
+    val type: String? = null,
+    val source: String? = null,
+    @Json(name = "task_id") val taskId: String? = null,
+    @Json(name = "block_title") val blockTitle: String? = null,
+    @Json(name = "minutes_remaining") val minutesRemaining: Int? = null
+)
+
 data class HomeResponse(
     val generatedAt: String? = null,
     val commandSummary: CommandSummary = CommandSummary(),
