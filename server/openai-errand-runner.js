@@ -163,7 +163,11 @@ async function auditStart(dispatch,call,args,policy,fp){
     ])).rows[0];
 }
 async function auditFinish(row,status,result=null,decisionId=null){
-  const safeResult=result===null?null:JSON.parse(JSON.stringify(result).slice(0,50000));
+  let safeResult=null;
+  if(result!==null){
+    const raw=JSON.stringify(result);
+    safeResult=raw.length<=50000?JSON.parse(raw):{truncated:true,preview:raw.slice(0,48000),original_bytes:Buffer.byteLength(raw)};
+  }
   await db.query(`UPDATE agent_tool_audit SET status=$2,result_summary=$3,decision_id=COALESCE($4,decision_id),completed_at=CASE WHEN $2 IN('completed','rejected','failed') THEN NOW() ELSE completed_at END,
     metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),'{result}',$5::jsonb,true) WHERE id=$1`,[
       row.id,status,safeResult?text(safeJson(safeResult),1500):'',decisionId,safeJson(safeResult)
