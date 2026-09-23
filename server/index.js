@@ -7,6 +7,7 @@ const {momentumProjectsRouter}=require('./momentum-projects');
 const {mobileRouter}=require('./mobile');
 const {estateRouter,momentumEstateRouter}=require('./estate');
 const {searchConsoleRouter}=require('./search-console');
+const {estateTelemetryRouter}=require('./estate-telemetry');
 const {estateControlRouter}=require('./estate-control');
 const {opsRouter,momentumOpsRouter}=require('./ops');
 const {tukuPayRouter}=require('./tukupay');
@@ -49,6 +50,7 @@ app.use('/api/connectors/v1/opportunities',authenticateOpportunityConnector,oppo
 app.use('/mcp/opportunities',authenticateOpportunityConnector,opportunitiesMcpRouter);
 app.use('/api/connectors/v1/opportunity-intake',authenticateOpportunityConnector,opportunityIntakeRouter);
 app.use('/api/connectors/v1/agents',authenticateAgentConnector,agentConnectorRouter,agentWorkConnectorRouter);
+app.use('/api/internal/estate-telemetry',estateTelemetryRouter);
 
 app.use('/api/agents',requireJakeAuth,agentBrowserRouter);
 app.use('/api/estate/control',requireJakeAuth,estateControlRouter);
