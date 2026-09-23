@@ -168,8 +168,10 @@ class JakeViewModel(private val repo: JakeRepository) : ViewModel() {
     fun refreshWatch() = viewModelScope.launch { _watch.value = repo.watch() }
     fun loadProduct(code: String, force: Boolean = false) = viewModelScope.launch { _product.value = repo.product(code, force) }
 
-    fun complete(task: WorkItem) = viewModelScope.launch {
-        runCatching { repo.completeTask(task.id) }
+    fun complete(task: WorkItem) = completeTaskId(task.id)
+
+    fun completeTaskId(id: String) = viewModelScope.launch {
+        runCatching { repo.completeTask(id) }
             .onSuccess { refreshWork(); refreshHome(); refreshDay() }
             .onFailure { _message.value = it.message ?: "Task could not be completed" }
     }
@@ -343,11 +345,7 @@ private fun HomeScreen(vm: JakeViewModel, onLogout: () -> Unit) {
                 Text(greeting(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text(nowLabel(), color = JakeMuted)
             }
-            item { DayNowNextCard(day) { taskId ->
-                day?.currentTask?.takeIf { it.taskId == taskId }?.let { activity ->
-                    home.nextWork.firstOrNull { it.id == activity.taskId }?.let(vm::complete)
-                }
-            } }
+            item { DayNowNextCard(day, vm::completeTaskId) }
             item { CommandSummaryCard(home) }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
