@@ -163,12 +163,66 @@ export default function Agents({openAI}){
       </div>
     </div>
 
+    <Panel title="Delegated errands" subtitle="Every assignment stays linked to canonical Work. Open one to inspect tools, cost, approvals and artifacts.">
+      {state.delegated.length?<div className="agents-work-list">{state.delegated.map(item=><button className="agents-work-row agents-work-row--button" key={item.id} onClick={()=>openErrand(item)}>
+        <span className="agents-event-icon"><Icon name="spark" size={14}/></span>
+        <span><strong>{item.work_title}</strong><small>{(item.requested_agent_name||item.requested_agent_id)+' · '+(item.executor_preference||'auto')+' · '+(item.project_name||'Work')}</small></span>
+        <span className="agents-work-state"><small>{item.model||''}{item.spent_usd!==undefined?' · 
+
+    <Panel title="Live activity" subtitle="Latest agent events, evidence handoffs and blockers.">
+      {activity.length?<div className="agents-activity">{activity.slice(0,20).map(event=><div key={event.id}>
+        <time>{formatDate(event.created_at||event.event_at,{time:true})}</time>
+        <span className="agents-event-icon"><Icon name={event.state==='blocked'?'warning':'spark'} size={14}/></span>
+        <span><strong>{event.agent_name||event.agent_id}</strong><small>{event.summary}</small></span>
+        <Pill tone={tone(event.state)}>{titleCase(event.event_type)}</Pill>
+      </div>)}</div>:<EmptyState icon="inbox" title="No agent events yet" body="Live events will stream here as agents execute work."/>}
+    </Panel>
+  </div>;
+}
++Number(openai.default_max_cost_usd||2).toFixed(2)} default budget</span></div>
+            <p className="px-muted" style={{fontSize:11,lineHeight:1.5,margin:0}}>External writes pause for approval. Tool scopes and credentials are enforced server-side, not by the model.</p>
+          </div>
+        </Panel>
+
+        <Panel title="Active run" subtitle={activeRun?activeRun.title:'No run is active'}>
+          {activeRun?<div className="agents-run">
+            <div className="agents-run-head"><Pill tone={tone(activeRun.status)}>{titleCase(activeRun.status)}</Pill><strong>{num(activeRun.progress)}%</strong></div>
+            <div className="agents-progress" aria-label={activeRun.title+' progress'}><span style={{width:Math.max(0,Math.min(100,num(activeRun.progress)))+'%'}}/></div>
+            <h3>{activeRun.title}</h3>
+            <div className="agents-run-meta"><span><Icon name="users" size={13}/>{activeRun.current_agent||'Awaiting agent'}</span><span><Icon name="warning" size={13}/>{num(activeRun.blockers_count||activeRun.blockers)} blockers</span><span><Icon name="document" size={13}/>{num(activeRun.artifacts)} artifacts</span></div>
+          </div>:<EmptyState icon="clock" title="No active run" body="New agent runs will appear here."/>}
+        </Panel>
+
+        <Panel title="Decision queue" subtitle="Non-tool decisions that require your judgement or authority.">
+          {normalDecisions.length?<div className="agents-decisions">{normalDecisions.map(item=><div className="agents-decision" key={item.id}>
+            <div><Pill tone={tone(item.priority==='high'?'blocked':'waiting')}>{titleCase(item.priority||'medium')}</Pill><small>{item.due_at?relativeDate(item.due_at):'No deadline'}</small></div>
+            <strong>{item.title}</strong>
+            <p>{item.recommendation||'Review the evidence before deciding.'}</p>
+          </div>)}</div>:<EmptyState icon="check" title="No open decisions" body="Execution is not waiting on another judgement call right now."/>}
+        </Panel>
+      </div>
+    </div>
+
     <Panel title="Delegated from Work" subtitle="Agent assignments remain linked to the same canonical JakeOS Work items.">
       {state.delegated.length?<div className="agents-work-list">{state.delegated.map(item=><div className="agents-work-row" key={item.id}>
         <span className="agents-event-icon"><Icon name="spark" size={14}/></span>
         <span><strong>{item.work_title}</strong><small>{(item.requested_agent_name||item.requested_agent_id)+' · '+(item.project_name||'Work')}</small></span>
         <Pill tone={tone(item.state)}>{titleCase(item.state)}</Pill>
       </div>)}</div>:<EmptyState icon="check" title="No delegated Work yet" body="Use Ask Jake in Agent mode or delegate an existing Work item. It will appear here while the Work queue remains canonical."/>}
+    </Panel>
+
+    <Panel title="Live activity" subtitle="Latest agent events, evidence handoffs and blockers.">
+      {activity.length?<div className="agents-activity">{activity.slice(0,20).map(event=><div key={event.id}>
+        <time>{formatDate(event.created_at||event.event_at,{time:true})}</time>
+        <span className="agents-event-icon"><Icon name={event.state==='blocked'?'warning':'spark'} size={14}/></span>
+        <span><strong>{event.agent_name||event.agent_id}</strong><small>{event.summary}</small></span>
+        <Pill tone={tone(event.state)}>{titleCase(event.event_type)}</Pill>
+      </div>)}</div>:<EmptyState icon="inbox" title="No agent events yet" body="Live events will stream here as agents execute work."/>}
+    </Panel>
+  </div>;
+}
++Number(item.spent_usd||0).toFixed(4):''}</small><Pill tone={tone(item.state)}>{titleCase(item.state)}</Pill></span>
+      </button>)}</div>:<EmptyState icon="check" title="No delegated Work yet" body="Use Errand mode in Ask Jake or delegate an existing Work item. Results return here for review."/>}
     </Panel>
 
     <Panel title="Live activity" subtitle="Latest agent events, evidence handoffs and blockers.">
