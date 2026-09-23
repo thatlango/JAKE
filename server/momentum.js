@@ -7,6 +7,9 @@ const {momentumAuth,ingestAuth}=require('./momentum-auth');
 const {rankItems,buildReason,daySlots,allocatePlan}=require('./priority');
 const localAi=require('./ai');
 const gcal=require('./gcal');
+const {fetchEstateSnapshot}=require('./estate');
+const {overview:opsOverview}=require('./ops');
+const {subscriptionSnapshot}=require('./ops-subscriptions');
 const router=express.Router(),integrations=express.Router();
 function id(prefix='wi'){return `${prefix}_${crypto.randomUUID()}`;}
 function cleanString(value,max=1000){return String(value??'').trim().slice(0,max);}
@@ -61,14 +64,62 @@ async function nextAvailableMinutes(now=new Date()){const end=new Date(now.getTi
 
 async function chatContext(){
   const now=new Date(),week=new Date(now.getTime()+7*86400000).toISOString();
-  const[items,events,projects,pipeline]=await Promise.all([
+  const[items,events,projects,pipeline,day,estateResult,opsResult,subscriptionsResult]=await Promise.all([
     candidateItems(now),
     db.query(`SELECT title,starts_at,ends_at,all_day,source FROM calendar_events WHERE done=FALSE AND (starts_at IS NULL OR starts_at BETWEEN $1 AND $2) ORDER BY starts_at NULLS LAST LIMIT 30`,[now.toISOString(),week]),
     db.query(`SELECT id,name,status,priority,progress FROM projects ORDER BY updated_at DESC LIMIT 40`),
-    db.query(`SELECT name,org,stage,deadline,value_usd FROM pipeline ORDER BY updated_at DESC LIMIT 20`)
+    db.query(`SELECT name,org,stage,deadline,value_usd FROM pipeline ORDER BY updated_at DESC LIMIT 20`),
+    daySnapshot(now).catch(()=>null),
+    fetchEstateSnapshot().catch(error=>({configured:true,available:false,stale:false,snapshot:null,error:error.message})),
+    opsOverview().catch(error=>({unavailable:true,error:error.message})),
+    subscriptionSnapshot().catch(error=>({unavailable:true,error:error.message}))
   ]);
   const ranked=rankItems(items,{now,limit:12});
-  return{now:now.toISOString(),timezone:process.env.JOBS_TIMEZONE||'Africa/Kampala',priorities:ranked.map(x=>({id:x.id,title:x.title,priority:x.priority,due_at:x.due_at,project:x.project_name||null,status:x.status})),calendar:events.rows,projects:projects.rows,pipeline:pipeline.rows};
+  const estate=estateResult?.snapshot?{
+    available:estateResult.available!==false,
+    stale:!!estateResult.stale,
+    lastSuccessfulAt:estateResult.lastSuccessfulAt||null,
+    generatedAt:estateResult.snapshot.generatedAt||null,
+    totals:estateResult.snapshot.totals||{},
+    measurement:estateResult.snapshot.measurement||{},
+    products:(estateResult.snapshot.products||[]).map(product=>({
+      code:product.code,name:product.name,reach:product.reach,
+      activeUsers24h:product.activeUsers24h,activeUsers7d:product.activeUsers7d,activeUsers30d:product.activeUsers30d,
+      newUsers7d:product.newUsers7d,growth7dPercent:product.growth7dPercent,usageEvents7d:product.usageEvents7d,lastActivityAt:product.lastActivityAt
+    })),
+    telemetry:(estateResult.snapshot.telemetry||[]).map(item=>({
+      productCode:item.productCode,productName:item.productName,coverage:item.coverage,needsAttention:item.needsAttention,
+      message:item.message,lastObservedAt:item.lastObservedAt,observed:item.observed
+    })),
+    commerce:(estateResult.snapshot.commerce||[]).map(item=>({
+      productCode:item.productCode,currency:item.currency,orders:item.orders,earnings:item.earnings,lastOrderAt:item.lastOrderAt
+    }))
+  }:{available:false,stale:!!estateResult?.stale,lastSuccessfulAt:estateResult?.lastSuccessfulAt||null,error:estateResult?.error||'Estate snapshot unavailable'};
+  const operations=opsResult?.unavailable?opsResult:{
+    generatedAt:opsResult?.generatedAt||null,status:opsResult?.status||null,score:opsResult?.score??null,summary:opsResult?.summary||{},
+    attention:(opsResult?.attention||[]).slice(0,20).map(item=>({severity:item.severity,title:item.title,summary:item.summary,dueAt:item.due_at,sourceRef:item.source_ref})),
+    services:(opsResult?.services||[]).map(item=>({name:item.name,product:item.product,status:item.last_status,latencyMs:item.last_latency_ms,failures:item.consecutive_failures,lastCheckedAt:item.last_checked_at}))
+  };
+  const subscriptions=subscriptionsResult?.unavailable?subscriptionsResult:{
+    generatedAt:subscriptionsResult?.generatedAt||null,summary:subscriptionsResult?.summary||{},
+    subscriptions:(subscriptionsResult?.subscriptions||[]).slice(0,50).map(item=>({
+      id:item.id,name:item.name,provider:item.provider,category:item.category,product:item.product,status:item.status,
+      amount:item.amount,currency:item.currency,nextRenewalAt:item.next_renewal_at,expiresAt:item.expires_at,
+      dueDays:item.due_days,needsConfirmation:item.needs_confirmation,usageCurrent:item.usage_current,usageLimit:item.usage_limit,usageUnit:item.usage_unit
+    }))
+  };
+  return{
+    now:now.toISOString(),
+    timezone:process.env.JOBS_TIMEZONE||'Africa/Kampala',
+    day,
+    priorities:ranked.map(x=>({id:x.id,title:x.title,priority:x.priority,due_at:x.due_at,project:x.project_name||null,status:x.status,impact:x.impact,strategic_weight:x.strategic_weight})),
+    calendar:events.rows,
+    projects:projects.rows,
+    pipeline:pipeline.rows,
+    estate,
+    operations,
+    subscriptions
+  };
 }
 function safePriority(value){return ALLOWED_PRIORITY.has(String(value||'').toLowerCase())?String(value).toLowerCase():'medium';}
 async function projectIdByName(name){const q=cleanString(name,200);if(!q)return null;const row=(await db.query('SELECT id FROM projects WHERE lower(name)=lower($1) LIMIT 1',[q])).rows[0];return row?.id||null;}
@@ -100,7 +151,7 @@ router.patch('/tasks/:id',async(req,res)=>{const existing=await getWorkItem(req.
 router.post('/tasks/:id/complete',async(req,res)=>{const existing=await getWorkItem(req.params.id);if(!existing)return res.status(404).json({error:'Task not found'});const result=await db.query(`UPDATE work_items SET status='done',completed_at=NOW(),scheduled_start=NULL,scheduled_end=NULL,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING *`,[existing.id]);await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[existing.id,'completed',JSON.stringify({actor:req.momentumUser.uid})]);res.json({item:result.rows[0]});});
 router.post('/tasks/:id/defer',async(req,res)=>{const until=validDate(req.body.until||req.body.deferred_until||req.body.deferredUntil);if(!until)return res.status(422).json({error:'A valid defer-until time is required'});const result=await db.query(`UPDATE work_items SET deferred_until=$2,scheduled_start=NULL,scheduled_end=NULL,status=CASE WHEN status='doing' THEN 'ready' ELSE status END,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING *`,[cleanString(req.params.id,100),until]);if(!result.rows[0])return res.status(404).json({error:'Task not found'});await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[req.params.id,'deferred',JSON.stringify({actor:req.momentumUser.uid,until})]);res.json({item:result.rows[0]});});
 router.post('/capture',async(req,res)=>{const title=cleanString(req.body.text||req.body.title,500);if(!title)return res.status(422).json({error:'Capture text is required'});const item=normalizeWorkItem({...req.body,title,status:req.body.status||'inbox',source:'momentum-capture'},{source:'momentum-capture'});res.status(201).json({item:await upsertWorkItem(item,'captured',{actor:req.momentumUser.uid,capture_type:cleanString(req.body.type||'task',50)})});});
-router.get('/ai/status',async(_req,res)=>res.json({...localAi.status(),calendar:gcal.getStatus()}));
+router.get('/ai/status',async(_req,res)=>res.json({...localAi.status(),calendar:gcal.getStatus(),knowledge_sources:['day','work','calendar','projects','pipeline','estate','operations','subscriptions'],contracts:{chat:'/api/momentum/v1/chat',history:'/api/momentum/v1/chat/history',day:'/api/momentum/v1/day',estate:'/api/momentum/v1/estate',operations:'/api/momentum/v1/ops',subscriptions:'/api/momentum/v1/ops/subscriptions'}}));
 router.get('/chat/history',async(req,res)=>{const limit=asInt(req.query.limit,40,1,100),rows=(await db.query(`SELECT id,role,content,metadata,created_at FROM jake_chat_messages WHERE user_key=$1 ORDER BY created_at DESC LIMIT $2`,[req.momentumUser.uid,limit])).rows.reverse();res.json({messages:rows});});
 router.post('/chat',async(req,res)=>{const message=cleanString(req.body.message||req.body.text,5000);if(!message)return res.status(422).json({error:'Message is required'});try{const history=(await db.query(`SELECT role,content FROM jake_chat_messages WHERE user_key=$1 ORDER BY created_at DESC LIMIT 8`,[req.momentumUser.uid])).rows.reverse();await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'user',$2,$3::jsonb)`,[req.momentumUser.uid,message,JSON.stringify({source:'jakeos-mobile'})]);const result=await localAi.interpretJakeCommand({message,history,context:await chatContext()}),executed=await executeJakeActions(result.actions,req.momentumUser.uid);let reply=result.reply;if(executed.length){const titles=executed.map(x=>x.task.title);reply=`${reply}${reply.endsWith('.')?'':'.'} ${executed.length===1?`Added “${titles[0]}” to JakeOS.`:`Added ${executed.length} tasks to JakeOS.`}`;}const meta={provider:result.provider,model:result.model,actions:executed.map(x=>({type:x.type,task_id:x.task.id,calendar_event_id:x.calendar_event?.id||null}))};const inserted=(await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'assistant',$2,$3::jsonb) RETURNING id,role,content,metadata,created_at`,[req.momentumUser.uid,reply,JSON.stringify(meta)])).rows[0];res.json({message:inserted,actions:executed,provider:result.provider,model:result.model});}catch(error){res.status(error.status||502).json({error:error.message||'Ask Jake could not complete this request'});}});
 router.get('/schedule',async(req,res)=>{const date=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date||''))?String(req.query.date):new Date(Date.now()+180*60000).toISOString().slice(0,10);const events=await db.query(`SELECT id,title,date,project,type,done,notes,starts_at,ends_at,all_day,source FROM calendar_events WHERE (starts_at::date=$1::date OR (starts_at IS NULL AND LEFT(date,10)=($1::date)::text)) ORDER BY COALESCE(starts_at,CASE WHEN date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN date::timestamptz ELSE NOW() END) ASC`,[date]);const tasks=await db.query(`SELECT * FROM work_items WHERE scheduled_start::date=$1::date AND status NOT IN ('done','cancelled') ORDER BY scheduled_start`,[date]);res.json({date,events:events.rows,tasks:tasks.rows});});
