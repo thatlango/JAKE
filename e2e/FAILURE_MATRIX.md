@@ -121,3 +121,25 @@ The build is not considered verified merely because the React bundle compiles.
     - Expected: JakeOS surfaces evidence/recommendations and leaves the approve/decline/park/pursue decision to Jacob.
 54. Executive dashboard cannot be understood on mobile without horizontal scrolling.
     - Expected: no page-level horizontal overflow at 390px.
+
+
+## Executive operating-loop failures
+
+55. JakeOS Web disagrees with Momentum about what is happening now or what comes next.
+    - Expected: the Executive home consumes the same canonical day snapshot used by Momentum for Do Now, Up Next and the current work block.
+56. A scheduled task or commitment is active, but the dashboard replaces it with an unscheduled ranked task.
+    - Expected: the active day-plan item wins the Now position; ranked work is only the fallback when the schedule has no active item.
+57. A critical operational signal is treated as an executive decision simply because it is severe.
+    - Expected: only decision-class signals enter Decide now; operational/system exceptions stay in an exception lane with their remediation link preserved.
+58. Agent-owned execution inflates Jacob's personal WIP or completion queue.
+    - Expected: queued/running delegated work is excluded from personal execution pressure until it returns for review or becomes blocked in a way that needs intervention.
+59. The day snapshot is empty or temporarily unavailable.
+    - Expected: Now falls back to the strongest ranked Work item and Up Next degrades cleanly; no fabricated schedule is shown.
+60. Market-facing execution appears in multiple equal-weight dashboard panels.
+    - Expected: market opportunity and market-shipping work are grouped into one Move to market lane so the dashboard has one operating loop.
+61. The operating loop is unreadable at 390px because Now, Up Next or pulse visuals overflow.
+    - Expected: all command cards stack without page-level horizontal scrolling.
+62. Operating-pulse bars require colour to understand their meaning.
+    - Expected: every bar has a visible text label/count and an accessible label.
+63. Dashboard CTAs make or imply consequential executive approvals automatically.
+    - Expected: CTAs navigate to evidence/review/remediation surfaces or Ask Jake; final approval/decline remains explicit and human.
