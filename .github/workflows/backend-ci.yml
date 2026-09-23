@@ -81,6 +81,11 @@ jobs:
           grep -q 'CI task' /tmp/today.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/pulse > /tmp/pulse.json
           grep -q 'generated_at' /tmp/pulse.json
+          SCHEDULE_DATE="$(date -u -d '+1 day' +%F)"
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
+            -d "{\"title\":\"Momentum CI focus\",\"type\":\"focus\",\"date\":\"${SCHEDULE_DATE}\",\"startsAt\":\"${SCHEDULE_DATE}T09:30:00+03:00\",\"endsAt\":\"${SCHEDULE_DATE}T10:00:00+03:00\"}" \
+            http://127.0.0.1:3100/api/momentum/v1/schedule/items > /tmp/momentum-schedule-item.json
+          jq -e '.item.title=="Momentum CI focus" and .item.type=="focus"' /tmp/momentum-schedule-item.json
       - name: Exercise JakeOS-Momentum task bridge
         run: |
           curl -fsS -H 'Authorization: Bearer ci_jakeos_token' -H 'Content-Type: application/json' \
