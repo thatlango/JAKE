@@ -154,10 +154,42 @@ agentBrowserRouter.post('/decisions/:id/resolve',async(req,res)=>{
   try{
     const id=text(req.params.id,120),existing=await db.get('agent_decisions',{eq:{id}});
     if(!existing)return res.status(404).json({error:'Decision not found'});
+    const metadata=json(existing.metadata);
     const status=req.body.status==='dismissed'?'dismissed':'resolved';
     const resolution=text(req.body.resolution,4000);
-    await db.update('agent_decisions',id,{status,resolution,resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()});
-    res.json({decision:await db.get('agent_decisions',{eq:{id}})});
+    const explicit=typeof req.body.approved==='boolean'?req.body.approved:null;
+    const approved=explicit!==null?explicit:/^(approve|approved|yes|proceed|allow)\b/i.test(resolution);
+    await db.update('agent_decisions',id,{status,resolution:resolution||(approved?'Approved':'Rejected'),resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()});
+
+    if(metadata.type==='tool_approval'&&metadata.dispatch_id&&metadata.action_fingerprint){
+      const dispatch=await db.get('agent_work_dispatches',{eq:{id:text(metadata.dispatch_id,120)}});
+      if(dispatch){
+        const history=list(dispatch.approved_actions).filter(item=>item?.fingerprint!==metadata.action_fingerprint);
+        history.push({fingerprint:metadata.action_fingerprint,decision:approved?'approved':'rejected',decision_id:id,at:new Date().toISOString()});
+        const execMeta=json(dispatch.execution_metadata);
+        const rejected=list(execMeta.rejected_actions);
+        if(!approved)rejected.push({fingerprint:metadata.action_fingerprint,tool_name:metadata.tool_name,decision_id:id,at:new Date().toISOString()});
+        await db.update('agent_work_dispatches',dispatch.id,{
+          state:'queued',executor_id:null,lease_expires_at:null,approved_actions:history,
+          execution_metadata:{...execMeta,rejected_actions:rejected.slice(-50)},response_state:approved?'approval_granted':'approval_rejected',updated_at:new Date().toISOString()
+        });
+        await db.query(`UPDATE agent_tool_audit SET status=$2,decision_id=$3,completed_at=CASE WHEN $2='rejected' THEN NOW() ELSE completed_at END WHERE dispatch_id=$1 AND action_fingerprint=$4`,[
+          dispatch.id,approved?'approved':'rejected',id,metadata.action_fingerprint
+        ]);
+        await db.query(`UPDATE work_items SET status='ready',blocked=FALSE,blocked_reason='',updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1`,[dispatch.work_item_id]);
+        await db.query(`UPDATE agent_runs SET status='queued',progress=60,updated_at=NOW() WHERE id=$1`,[dispatch.run_id]);
+        const event=await db.insert('agent_events',{
+          id:makeId('evt'),run_id:dispatch.run_id,agent_id:dispatch.requested_agent_id,agent_name:dispatch.requested_agent_name,
+          event_type:approved?'approval_granted':'approval_rejected',state:'queued',
+          summary:(approved?'Approved: ':'Rejected: ')+text(metadata.tool_name,120),
+          requires_human_action:false,event_at:new Date().toISOString(),
+          dedupe_key:crypto.createHash('sha256').update([dispatch.id,id,approved?'approved':'rejected'].join('|')).digest('hex'),
+          metadata:{dispatch_id:dispatch.id,decision_id:id,tool_name:metadata.tool_name,action_fingerprint:metadata.action_fingerprint}
+        },false);
+        if(event)broadcast(event);
+      }
+    }
+    res.json({decision:await db.get('agent_decisions',{eq:{id}}),approved:metadata.type==='tool_approval'?approved:undefined});
   }catch(error){res.status(500).json({error:'Decision could not be resolved'});}
 });
 agentBrowserRouter.get('/events/stream',async(req,res)=>{
