@@ -56,7 +56,7 @@ function availability(){
 
 function toolDefinitions(scopes){
   const defs=schemas(),available=availability();
-  return Object.entries(defs).filter(([name])=>available[name]&&toolAllowed(name,scopes)&&TOOL_CATALOG[name]).map(([name,d])=>({type:'function',name,description:d.description,parameters:d.parameters,strict:true}));
+  return Object.entries(defs).filter(([name])=>available[name]&&toolAllowed(name,scopes)&&TOOL_CATALOG[name]).map(([name,d])=>({type:'function',name,description:d.description,parameters:d.parameters,strict:false}));
 }
 
 async function execute(name,args,{dispatch,contextSnapshot}={}){
