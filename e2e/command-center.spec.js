@@ -88,7 +88,7 @@ test('Executive home is organized around decisions, market movement and verified
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
-  await expect(page.getByText('Decide what matters. Move it to market. Finish before starting more.')).toBeVisible();
+  await expect(page.getByText('Know what to do now. Make the decisions only you can make. Move work to market and closure.')).toBeVisible();
   await expect(page.getByText('Do now')).toBeVisible();
   await expect(page.getByText('Up next')).toBeVisible();
   await expect(page.getByText('Operating pulse')).toBeVisible();
