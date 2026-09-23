@@ -22,6 +22,7 @@ JakeOS owns the canonical operating picture and applies the executive model in `
 - Research and weekly evidence briefs
 - Alerts, risks and follow-ups
 - Connected-work data and AI context
+- Governed Errands: canonical Work → local/OpenAI/external executor → evidence → approval/review → completion
 
 JakeOS should answer questions such as:
 
@@ -96,6 +97,10 @@ Momentum may use Firebase for its mobile concerns, but Firebase must not become 
 JakeOS also owns the **Tuku Estate Control** release plane. It tracks the canonical estate repository graph, one-workstream-per-repository ownership, durable Git/CI checkpoints, deployed SHAs/artifacts and production verification. The operating contract lives in `estate-control/README.md` and the registry in `estate-control/registry.json`.
 
 Estate telemetry answers **how products are operating**. Estate Control answers **whether software changes are moving safely from repository to production**.
+
+## Governed errands
+
+JakeOS can delegate canonical Work to local agents, an optional OpenAI remote executor, or scoped external Agent OS workers. External actions are server-side approval-gated and all executor/tool activity stays linked to the Work item. See `docs/ERRANDS.md`.
 
 ## Momentum API boundary
 

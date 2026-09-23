@@ -15,10 +15,12 @@ const {accountsRouter}=require('./accounts');
 const {subscriptionRouter,momentumSubscriptionRouter}=require('./ops-subscriptions');
 const {opportunitiesConnectorRouter}=require('./opportunities-connector');
 const {opportunitiesMcpRouter}=require('./opportunities-mcp');
+const {jakeosMcpRouter}=require('./jakeos-mcp');
 const {opportunityIntakeRouter}=require('./opportunity-intake-router');
 const {authenticateOpportunityConnector}=require('./opportunities-connector-auth');
 const {agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector}=require('./agent-control');
 const {agentWorkConnectorRouter,startAgentWorkWorker}=require('./agent-work');
+const {startOpenAiErrandWorker}=require('./openai-errand-runner');
 const {startJobs}=require('./jobs');
 const {requireJakeAuth,webAuthRouter,momentumAuthRouter}=require('./tuku-auth');
 const gcal=require('./gcal');
@@ -47,6 +49,7 @@ app.use('/api/integrations/v1',integrationsRouter);
 // Each token is scoped to its own connector and cannot access general JakeOS APIs.
 app.use('/api/connectors/v1/opportunities',authenticateOpportunityConnector,opportunitiesConnectorRouter);
 app.use('/mcp/opportunities',authenticateOpportunityConnector,opportunitiesMcpRouter);
+app.use('/mcp/jakeos',jakeosMcpRouter);
 app.use('/api/connectors/v1/opportunity-intake',authenticateOpportunityConnector,opportunityIntakeRouter);
 app.use('/api/connectors/v1/agents',authenticateAgentConnector,agentConnectorRouter,agentWorkConnectorRouter);
 
@@ -75,5 +78,6 @@ const port=Number(process.env.PORT||3000);
   await ensureSeeded();
   startJobs();
   startAgentWorkWorker();
+  startOpenAiErrandWorker();
   app.listen(port,'0.0.0.0',()=>console.log(`[JakeOS] listening on :${port}`));
 })().catch(e=>{console.error('[JakeOS] startup failed:',e);process.exit(1);});

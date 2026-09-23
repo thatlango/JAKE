@@ -1,11 +1,19 @@
 'use strict';
 const db=require('./db');
 
-const SCOPES=[
+const BASE_SCOPES=[
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
   'https://www.googleapis.com/auth/userinfo.email'
-].join(' ');
+];
+const EXTENDED_SCOPES=[
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.compose',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/drive.readonly'
+];
+const extendedWorkspace=['true','1','on','yes'].includes(String(process.env.JAKEOS_GOOGLE_WORKSPACE_EXTENDED||'false').toLowerCase());
+const SCOPES=[...BASE_SCOPES,...(extendedWorkspace?EXTENDED_SCOPES:[])].join(' ');
 const DEFAULT_TZ=process.env.JOBS_TIMEZONE||'Africa/Kampala';
 let tokenStore={accessToken:null,accessTokenExpiry:0,refreshToken:process.env.GOOGLE_REFRESH_TOKEN||null,userEmail:process.env.GOOGLE_USER_EMAIL||null};
 

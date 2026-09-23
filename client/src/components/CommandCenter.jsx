@@ -40,6 +40,8 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
+  const [executorMode,setExecutorMode]=useState('auto');
+  const [errandStatus,setErrandStatus]=useState(null);
   const inputRef = useRef(null);
   const bottomRef = useRef(null);
 
@@ -66,7 +68,10 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
   }, []);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100);
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+      fetch('/api/errands/status').then(r=>r.ok?r.json():null).then(d=>d&&setErrandStatus(d)).catch(()=>{});
+    }
   }, [open]);
 
   useEffect(() => {
@@ -96,19 +101,24 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
     setMessages(newMessages);
     setLoading(true);
 
-    const explicitlyDelegated=/^\s*(delegate\s*:|ask\s+(?:the\s+)?agents?\s+to|have\s+(?:the\s+)?agents?\s+|use\s+(?:the\s+)?agents?\s+to)/i.test(q);
+    const explicitlyDelegated=/^\s*(delegate\s*:|errand\s*:|send\s+(?:chatgpt|you|jake)\s+to|ask\s+(?:the\s+)?agents?\s+to|have\s+(?:the\s+)?agents?\s+|use\s+(?:the\s+)?agents?\s+to|run\s+(?:this\s+)?(?:as\s+)?an?\s+errand)/i.test(q);
     if(agentMode||explicitlyDelegated){
       try{
         const requestId=(globalThis.crypto?.randomUUID?.()||('jake_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
+        const wantsOpenAI=/\b(chatgpt|openai|send you)\b/i.test(q);
+        const executor=wantsOpenAI?'openai':executorMode;
         const response=await fetch('/api/jake/delegate',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({request_id:requestId,request:q,module})
+          body:JSON.stringify({request_id:requestId,request:q,module,executor_preference:executor,approval_policy:'external'})
         });
         const data=await response.json().catch(()=>({}));
         if(!response.ok||!data.work?.id||!data.dispatch?.id)throw new Error(data.error||'JakeOS could not create delegated work.');
-        const reply=data.reply||('Added to Work and assigned to '+data.dispatch.requested_agent_name+'. It will return for review when ready.');
-        setMessages([...newMessages,{role:'assistant',content:reply,delegation:{workId:data.work.id,dispatchId:data.dispatch.id,agent:data.dispatch.requested_agent_name}}]);
+        const setupBlocked=executor==='openai'&&errandStatus?.openai?.configured===false;
+        const reply=setupBlocked
+          ?'Errand added to Work and queued for the OpenAI executor. The runtime is installed, but an OpenAI API credential still needs to be configured before it can run.'
+          :(data.reply||('Added to Work and assigned to '+data.dispatch.requested_agent_name+'. It will return for review when ready.'));
+        setMessages([...newMessages,{role:'assistant',content:reply,delegation:{workId:data.work.id,dispatchId:data.dispatch.id,agent:data.dispatch.requested_agent_name,executor}}]);
       }catch(e){
         setMessages([...newMessages,{role:'assistant',content:'Jake could not delegate this work: '+e.message}]);
       }
@@ -188,22 +198,23 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
             type="button"
             className={`px-jake-suggestion ${agentMode?'px-jake-suggestion--active':''}`}
             aria-pressed={agentMode}
-            aria-label="Agents"
-            title="Delegate this request to the agent workforce and add it to Work"
+            aria-label="Errand mode"
+            title="Create canonical Work and send the errand to a governed executor"
             onClick={()=>setAgentMode(value=>!value)}
             style={{alignSelf:'center',whiteSpace:'nowrap'}}
-          >Agents</button>
+          >Errand</button>
+          {agentMode&&<select aria-label="Errand executor" value={executorMode} onChange={e=>setExecutorMode(e.target.value)} style={{alignSelf:'center',maxWidth:150}}><option value="auto">Best available</option><option value="openai">OpenAI</option><option value="local">Local AI</option></select>}
           <textarea
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={agentMode?"Describe the work to delegate…":"Ask what matters, what changed, or what to do next…"}
+            placeholder={agentMode?"Describe the errand and the result you want back…":"Ask what matters, what changed, or what to do next…"}
             rows={2}
           />
           <button className="px-jake-send" aria-label="Send" onClick={() => send()} disabled={!input.trim() || loading}>↑</button>
         </div>
-        <div className="px-jake-foot">{agentMode?'Agent mode: creates Work, delegates it, and returns the result for review · ':''}Enter to send · Shift+Enter for a new line · Esc to close</div>
+        <div className="px-jake-foot">{agentMode?`Errand mode: canonical Work → ${executorMode==='openai'?'OpenAI remote executor':executorMode==='local'?'local AI':'best available executor'} → evidence → review${executorMode==='openai'&&errandStatus?.openai?.configured===false?' · OpenAI setup required':''} · `:''}Enter to send · Shift+Enter for a new line · Esc to close</div>
       </section>
     </div>
   );

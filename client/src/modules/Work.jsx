@@ -59,6 +59,7 @@ export default function Work(){
   const[agentDrawer,setAgentDrawer]=useState(null);
   const[agentInstruction,setAgentInstruction]=useState('');
   const[agentFeedback,setAgentFeedback]=useState('');
+  const[agentExecutor,setAgentExecutor]=useState('auto');
   const[agentBusy,setAgentBusy]=useState(false);
 
   const load=useCallback(async()=>{
@@ -94,6 +95,7 @@ export default function Work(){
       if(!response.ok)throw new Error(data.error||'Could not load agent work.');
       setAgentDrawer(data);
       setAgentInstruction(data.dispatch?.request_text||item.description||item.title||'');
+      setAgentExecutor(data.dispatch?.executor_preference||'auto');
       setAgentFeedback('');
     }catch(e){setError(e.message||'Could not load agent work.');}
     setAgentBusy(false);
@@ -102,7 +104,7 @@ export default function Work(){
     if(!agentDrawer?.work?.id||!agentInstruction.trim()||agentBusy)return;
     setAgentBusy(true);setError('');
     try{
-      const response=await fetch('/api/work/items/'+encodeURIComponent(agentDrawer.work.id)+'/delegate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_text:agentInstruction.trim()})});
+      const response=await fetch('/api/work/items/'+encodeURIComponent(agentDrawer.work.id)+'/delegate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_text:agentInstruction.trim(),executor_preference:agentExecutor,approval_policy:'external'})});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Could not delegate work.');
       setAgentDrawer({work:data.work,dispatch:data.dispatch});await load();
@@ -174,10 +176,13 @@ export default function Work(){
       <PageHeader eyebrow="Agent work" title={agentDrawer.work?.title||'Work item'} subtitle={agentDrawer.dispatch?'Review the delegated work without leaving your canonical Work queue.':'Delegate this existing Work item to the agent workforce.'} actions={<button className="px-icon-button" onClick={()=>setAgentDrawer(null)}>×</button>}/>
       {!agentDrawer.dispatch?<div className="px-stack">
         <div className="px-field"><label>Instruction for the agent</label><textarea value={agentInstruction} onChange={e=>setAgentInstruction(e.target.value)} placeholder="Describe the draft, research, review or other work you want the agent to produce."/></div>
+        <div className="px-field"><label htmlFor="work-agent-executor">Executor</label><select id="work-agent-executor" value={agentExecutor} onChange={e=>setAgentExecutor(e.target.value)}><option value="auto">Best available</option><option value="openai">OpenAI remote errand</option><option value="local">Local Jake AI</option></select></div>
         <StateBanner tone="info" title="This stays in Work">Delegation creates an agent run linked to this same Work item. The agent result returns here for your review.</StateBanner>
         <div className="px-form-actions"><Button variant="secondary" onClick={()=>setAgentDrawer(null)}>Cancel</Button><Button icon="spark" onClick={delegateAgent} disabled={agentBusy||!agentInstruction.trim()}>{agentBusy?'Delegating…':'Delegate to agent'}</Button></div>
       </div>:<div className="px-stack">
-        <div className="px-row" style={{flexWrap:'wrap'}}><Pill tone="brand">{agentDrawer.dispatch.requested_agent_name}</Pill><Pill tone={agentDrawer.dispatch.state==='review'?'warning':agentDrawer.dispatch.state==='completed'?'success':agentDrawer.dispatch.state==='failed'||agentDrawer.dispatch.state==='blocked'?'danger':'info'}>{agentDrawer.dispatch.state}</Pill></div>
+        <div className="px-row" style={{flexWrap:'wrap'}}><Pill tone="brand">{agentDrawer.dispatch.requested_agent_name}</Pill><Pill>{agentDrawer.dispatch.executor_preference||'auto'} executor</Pill><Pill tone={agentDrawer.dispatch.state==='review'||agentDrawer.dispatch.state==='approval'?'warning':agentDrawer.dispatch.state==='completed'?'success':agentDrawer.dispatch.state==='failed'||agentDrawer.dispatch.state==='blocked'?'danger':'info'}>{agentDrawer.dispatch.state}</Pill>{agentDrawer.dispatch.model&&<Pill>{agentDrawer.dispatch.model}</Pill>}</div>
+        {(agentDrawer.dispatch.spent_usd!==undefined||agentDrawer.dispatch.tool_calls_used!==undefined)&&<div className="px-kicker">Estimated AI spend ${Number(agentDrawer.dispatch.spent_usd||0).toFixed(4)} / ${Number(agentDrawer.dispatch.max_cost_usd||0).toFixed(2)} · tools {Number(agentDrawer.dispatch.tool_calls_used||0)}/{Number(agentDrawer.dispatch.max_tool_calls||0)}</div>}
+        {agentDrawer.dispatch.state==='approval'&&<StateBanner tone="warning" title="Waiting for your approval">This errand requested an external or executive action. Approve or reject it from Agents before execution can continue.</StateBanner>}
         <div className="px-field"><label>Agent instruction</label><textarea readOnly value={agentDrawer.dispatch.request_text||''}/></div>
         {agentDrawer.dispatch.result_summary&&<StateBanner tone={agentDrawer.dispatch.state==='failed'||agentDrawer.dispatch.state==='blocked'?'danger':'info'} title={agentDrawer.dispatch.state==='review'?'Ready for review':'Agent update'}>{agentDrawer.dispatch.result_summary}</StateBanner>}
         {agentDrawer.dispatch.result_content&&<div className="px-field"><label>Deliverable</label><textarea readOnly rows={14} value={agentDrawer.dispatch.result_content}/></div>}

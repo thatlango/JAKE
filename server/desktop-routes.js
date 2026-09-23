@@ -4,6 +4,10 @@ const db=require('./db');
 const gcal=require('./gcal');
 const {rankItems,buildReason}=require('./priority');
 const {decorateWorkRows,getDispatchByWork}=require('./agent-work');
+const openaiErrands=require('./openai-errand-runner');
+const workspace=require('./google-workspace');
+const githubExecutor=require('./github-executor');
+const opsExecutor=require('./ops-executor');
 
 const router=express.Router();
 const statuses=new Set(['inbox','ready','doing','waiting','done','cancelled']);
@@ -105,12 +109,17 @@ router.patch('/finance/expenses/:id',async(req,res)=>{const existing=await db.ge
 router.delete('/finance/expenses/:id',async(req,res)=>{await db.del('expenses',text(req.params.id,120));res.json({ok:true});});
 router.patch('/finance/targets',async(req,res)=>{const target=await db.get('settings',{eq:{key:'finance_targets'}});let current={};try{current=target?.value?JSON.parse(target.value):{};}catch(error){current={};}const updatedTargets={...current};for(const key of ['quarterly','annual']){if(req.body[key]!==undefined)updatedTargets[key]=Number(req.body[key])||0;}if(req.body.currency!==undefined)updatedTargets.currency=text(req.body.currency,10)||'USD';await db.insert('settings',{key:'finance_targets',value:JSON.stringify(updatedTargets),updated_at:new Date().toISOString()},true);res.json({targets:updatedTargets});});
 
-router.get('/integrations/status',async(_,res)=>{const google=gcal.getStatus();res.json({integrations:[
+router.get('/integrations/status',async(_,res)=>{const google=gcal.getStatus(),workspaceStatus=workspace.status(),openai=openaiErrands.status();res.json({integrations:[
   {id:'tuku-core',name:'Tuku Core',category:'identity',configured:true,status:'connected',detail:'Identity and estate telemetry'},
   {id:'estate',name:'Tuku Estate telemetry',category:'data',configured:!!process.env.TUKU_ESTATE_INSIGHTS_SECRET,status:process.env.TUKU_ESTATE_INSIGHTS_SECRET?'connected':'action_required'},
   {id:'google-calendar',name:'Google Calendar',category:'calendar',configured:google.configured,connected:google.connected,email:google.email||null,writeEnabled:google.writeEnabled===true,status:google.connected?'connected':google.configured?'available':'action_required',detail:google.connected?`Connected${google.email?` as ${google.email}`:''}`:google.configured?'OAuth is ready — connect your Google account.':'Google OAuth client credentials are missing.'},
+  {id:'google-workspace',name:'Google Workspace · Gmail & Drive',category:'data',configured:workspaceStatus.configured,connected:workspaceStatus.connected,email:google.email||null,status:workspaceStatus.connected?'connected':workspaceStatus.configured?'available':'action_required',detail:workspaceStatus.connected?'Gmail and Drive are available to governed errands.':workspaceStatus.enabled?'Connect Google to activate Gmail and Drive.':'Enable JAKEOS_GOOGLE_WORKSPACE_EXTENDED before reconnecting Google.'},
   {id:'local-ai',name:'Jake local AI',category:'ai',configured:String(process.env.JAKEOS_AI_ENABLED||'true').toLowerCase()!=='false',status:String(process.env.JAKEOS_AI_ENABLED||'true').toLowerCase()!=='false'?'connected':'action_required',detail:process.env.JAKEOS_AI_MODEL||'qwen3:1.7b'},
-  {id:'groq',name:'Voice transcription',category:'ai',configured:!!process.env.GROQ_API_KEY,status:process.env.GROQ_API_KEY?'available':'action_required'},
+  {id:'openai-errands',name:'OpenAI Errand Executor',category:'ai',configured:openai.configured,status:openai.enabled?'connected':'action_required',detail:openai.enabled?`${openai.model} · governed web + tools + approvals`:'OPENAI_API_KEY is not configured on the JakeOS server.'},
+  {id:'github-errands',name:'GitHub Errand Actions',category:'data',configured:githubExecutor.configured(),status:githubExecutor.configured()?'available':'action_required',detail:githubExecutor.configured()?'Repository read/write tools are available behind approval policy.':'Configure JAKEOS_GITHUB_TOKEN to enable GitHub errands.'},
+  {id:'ops-executor',name:'Production Ops Executor',category:'data',configured:opsExecutor.config().configured,status:opsExecutor.config().configured?'available':'action_required',detail:opsExecutor.config().configured?'Host mutations route through the separate executive-approval executor.':'No host mutation executor configured; JakeOS remains read-only for production operations.'},
+  {id:'jakeos-mcp',name:'JakeOS MCP · ChatGPT bridge',category:'ai',configured:!!process.env.JAKEOS_MCP_TOKEN,status:process.env.JAKEOS_MCP_TOKEN?'available':'action_required',detail:process.env.JAKEOS_MCP_TOKEN?'Separate scoped MCP boundary is ready for an approved client connection.':'Provision JAKEOS_MCP_TOKEN to activate the ChatGPT/MCP bridge.'},
+  {id:'groq',name:'Voice transcription',category:'ai',configured:!!(process.env.GROQ_API_KEY||process.env.OPENAI_API_KEY),status:(process.env.GROQ_API_KEY||process.env.OPENAI_API_KEY)?'available':'action_required',detail:process.env.GROQ_API_KEY?'Groq whisper-large-v3':process.env.OPENAI_API_KEY?(process.env.OPENAI_TRANSCRIBE_MODEL||'gpt-4o-mini-transcribe'):'No transcription provider configured'},
   {id:'resend',name:'Email alerts',category:'alerts',configured:!!(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL),status:(process.env.RESEND_API_KEY&&process.env.ALERT_TO_EMAIL)?'available':'action_required'},
   {id:'telegram',name:'Telegram alerts',category:'alerts',configured:!!(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID),status:(process.env.TELEGRAM_BOT_TOKEN&&process.env.TELEGRAM_CHAT_ID)?'available':'action_required'},
   {id:'whatsapp',name:'WhatsApp alerts',category:'alerts',configured:!!(process.env.WHATSAPP_PHONE&&process.env.WHATSAPP_APIKEY),status:(process.env.WHATSAPP_PHONE&&process.env.WHATSAPP_APIKEY)?'available':'action_required'},

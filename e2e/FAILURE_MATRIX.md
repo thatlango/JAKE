@@ -121,3 +121,59 @@ The build is not considered verified merely because the React bundle compiles.
     - Expected: JakeOS surfaces evidence/recommendations and leaves the approve/decline/park/pursue decision to Jacob.
 54. Executive dashboard cannot be understood on mobile without horizontal scrolling.
     - Expected: no page-level horizontal overflow at 390px.
+
+
+## JakeOS Errands / remote-executor failures
+
+55. An errand is dispatched without a canonical Work item, run and dispatch linkage.
+    - Expected: every errand remains a canonical Work item with exactly one linked run and dispatch.
+56. A remote executor receives unrestricted credentials or a general JakeOS session.
+    - Expected: executors receive only scoped tool contracts; secrets stay server-side and are never written into prompts, traces or artifacts.
+57. A remote executor can invoke a tool outside the dispatch tool scope.
+    - Expected: default deny; ungranted tool calls are rejected and recorded in the audit trail.
+58. A consequential external action executes without approval.
+    - Expected: send/publish/submit/calendar-write/deploy/payment/access mutations pause and create an explicit approval decision before execution.
+59. An executive-only action is approved implicitly by a model.
+    - Expected: payment, legal acceptance, permission/access changes and irreversible production actions require a human resolution.
+60. A retried or restarted remote run repeats an already executed external action.
+    - Expected: action fingerprints and tool-audit idempotency prevent duplicate mutation.
+61. Untrusted web/email/document content changes the system/tool policy.
+    - Expected: external content is treated as data; system policy and tool scopes cannot be overridden by retrieved content.
+62. An errand exceeds its tool-call or cost budget silently.
+    - Expected: execution pauses with a budget blocker and records spend/tool-call counters.
+63. A remote executor claims a job while the local worker is already executing it.
+    - Expected: atomic claim/lease permits exactly one executor.
+64. A remote executor dies without releasing a lease.
+    - Expected: expired leases become claimable again and the run is visibly stale/recoverable.
+65. An errand reports completion without completion evidence when evidence is required.
+    - Expected: the result enters review with missing-evidence warning or is blocked; it is never auto-accepted.
+66. Agent output overwrites earlier versions.
+    - Expected: deliverables and tool evidence are versioned with hash/provenance and prior versions remain retrievable.
+67. Approval resolution does not resume the paused errand.
+    - Expected: approved actions are recorded and the same dispatch requeues; rejected actions remain stopped with a clear reason.
+68. An errand completion is only visible while JakeOS is open.
+    - Expected: completion/approval/blocker notifications are persisted and delivered through available configured channels.
+69. OpenAI is not configured.
+    - Expected: remote errands remain queued/blocked with a visible setup state; JakeOS does not fabricate remote execution.
+70. An unavailable optional connector (Gmail, Drive, GitHub, Ops) makes the whole runner fail.
+    - Expected: capability discovery omits unavailable tools and execution can continue with available scopes.
+71. Google Workspace write capability is enabled without account authorization.
+    - Expected: read/write tools remain unavailable until OAuth is connected with the required scopes.
+72. GitHub mutation is attempted with no configured GitHub service credential.
+    - Expected: tool is unavailable and no mutation is attempted.
+73. Production/VPS mutation is attempted directly from the JakeOS web container.
+    - Expected: only a separately configured approval-gated Ops executor may perform host mutations.
+74. MCP access exposes unrestricted JakeOS browser APIs.
+    - Expected: MCP has its own scoped authentication boundary and tool allowlist.
+75. ChatGPT/MCP write support is unavailable for the current ChatGPT plan/workspace.
+    - Expected: JakeOS MCP remains deployable and read tools usable where supported; core JakeOS→OpenAI errand execution does not depend on ChatGPT MCP availability.
+76. Remote agent traces expose secrets or full credential-bearing HTTP headers.
+    - Expected: traces are redacted and store only safe request/result summaries.
+77. A completed remote errand has no cost/tool trace.
+    - Expected: run detail exposes executor, model, tools used, cost estimate, artifacts, approvals and evidence.
+78. A remote executor can recursively create unlimited errands.
+    - Expected: spawned Work is limited, explicitly tagged, and cannot create remote descendants unless the parent scope allows it.
+79. A prompt asks the executor to disable security, grant itself permissions or expand tool scopes.
+    - Expected: scope expansion is impossible from model output; only server policy or a human configuration change can expand it.
+80. A destructive action is offered as a normal auto tool.
+    - Expected: delete/revoke/payment/deploy/access mutations are either absent or executive-only by policy.
