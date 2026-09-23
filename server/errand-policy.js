@@ -8,6 +8,7 @@ const ACTION_CLASS=Object.freeze({
 });
 
 const TOOL_CATALOG=Object.freeze({
+  openai_web_search:{scope:'web:search',actionClass:ACTION_CLASS.READ},
   jakeos_search:{scope:'jakeos:read',actionClass:ACTION_CLASS.READ},
   jakeos_get_context:{scope:'jakeos:read',actionClass:ACTION_CLASS.READ},
   jakeos_list_work:{scope:'work:read',actionClass:ACTION_CLASS.READ},
@@ -37,7 +38,7 @@ const TOOL_CATALOG=Object.freeze({
 });
 
 const DEFAULT_SCOPES=Object.freeze([
-  'jakeos:read','work:read','work:write',
+  'web:search','jakeos:read','work:read','work:write',
   'opportunities:read','opportunities:write',
   'crm:read','crm:write',
   'calendar:read',
