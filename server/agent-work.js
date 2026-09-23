@@ -279,7 +279,7 @@ const AGENT_PROMPTS={
 async function executeLocalDispatch(){
   if(workerBusy)return;workerBusy=true;
   try{
-    const candidate=(await db.query(`SELECT id FROM agent_work_dispatches WHERE state='queued' AND local_executable=TRUE ORDER BY created_at ASC LIMIT 1`)).rows[0];
+    const candidate=(await db.query(`SELECT id FROM agent_work_dispatches WHERE state='queued' AND local_executable=TRUE AND COALESCE(executor_preference,'auto') IN ('auto','local') ORDER BY created_at ASC LIMIT 1`)).rows[0];
     if(!candidate)return;
     let dispatch;
     try{dispatch=await claimDispatch(candidate.id,'jakeos-local-worker',300);}catch{return;}
@@ -312,4 +312,4 @@ function startAgentWorkWorker(){
   console.log('[AgentWorker] local fallback enabled');
 }
 
-module.exports={agentWorkBrowserRouter,agentWorkConnectorRouter,startAgentWorkWorker,decorateWorkRows,getDispatchByWork,routeAgent,AGENTS};
+module.exports={agentWorkBrowserRouter,agentWorkConnectorRouter,startAgentWorkWorker,decorateWorkRows,getDispatchByWork,getDispatch,getWork,claimDispatch,submitResult,recordAgentEvent,recordWorkEvent,routeAgent,deliverableType,cleanRequest,createJakeDelegation,createDispatchForWork,AGENTS};
