@@ -34,8 +34,16 @@ const runs = {
 
 const decisions = {
   decisions: [
-    { id: 'decision-1', title: 'UNICEF prime-partner route', status: 'open', priority: 'high', recommendation: 'Continue only until partner gate', due_at: '2026-09-23T14:00:00Z' }
+    { id: 'decision-1', title: 'UNICEF prime-partner route', status: 'open', priority: 'high', recommendation: 'Continue only until partner gate', due_at: '2026-09-23T14:00:00Z' },
+    { id: 'decision-2', title: 'Approve external action: gmail send', status: 'open', priority: 'high', recommendation: 'Review the message before allowing send.', metadata: { type: 'tool_approval', action_class: 'external_write', tool_name: 'gmail_send', args: { to: 'client@example.com', subject: 'Follow-up' } } }
   ]
+};
+
+const errandStatus = {
+  openai: { configured: true, enabled: true, executor_id: 'openai-remote', model: 'gpt-5.6-terra', default_max_cost_usd: 2, default_max_tool_calls: 24 },
+  queue: { queued: 2, working: 1, approval: 1, review: 1 },
+  connectors: { google_calendar: { connected: true }, google_workspace: { connected: true }, github: { configured: true }, ops: { configured: false } },
+  tools: []
 };
 
 async function mockJson(page, pattern, body, status = 200) {
@@ -50,6 +58,12 @@ async function installMocks(page, options = {}) {
   await mockJson(page, '**/api/agents/runs*', runs);
   await mockJson(page, '**/api/agents/decisions*', decisions);
   await mockJson(page, '**/api/agents/work*', { dispatches: [] });
+  await mockJson(page, '**/api/errands/status', errandStatus);
+  await mockJson(page, '**/api/jake/delegate', {
+    reply: 'Added to Work and assigned to Document & Knowledge.',
+    work: { id: 'work-errand-1', title: 'Research a client' },
+    dispatch: { id: 'dispatch-errand-1', run_id: 'run-errand-1', requested_agent_name: 'Document & Knowledge', executor_preference: 'openai', state: 'queued' }
+  });
   await mockJson(page, '**/api/work/today*', { priorities: [
     { id: 'w1', title: 'Finish LendFlow production cutover', status: 'doing', priority: 'critical', estimated_minutes: 30, project_name: 'LendFlow', due_at: '2026-09-23T17:00:00Z', metadata: { outcome_type: 'delivery', completion_definition: 'Production smoke test passes' } },
     { id: 'w2', title: 'Approve consultant network launch copy', status: 'waiting', priority: 'high', estimated_minutes: 15, project_name: 'Tuku-Tuku', metadata: { outcome_type: 'decision', decision_required: true } }
@@ -117,6 +131,10 @@ test('Agents is an additive section with live states, runs and decisions', async
   await expect(page.getByText('UNICEF Agora RFPS 503950').first()).toBeVisible();
   await expect(page.getByText('Premium Moodle Partner evidence not verified').first()).toBeVisible();
   await expect(page.getByText('UNICEF prime-partner route').first()).toBeVisible();
+  await expect(page.getByText('Approval gate')).toBeVisible();
+  await expect(page.getByText('Approve external action: gmail send')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve & resume' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reject' })).toBeVisible();
 });
 
 test('agent API failure stays inside the Agents section', async ({ page }) => {
@@ -172,4 +190,23 @@ test('Work captures outcome, completion, market and delegation intent', async ({
   await expect(page.getByLabel('Outcome')).toHaveValue('market');
   await expect(page.getByLabel('Market stage')).toHaveValue('submit');
   await expect(page.getByLabel('Execution mode')).toHaveValue('agent');
+});
+
+
+test('Ask Jake can create a governed OpenAI errand from the command surface', async ({ page }) => {
+  await installMocks(page);
+  await page.goto('/');
+
+  await page.getByRole('button', { name: /Ask Jake/i }).first().click();
+  await expect(page.getByRole('button', { name: 'Errand mode' })).toBeVisible();
+  await page.getByRole('button', { name: 'Errand mode' }).click();
+  await page.getByLabel('Errand executor').selectOption('openai');
+
+  const composer=page.locator('.px-jake-input textarea');
+  await composer.fill('Research the client and bring back evidence.');
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  await expect(page.getByText('Added to Work and assigned to Document & Knowledge.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Work' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Agents' })).toBeVisible();
 });
