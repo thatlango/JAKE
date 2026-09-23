@@ -4,6 +4,7 @@ const crypto=require('crypto');
 const db=require('./db');
 const localAi=require('./ai');
 const {broadcastAgentEvent}=require('./agent-control');
+const {defaultScopesFor,normalizeScopes}=require('./errand-policy');
 
 const agentWorkBrowserRouter=express.Router();
 const agentWorkConnectorRouter=express.Router();
@@ -78,7 +79,7 @@ async function recordAgentEvent(client,{runId,agentId,agentName,eventType,state,
   if(event)queueMicrotask(()=>broadcastAgentEvent(event));
   return event;
 }
-async function createDispatchForWork(workId,{requestText,agentId,requestKey=null,requestedBy='jake',deliverable=null}={}){
+async function createDispatchForWork(workId,{requestText,agentId,requestKey=null,requestedBy='jake',deliverable=null,executorPreference='auto',approvalPolicy='external',toolScopes=null,maxCostUsd=null,maxToolCalls=null}={}){
   const existing=await getDispatchByWork(workId);
   if(existing&&['queued','working','review','blocked','failed'].includes(existing.state))return{dispatch:existing,replayed:true};
   const work=await getWork(workId);
@@ -87,10 +88,16 @@ async function createDispatchForWork(workId,{requestText,agentId,requestKey=null
   const agent=AGENTS[chosen];
   const request=cleanRequest(requestText||work.description||work.title);
   const type=deliverable||deliverableType(request);
+  const meta=work.metadata&&typeof work.metadata==='object'?work.metadata:{};
+  const executor=['auto','local','openai','external'].includes(executorPreference)?executorPreference:'auto';
+  const approval=['auto','evidence','external','executive'].includes(approvalPolicy)?approvalPolicy:'external';
+  const scopes=normalizeScopes(Array.isArray(toolScopes)&&toolScopes.length?toolScopes:defaultScopesFor({outcomeType:meta.outcome_type,marketStage:meta.market_stage,requestedAgentId:chosen}));
+  const budget=Math.max(0.05,Math.min(100,Number(maxCostUsd)||Number(process.env.OPENAI_ERRAND_DEFAULT_MAX_COST_USD)||2));
+  const toolBudget=Math.max(1,Math.min(100,Number(maxToolCalls)||Number(process.env.OPENAI_ERRAND_DEFAULT_MAX_TOOL_CALLS)||24));
   return db.withTransaction(async client=>{
     const runId=existing?.run_id||makeId('run');
     if(existing){
-      const row=(await client.query(`UPDATE agent_work_dispatches SET request_key=COALESCE($2,request_key),requested_agent_id=$3,requested_agent_name=$4,request_text=$5,deliverable_type=$6,state='queued',executor_id=NULL,lease_expires_at=NULL,claimed_at=NULL,completed_at=NULL,failure_reason=NULL,requested_by=$7,local_executable=$8,updated_at=NOW() WHERE id=$1 RETURNING *`,[existing.id,requestKey,chosen,agent.name,request,type,requestedBy,agent.local])).rows[0];
+      const row=(await client.query(`UPDATE agent_work_dispatches SET request_key=COALESCE($2,request_key),requested_agent_id=$3,requested_agent_name=$4,request_text=$5,deliverable_type=$6,state='queued',executor_id=NULL,lease_expires_at=NULL,claimed_at=NULL,completed_at=NULL,failure_reason=NULL,requested_by=$7,local_executable=$8,remote_executable=$9,executor_preference=$10,approval_policy=$11,tool_scopes=$12::jsonb,max_cost_usd=$13,max_tool_calls=$14,pending_action=NULL,response_state=NULL,updated_at=NOW() WHERE id=$1 RETURNING *`,[existing.id,requestKey,chosen,agent.name,request,type,requestedBy,agent.local&&executor!=='openai',executor!=='local',executor,approval,JSON.stringify(scopes),budget,toolBudget])).rows[0];
       await client.query(`UPDATE agent_runs SET status='queued',progress=0,current_agent=$2,blockers_count=0,completed_at=NULL,updated_at=NOW() WHERE id=$1`,[runId,chosen]);
       await client.query(`UPDATE work_items SET status='ready',blocked=FALSE,blocked_reason='',updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1`,[workId]);
       await recordWorkEvent(client,workId,'agent_requeued',{dispatch_id:row.id,agent_id:chosen});
@@ -100,15 +107,15 @@ async function createDispatchForWork(workId,{requestText,agentId,requestKey=null
     await client.query(`INSERT INTO agent_runs(id,title,status,progress,context_type,context_ref,current_agent,blockers_count,evidence_required,metadata,started_at,created_at,updated_at)
       VALUES($1,$2,'queued',0,'work_item',$3,$4,0,TRUE,$5::jsonb,NULL,NOW(),NOW())`,[runId,work.title,workId,chosen,JSON.stringify({work_item_id:workId,deliverable_type:type})]);
     const dispatchId=makeId('dispatch');
-    const row=(await client.query(`INSERT INTO agent_work_dispatches(id,work_item_id,run_id,request_key,requested_agent_id,requested_agent_name,request_text,deliverable_type,state,local_executable,requested_by)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,$10) RETURNING *`,[dispatchId,workId,runId,requestKey,chosen,agent.name,request,type,agent.local,requestedBy])).rows[0];
+    const row=(await client.query(`INSERT INTO agent_work_dispatches(id,work_item_id,run_id,request_key,requested_agent_id,requested_agent_name,request_text,deliverable_type,state,local_executable,remote_executable,executor_preference,approval_policy,tool_scopes,max_cost_usd,max_tool_calls,requested_by)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,$10,$11,$12,$13::jsonb,$14,$15,$16) RETURNING *`,[dispatchId,workId,runId,requestKey,chosen,agent.name,request,type,agent.local&&executor!=='openai',executor!=='local',executor,approval,JSON.stringify(scopes),budget,toolBudget,requestedBy])).rows[0];
     await client.query(`UPDATE work_items SET status='ready',source=CASE WHEN source='jakeos' THEN source ELSE source END,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1`,[workId]);
     await recordWorkEvent(client,workId,'agent_delegated',{dispatch_id:dispatchId,run_id:runId,agent_id:chosen,agent_name:agent.name,deliverable_type:type});
     await recordAgentEvent(client,{runId,agentId:chosen,agentName:agent.name,eventType:'work_queued',state:'queued',summary:'Work queued from JakeOS',metadata:{work_item_id:workId,dispatch_id:dispatchId}});
     return{dispatch:row,replayed:false};
   });
 }
-async function createJakeDelegation({requestId,request,module='dashboard'}){
+async function createJakeDelegation({requestId,request,module='dashboard',executorPreference='auto',approvalPolicy='external',toolScopes=null,maxCostUsd=null,maxToolCalls=null}){
   const req=cleanRequest(request);
   if(!req)throw Object.assign(new Error('Request is required'),{status:422});
   if(requestId){
@@ -116,6 +123,11 @@ async function createJakeDelegation({requestId,request,module='dashboard'}){
     if(existing)return{work:await getWork(existing.work_item_id),dispatch:existing,replayed:true};
   }
   const agentId=routeAgent(req),agent=AGENTS[agentId],workId=makeId('work');
+  const executor=['auto','local','openai','external'].includes(executorPreference)?executorPreference:'auto';
+  const approval=['auto','evidence','external','executive'].includes(approvalPolicy)?approvalPolicy:'external';
+  const scopes=normalizeScopes(Array.isArray(toolScopes)&&toolScopes.length?toolScopes:defaultScopesFor({requestedAgentId:agentId}));
+  const budget=Math.max(0.05,Math.min(100,Number(maxCostUsd)||Number(process.env.OPENAI_ERRAND_DEFAULT_MAX_COST_USD)||2));
+  const toolBudget=Math.max(1,Math.min(100,Number(maxToolCalls)||Number(process.env.OPENAI_ERRAND_DEFAULT_MAX_TOOL_CALLS)||24));
   return db.withTransaction(async client=>{
     const work=(await client.query(`INSERT INTO work_items(id,title,description,status,priority,impact,strategic_weight,estimated_minutes,source,source_ref,tags,metadata,last_touched_at)
       VALUES($1,$2,$3,'ready','medium',3,3,45,'jake-ai',$4,$5::jsonb,$6::jsonb,NOW()) RETURNING *`,[
@@ -124,8 +136,8 @@ async function createJakeDelegation({requestId,request,module='dashboard'}){
     const runId=makeId('run'),dispatchId=makeId('dispatch'),type=deliverableType(req);
     await client.query(`INSERT INTO agent_runs(id,title,status,progress,context_type,context_ref,current_agent,blockers_count,evidence_required,metadata,created_at,updated_at)
       VALUES($1,$2,'queued',0,'work_item',$3,$4,0,TRUE,$5::jsonb,NOW(),NOW())`,[runId,work.title,workId,agentId,JSON.stringify({work_item_id:workId,deliverable_type:type})]);
-    const dispatch=(await client.query(`INSERT INTO agent_work_dispatches(id,work_item_id,run_id,request_key,requested_agent_id,requested_agent_name,request_text,deliverable_type,state,local_executable,requested_by)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,'jake-ai') RETURNING *`,[dispatchId,workId,runId,requestId||null,agentId,agent.name,req,type,agent.local])).rows[0];
+    const dispatch=(await client.query(`INSERT INTO agent_work_dispatches(id,work_item_id,run_id,request_key,requested_agent_id,requested_agent_name,request_text,deliverable_type,state,local_executable,remote_executable,executor_preference,approval_policy,tool_scopes,max_cost_usd,max_tool_calls,requested_by)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,$10,$11,$12,$13::jsonb,$14,$15,'jake-ai') RETURNING *`,[dispatchId,workId,runId,requestId||null,agentId,agent.name,req,type,agent.local&&executor!=='openai',executor!=='local',executor,approval,JSON.stringify(scopes),budget,toolBudget])).rows[0];
     await recordWorkEvent(client,workId,'created',{actor:'jake-ai'});
     await recordWorkEvent(client,workId,'agent_delegated',{dispatch_id:dispatchId,run_id:runId,agent_id:agentId,agent_name:agent.name,deliverable_type:type});
     await recordAgentEvent(client,{runId,agentId,agentName:agent.name,eventType:'work_queued',state:'queued',summary:'Jake delegated work to '+agent.name,metadata:{work_item_id:workId,dispatch_id:dispatchId}});
@@ -171,7 +183,7 @@ async function submitResult(id,{executorId,status='review',summary='',resultCont
 
 agentWorkBrowserRouter.post('/jake/delegate',async(req,res)=>{
   try{
-    const result=await createJakeDelegation({requestId:text(req.body.request_id,200)||null,request:req.body.request,module:text(req.body.module,80)||'dashboard'});
+    const result=await createJakeDelegation({requestId:text(req.body.request_id,200)||null,request:req.body.request,module:text(req.body.module,80)||'dashboard',executorPreference:text(req.body.executor_preference,40)||'auto',approvalPolicy:text(req.body.approval_policy,40)||'external',toolScopes:Array.isArray(req.body.tool_scopes)?req.body.tool_scopes:null,maxCostUsd:req.body.max_cost_usd,maxToolCalls:req.body.max_tool_calls});
     res.status(result.replayed?200:201).json({...result,reply:'Added to Work and assigned to '+result.dispatch.requested_agent_name+'.'});
   }catch(error){res.status(error.status||500).json({error:error.message||'Could not delegate work'});}
 });
@@ -195,7 +207,7 @@ agentWorkBrowserRouter.get('/work/items/:id/agent',async(req,res)=>{
 agentWorkBrowserRouter.post('/work/items/:id/delegate',async(req,res)=>{
   try{
     const workId=text(req.params.id,120);
-    const result=await createDispatchForWork(workId,{requestText:req.body.request_text||req.body.instruction,agentId:text(req.body.agent_id,120)||null,requestKey:text(req.body.request_id,200)||null,requestedBy:'jakeos-web',deliverable:text(req.body.deliverable_type,80)||null});
+    const result=await createDispatchForWork(workId,{requestText:req.body.request_text||req.body.instruction,agentId:text(req.body.agent_id,120)||null,requestKey:text(req.body.request_id,200)||null,requestedBy:'jakeos-web',deliverable:text(req.body.deliverable_type,80)||null,executorPreference:text(req.body.executor_preference,40)||'auto',approvalPolicy:text(req.body.approval_policy,40)||'external',toolScopes:Array.isArray(req.body.tool_scopes)?req.body.tool_scopes:null,maxCostUsd:req.body.max_cost_usd,maxToolCalls:req.body.max_tool_calls});
     res.status(result.replayed?200:201).json({work:await getWork(workId),...result});
   }catch(error){res.status(error.status||500).json({error:error.message||'Could not delegate work'});}
 });
