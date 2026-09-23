@@ -37,8 +37,9 @@ async function daySnapshot(now=new Date()){
   const futureTasks=tasks.filter(x=>new Date(x.scheduled_start)>now);
   const futureEvents=events.filter(x=>new Date(x.starts_at)>now);
   const nextTask=futureTasks[0]||null,nextExternal=futureEvents.find(x=>x.source!=='jakeos-day-planner')||null,nextAnchor=futureEvents.find(x=>x.source==='jakeos-day-planner')||null;
+  const nextTaskAnchor=nextTask?events.find(e=>e.source==='jakeos-day-planner'&&new Date(e.starts_at)<=new Date(nextTask.scheduled_start)&&new Date(e.ends_at)>=new Date(nextTask.scheduled_end)):null;
   const candidates=[
-    nextTask?asDayActivity(nextTask,'task',now,null):null,
+    nextTask?asDayActivity(nextTask,'task',now,nextTaskAnchor?.title||null):null,
     nextExternal?asDayActivity(nextExternal,'event',now,null):null,
     nextAnchor?asDayActivity(nextAnchor,'block',now,null):null
   ].filter(Boolean).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at)||({task:0,event:1,block:2}[a.kind]-({task:0,event:1,block:2}[b.kind])));
