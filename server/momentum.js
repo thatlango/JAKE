@@ -15,6 +15,43 @@ function validDate(value){if(!value)return null;const d=new Date(value);return N
 function bool(value){return value===true||value===1||value==='1'||String(value).toLowerCase()==='true';}
 function array(value,max=20){return Array.isArray(value)?value.slice(0,max):[];}
 function object(value){return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}
+function localDateInTimeZone(date=new Date(),timeZone='Africa/Kampala'){const parts=new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date),map={};for(const part of parts)if(part.type!=='literal')map[part.type]=part.value;return `${map.year}-${map.month}-${map.day}`;}
+function minutesUntil(end,now){if(!end)return null;const value=Math.ceil((new Date(end)-now)/60000);return Number.isFinite(value)?Math.max(0,value):null;}
+function asDayActivity(row,kind,now,blockTitle=null){if(!row)return null;const start=row.scheduled_start||row.starts_at||null,end=row.scheduled_end||row.ends_at||null;return{kind,id:row.id,title:row.title,subtitle:row.project_name||row.project||row.why_now||null,starts_at:start,ends_at:end,type:row.type||null,source:row.source||null,task_id:kind==='task'?row.id:null,block_title:blockTitle,minutes_remaining:end&&new Date(start)<=now&&new Date(end)>now?minutesUntil(end,now):null};}
+async function daySnapshot(now=new Date()){
+  const timezone=process.env.JOBS_TIMEZONE||'Africa/Kampala',date=localDateInTimeZone(now,timezone),nowIso=now.toISOString();
+  const[eventsResult,tasksResult]=await Promise.all([
+    db.query(`SELECT id,title,date,project,type,done,notes,starts_at,ends_at,all_day,source FROM calendar_events WHERE done=FALSE AND starts_at IS NOT NULL AND ends_at IS NOT NULL AND (starts_at AT TIME ZONE $2)::date=$1::date ORDER BY starts_at,CASE WHEN source='jakeos-day-planner' THEN 1 ELSE 0 END`,[date,timezone]),
+    db.query(`SELECT wi.*,p.name AS project_name,COALESCE(wi.metadata->'day_plan'->>'reason','') AS why_now FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status NOT IN ('done','cancelled') AND wi.scheduled_start IS NOT NULL AND wi.scheduled_end IS NOT NULL AND (wi.scheduled_start AT TIME ZONE $2)::date=$1::date ORDER BY wi.scheduled_start`,[date,timezone])
+  ]);
+  const events=eventsResult.rows,tasks=tasksResult.rows;
+  const activeEvents=events.filter(x=>new Date(x.starts_at)<=now&&new Date(x.ends_at)>now);
+  const currentExternal=activeEvents.find(x=>x.source!=='jakeos-day-planner')||null;
+  const currentAnchor=activeEvents.find(x=>x.source==='jakeos-day-planner')||null;
+  const currentTask=tasks.find(x=>new Date(x.scheduled_start)<=now&&new Date(x.scheduled_end)>now)||null;
+  let doNow=null;
+  if(currentTask)doNow=asDayActivity(currentTask,'task',now,currentAnchor?.title||currentExternal?.title||null);
+  else if(currentExternal)doNow=asDayActivity(currentExternal,'event',now,currentAnchor?.title||null);
+  else if(currentAnchor)doNow=asDayActivity(currentAnchor,'block',now,null);
+
+  const futureTasks=tasks.filter(x=>new Date(x.scheduled_start)>now);
+  const futureEvents=events.filter(x=>new Date(x.starts_at)>now);
+  const nextTask=futureTasks[0]||null,nextExternal=futureEvents.find(x=>x.source!=='jakeos-day-planner')||null,nextAnchor=futureEvents.find(x=>x.source==='jakeos-day-planner')||null;
+  const candidates=[
+    nextTask?asDayActivity(nextTask,'task',now,null):null,
+    nextExternal?asDayActivity(nextExternal,'event',now,null):null,
+    nextAnchor?asDayActivity(nextAnchor,'block',now,null):null
+  ].filter(Boolean).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at)||({task:0,event:1,block:2}[a.kind]-({task:0,event:1,block:2}[b.kind])));
+  const upNext=candidates[0]||null;
+
+  const timeline=[
+    ...events.map(x=>asDayActivity(x,x.source==='jakeos-day-planner'?'block':'event',now,null)),
+    ...tasks.map(x=>asDayActivity(x,'task',now,events.find(e=>e.source==='jakeos-day-planner'&&new Date(e.starts_at)<=new Date(x.scheduled_start)&&new Date(e.ends_at)>=new Date(x.scheduled_end))?.title||null))
+  ].sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at)||({task:0,event:1,block:2}[a.kind]-({task:0,event:1,block:2}[b.kind])));
+
+  return{generated_at:nowIso,timezone,date,workday:{starts_at:'07:30',ends_at:'18:30'},do_now:doNow,up_next:upNext,current_block:currentAnchor?asDayActivity(currentAnchor,'block',now,null):null,current_event:currentExternal?asDayActivity(currentExternal,'event',now,currentAnchor?.title||null):null,current_task:currentTask?asDayActivity(currentTask,'task',now,currentAnchor?.title||null):null,timeline};
+}
+
 const ALLOWED_STATUS=new Set(['inbox','ready','doing','waiting','done','cancelled']),ALLOWED_PRIORITY=new Set(['low','medium','high','critical']);
 function normalizeWorkItem(body,{existing=null,source='momentum'}={}){const status=cleanString(body.status??existing?.status??'inbox',20).toLowerCase(),priority=cleanString(body.priority??existing?.priority??'medium',20).toLowerCase();return{id:cleanString(body.id||existing?.id||id('wi'),100),project_id:cleanString(body.project_id??body.projectId??existing?.project_id??'',120)||null,parent_id:cleanString(body.parent_id??body.parentId??existing?.parent_id??'',120)||null,title:cleanString(body.title??body.text??existing?.title??'',500),description:cleanString(body.description??existing?.description??'',5000),status:ALLOWED_STATUS.has(status)?status:'inbox',priority:ALLOWED_PRIORITY.has(priority)?priority:'medium',impact:asInt(body.impact??existing?.impact,3,1,5),strategic_weight:asInt(body.strategic_weight??body.strategicWeight??existing?.strategic_weight,3,1,5),estimated_minutes:asInt(body.estimated_minutes??body.estimatedMinutes??existing?.estimated_minutes,30,5,480),due_at:validDate(body.due_at??body.dueAt??existing?.due_at),scheduled_start:validDate(body.scheduled_start??body.scheduledStart??existing?.scheduled_start),scheduled_end:validDate(body.scheduled_end??body.scheduledEnd??existing?.scheduled_end),deferred_until:validDate(body.deferred_until??body.deferredUntil??existing?.deferred_until),blocked:bool(body.blocked??existing?.blocked??false),blocked_reason:cleanString(body.blocked_reason??body.blockedReason??existing?.blocked_reason??'',1000),pinned:bool(body.pinned??existing?.pinned??false),context_url:cleanString(body.context_url??body.contextUrl??existing?.context_url??'',2000),source:cleanString(body.source??existing?.source??source,100)||source,source_ref:cleanString(body.source_ref??body.sourceRef??existing?.source_ref??'',300)||null,tags:array(body.tags??existing?.tags,30).map(v=>cleanString(v,80)).filter(Boolean),metadata:object(body.metadata??existing?.metadata)};}
 async function upsertWorkItem(item,eventType='upsert',eventPayload={}){const sql=`INSERT INTO work_items(id,project_id,parent_id,title,description,status,priority,impact,strategic_weight,estimated_minutes,due_at,scheduled_start,scheduled_end,deferred_until,blocked,blocked_reason,pinned,context_url,source,source_ref,tags,metadata,completed_at,updated_at,last_touched_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,CASE WHEN $6='done' THEN NOW() ELSE NULL END,NOW(),NOW()) ON CONFLICT(id) DO UPDATE SET project_id=EXCLUDED.project_id,parent_id=EXCLUDED.parent_id,title=EXCLUDED.title,description=EXCLUDED.description,status=EXCLUDED.status,priority=EXCLUDED.priority,impact=EXCLUDED.impact,strategic_weight=EXCLUDED.strategic_weight,estimated_minutes=EXCLUDED.estimated_minutes,due_at=EXCLUDED.due_at,scheduled_start=EXCLUDED.scheduled_start,scheduled_end=EXCLUDED.scheduled_end,deferred_until=EXCLUDED.deferred_until,blocked=EXCLUDED.blocked,blocked_reason=EXCLUDED.blocked_reason,pinned=EXCLUDED.pinned,context_url=EXCLUDED.context_url,source=EXCLUDED.source,source_ref=EXCLUDED.source_ref,tags=EXCLUDED.tags,metadata=EXCLUDED.metadata,completed_at=CASE WHEN EXCLUDED.status='done' THEN COALESCE(work_items.completed_at,NOW()) ELSE NULL END,updated_at=NOW(),last_touched_at=NOW(),version=work_items.version+1 RETURNING *`;const values=[item.id,item.project_id,item.parent_id,item.title,item.description,item.status,item.priority,item.impact,item.strategic_weight,item.estimated_minutes,item.due_at,item.scheduled_start,item.scheduled_end,item.deferred_until,item.blocked,item.blocked_reason,item.pinned,item.context_url,item.source,item.source_ref,JSON.stringify(item.tags),JSON.stringify(item.metadata)];const saved=(await db.query(sql,values)).rows[0];await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[saved.id,eventType,JSON.stringify(eventPayload)]);return saved;}
@@ -54,6 +91,7 @@ async function executeJakeActions(actions,userKey){
 }
 router.use(rateLimit({windowMs:60000,limit:240,standardHeaders:'draft-7',legacyHeaders:false}));router.use(momentumAuth());
 router.get('/health',async(req,res)=>res.json({status:'ok',service:'momentum-api',user:req.momentumUser,db:await db.ping(),time:new Date().toISOString()}));
+router.get('/day',async(_req,res)=>{try{res.set('Cache-Control','no-store').json(await daySnapshot());}catch(error){res.status(500).json({error:'Day plan unavailable',detail:process.env.NODE_ENV==='development'?error.message:undefined});}});
 router.get('/today',async(req,res)=>{const now=new Date(),limit=asInt(req.query.limit,7,1,20),[items,availableMinutes]=await Promise.all([candidateItems(now),nextAvailableMinutes(now)]),ranked=rankItems(items,{now,limit,availableMinutes}).map(item=>({...item,why_now:buildReason(item)}));res.json({generated_at:now.toISOString(),available_minutes_before_next_commitment:availableMinutes,priorities:ranked});});
 router.get('/inbox',async(req,res)=>res.json({items:(await db.query(`SELECT wi.*,p.name AS project_name FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status='inbox' ORDER BY wi.created_at DESC LIMIT $1`,[asInt(req.query.limit,100,1,300)])).rows}));
 router.get('/tasks/:id',async(req,res)=>{const item=await getWorkItem(req.params.id);if(!item)return res.status(404).json({error:'Task not found'});const events=await db.query('SELECT event_type,payload,created_at FROM work_item_events WHERE work_item_id=$1 ORDER BY created_at DESC LIMIT 50',[item.id]);res.json({item,history:events.rows});});
