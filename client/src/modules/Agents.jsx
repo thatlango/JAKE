@@ -7,15 +7,16 @@ const titleCase=value=>String(value||'').replace(/[_-]+/g,' ').replace(/\b\w/g,m
 const tone=value=>{
   if(['working','completed','in_progress'].includes(value))return 'success';
   if(['blocked','failed','stale'].includes(value))return 'danger';
-  if(['waiting','queued','verification'].includes(value))return 'warning';
+  if(['waiting','queued','verification','approval'].includes(value))return 'warning';
   return 'neutral';
 };
 
 export default function Agents({openAI}){
-  const[state,setState]=useState({overview:null,runs:[],decisions:[],delegated:[]});
+  const[state,setState]=useState({overview:null,runs:[],decisions:[],delegated:[],runtime:null});
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState('');
   const[live,setLive]=useState('connecting');
+  const[busy,setBusy]=useState('');
 
   const load=useCallback(async()=>{
     setLoading(true);setError('');
@@ -26,13 +27,14 @@ export default function Agents({openAI}){
         if(!r.ok)throw new Error(d.error||(url+' returned '+r.status));
         return d;
       };
-      const[overview,runs,decisions,delegated]=await Promise.all([
+      const[overview,runs,decisions,delegated,runtime]=await Promise.all([
         get('/api/agents/overview'),
         get('/api/agents/runs?limit=20'),
         get('/api/agents/decisions?status=open'),
-        get('/api/agents/work?limit=30')
+        get('/api/agents/work?limit=40'),
+        get('/api/errands/status')
       ]);
-      setState({overview,runs:runs.runs||[],decisions:decisions.decisions||[],delegated:delegated.dispatches||[]});
+      setState({overview,runs:runs.runs||[],decisions:decisions.decisions||[],delegated:delegated.dispatches||[],runtime});
     }catch(err){setError(err.message||'Agent telemetry unavailable.');}
     setLoading(false);
   },[]);
@@ -61,10 +63,23 @@ export default function Agents({openAI}){
     return()=>stream?.close();
   },[]);
 
+  const resolveDecision=async(item,approved)=>{
+    if(busy)return;setBusy(item.id);setError('');
+    try{
+      const response=await fetch('/api/agents/decisions/'+encodeURIComponent(item.id)+'/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved,status:'resolved',resolution:approved?'Approved by Jacob':'Rejected by Jacob'})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Decision could not be resolved.');
+      await load();
+    }catch(err){setError(err.message||'Decision could not be resolved.');}
+    setBusy('');
+  };
   const overview=state.overview||{},totals=overview.totals||{},agents=overview.agents||[],activity=overview.activity||[];
   const activeAgents=agents.filter(agent=>agent.state||agent.current_work);
   const activeRun=state.runs.find(run=>['in_progress','verification','blocked'].includes(run.status))||state.runs[0]||null;
   const groups=useMemo(()=>activeAgents.reduce((acc,agent)=>{const key=agent.group||'Other';(acc[key]??=[]).push(agent);return acc;},{}),[activeAgents]);
+  const openai=state.runtime?.openai||{},queue=state.runtime?.queue||{};
+  const approvals=state.decisions.filter(item=>item.metadata?.type==='tool_approval');
+  const normalDecisions=state.decisions.filter(item=>item.metadata?.type!=='tool_approval');
 
   return <div className="module agents-page">
     <PageHeader
