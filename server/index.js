@@ -15,6 +15,7 @@ const {accountsRouter}=require('./accounts');
 const {subscriptionRouter,momentumSubscriptionRouter}=require('./ops-subscriptions');
 const {opportunitiesConnectorRouter}=require('./opportunities-connector');
 const {opportunitiesMcpRouter}=require('./opportunities-mcp');
+const {jakeosMcpRouter}=require('./jakeos-mcp');
 const {opportunityIntakeRouter}=require('./opportunity-intake-router');
 const {authenticateOpportunityConnector}=require('./opportunities-connector-auth');
 const {agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector}=require('./agent-control');
@@ -48,6 +49,7 @@ app.use('/api/integrations/v1',integrationsRouter);
 // Each token is scoped to its own connector and cannot access general JakeOS APIs.
 app.use('/api/connectors/v1/opportunities',authenticateOpportunityConnector,opportunitiesConnectorRouter);
 app.use('/mcp/opportunities',authenticateOpportunityConnector,opportunitiesMcpRouter);
+app.use('/mcp/jakeos',jakeosMcpRouter);
 app.use('/api/connectors/v1/opportunity-intake',authenticateOpportunityConnector,opportunityIntakeRouter);
 app.use('/api/connectors/v1/agents',authenticateAgentConnector,agentConnectorRouter,agentWorkConnectorRouter);
 
