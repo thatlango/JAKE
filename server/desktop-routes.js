@@ -4,6 +4,7 @@ const db=require('./db');
 const gcal=require('./gcal');
 const {rankItems,buildReason}=require('./priority');
 const {decorateWorkRows,getDispatchByWork}=require('./agent-work');
+const {daySnapshot}=require('./momentum');
 
 const router=express.Router();
 const statuses=new Set(['inbox','ready','doing','waiting','done','cancelled']);
@@ -49,6 +50,14 @@ async function getWorkItem(workId){
   return (await decorateWorkRows([row]))[0]||row;
 }
 async function recordEvent(workId,eventType,payload={}){await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[workId,eventType,JSON.stringify(payload)]);}
+
+router.get('/work/day',async(_req,res)=>{
+  try{
+    res.set('Cache-Control','no-store').json(await daySnapshot());
+  }catch(error){
+    res.status(500).json({error:'Day plan unavailable',detail:process.env.NODE_ENV==='development'?error.message:undefined});
+  }
+});
 
 router.get('/work/today',async(req,res)=>{
   const now=new Date(),limit=int(req.query.limit,7,1,20);

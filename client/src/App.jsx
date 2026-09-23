@@ -29,7 +29,7 @@ import Payments from './modules/Payments';
 
 const KNOWN_MODULES=new Set(['dashboard','agents','work','projects','calendar','crm','cashflow','opportunities','pipeline','radar','estate','estate-control','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
 const MODULE_META={
-  dashboard:{title:'Executive',subtitle:'Decisions, market movement and verified completion'},
+  dashboard:{title:'Executive',subtitle:'Now, decisions, market movement and verified completion'},
   agents:{title:'Agents',subtitle:'Live agent runs, blockers, evidence and decisions'},
   work:{title:'Work',subtitle:'Finish, delegate, evidence and close'},
   projects:{title:'Projects',subtitle:'Delivery, milestones and project health'},

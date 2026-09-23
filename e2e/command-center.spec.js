@@ -6,7 +6,8 @@ const overview = {
   invoices: { receivables: 3, receivables_value: 18400, overdue_count: 1, overdue_value: 4200 },
   finance: { confirmed_usd: 52000, pending_usd: 18000, projected_usd: 90000, monthly_costs_usd: 12000 },
   attention_signals: [
-    { id: 'sig-1', signal_type: 'decision', title: 'Approve ImpactOS demo release', summary: 'Release is ready for executive approval', severity: 'high' }
+    { id: 'sig-1', signal_type: 'decision', title: 'Approve ImpactOS demo release', summary: 'Release is ready for executive approval', severity: 'high', action_url: '/?module=work' },
+    { id: 'sig-2', signal_type: 'operations', title: 'PRUDEV BCP endpoint degraded', summary: 'Availability check needs remediation', severity: 'critical', action_url: '/?module=operations' }
   ],
   estate: { totals: { activeUsers7d: 126 } }
 };
@@ -50,6 +51,14 @@ async function installMocks(page, options = {}) {
   await mockJson(page, '**/api/agents/runs*', runs);
   await mockJson(page, '**/api/agents/decisions*', decisions);
   await mockJson(page, '**/api/agents/work*', { dispatches: [] });
+  await mockJson(page, '**/api/work/day', {
+    timezone: 'Africa/Kampala',
+    workday: { starts_at: '07:30', ends_at: '18:30' },
+    do_now: { kind: 'task', id: 'w1', task_id: 'w1', title: 'Finish LendFlow production cutover', subtitle: 'LendFlow', starts_at: '2026-09-23T14:00:00Z', ends_at: '2026-09-23T15:00:00Z', block_title: 'Deep work', minutes_remaining: 42 },
+    up_next: { kind: 'event', id: 'ev1', title: 'Client demo prep', subtitle: 'ImpactOS', starts_at: '2026-09-23T15:15:00Z', ends_at: '2026-09-23T16:00:00Z' },
+    current_block: { kind: 'block', id: 'block-1', title: 'Deep work', starts_at: '2026-09-23T14:00:00Z', ends_at: '2026-09-23T16:30:00Z' },
+    timeline: []
+  });
   await mockJson(page, '**/api/work/today*', { priorities: [
     { id: 'w1', title: 'Finish LendFlow production cutover', status: 'doing', priority: 'critical', estimated_minutes: 30, project_name: 'LendFlow', due_at: '2026-09-23T17:00:00Z', metadata: { outcome_type: 'delivery', completion_definition: 'Production smoke test passes' } },
     { id: 'w2', title: 'Approve consultant network launch copy', status: 'waiting', priority: 'high', estimated_minutes: 15, project_name: 'Tuku-Tuku', metadata: { outcome_type: 'decision', decision_required: true } }
@@ -79,7 +88,12 @@ test('Executive home is organized around decisions, market movement and verified
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
-  await expect(page.getByText('Decide what matters. Move it to market. Finish before starting more.')).toBeVisible();
+  await expect(page.getByText('Know what to do now. Make the decisions only you can make. Move work to market and closure.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Do now', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Up next', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operating pulse', exact: true })).toBeVisible();
+  await expect(page.getByText('Deep work').first()).toBeVisible();
+  await expect(page.getByText('Client demo prep')).toBeVisible();
   await expect(page.getByText('Decisions waiting')).toBeVisible();
   await expect(page.getByText('Market moves')).toBeVisible();
   await expect(page.getByText('Completed this week')).toBeVisible();
@@ -88,7 +102,9 @@ test('Executive home is organized around decisions, market movement and verified
   await expect(page.getByText('Move to market')).toBeVisible();
   await expect(page.getByText('Finish what is started')).toBeVisible();
   await expect(page.getByText('Delegated engine')).toBeVisible();
-  await expect(page.getByText('Candidates to park')).toBeVisible();
+  await expect(page.getByText('Backlog drag')).toBeVisible();
+  await expect(page.getByText('Critical exceptions')).toBeVisible();
+  await expect(page.getByText('PRUDEV BCP endpoint degraded')).toBeVisible();
   await expect(page.getByText('Review agent evidence pack')).toHaveCount(2);
   await expect(page.getByText('Review agent evidence pack').first()).toBeVisible();
   await expect(page.getByText('UNICEF Regional Evidence Compendium')).toBeVisible();

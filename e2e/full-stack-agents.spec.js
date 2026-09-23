@@ -122,7 +122,7 @@ test('real Agent OS telemetry reaches authenticated JakeOS UI and streams live e
 
   await page.getByRole('button', { name: 'Executive', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
-  await expect(page.getByText('Decide what matters. Move it to market. Finish before starting more.')).toBeVisible();
+  await expect(page.getByText('Know what to do now. Make the decisions only you can make. Move work to market and closure.')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('jakeos-command-center-full-stack.png'), fullPage: true });
 });
 
