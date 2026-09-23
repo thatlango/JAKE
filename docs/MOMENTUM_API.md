@@ -1,91 +1,244 @@
 # JakeOS Momentum API v1
 
-Preferred mobile base URL after DNS cutover: `https://momentum.tukutuku.org/api/momentum/v1`
+Canonical production base URL:
 
-The same API is also reachable from the JakeOS host at `https://jakeos.tukutuku.org/api/momentum/v1`. The Momentum hostname is a narrow companion/API surface and does not expose the full JakeOS dashboard.
+`https://momentum.tukutuku.org/api/momentum/v1/`
+
+The same API is also reachable at:
+
+`https://jakeos.tukutuku.org/api/momentum/v1/`
+
+Momentum is the Android execution client. JakeOS/PostgreSQL remains authoritative for work, projects, planning, calendar, estate telemetry and Jake AI context.
+
+## Contract discovery
+
+Authenticated clients may call:
+
+`GET /contract`
+
+The response declares:
+- `api_major` — compatibility boundary. Momentum Android supports major version `1`.
+- `contract_version` — additive contract revision.
+- `identity_authority` — `tuku-core`.
+- `authentication` — Tuku access token bearer authentication.
+- canonical timezone and workday.
+- supported routes.
+- work status/priority vocabularies.
+- offline/caching guarantees.
+
+Additive fields may be introduced within API major version 1. Existing fields and route semantics must remain backward compatible.
 
 ## Authentication
-Momentum sends `Authorization: Bearer <firebase-id-token>`. JakeOS validates the Firebase RS256 signature, project audience, issuer and expiry using `MOMENTUM_FIREBASE_PROJECT_ID`. Optional `MOMENTUM_ALLOWED_UIDS` / `MOMENTUM_ALLOWED_EMAILS` restrict access further. `MOMENTUM_API_TOKEN` is a development/emergency fallback only when Firebase verification is not configured.
 
-JakeOS/PostgreSQL is authoritative. Momentum can cache locally for fast/offline use, but writes sync back to JakeOS and use `version` for optimistic conflict detection.
+**Tuku Core is the human identity authority. Firebase is not used for Momentum sign-in.**
 
-## Momentum endpoints
-- `GET /health` — authenticated API/database status
-- `GET /today?limit=7` — ranked actionable work with `why_now`
-- `GET /inbox` — unprocessed captures
-- `GET /tasks/:id` — task plus recent history
-- `POST /tasks` — create work item
-- `PATCH /tasks/:id` — update; send `version` to receive HTTP 409 on conflicts
-- `POST /tasks/:id/complete` — complete and clear scheduled slot
-- `POST /tasks/:id/defer` — defer until an ISO timestamp
-- `POST /capture` — fast Inbox capture
-- `GET /schedule?date=YYYY-MM-DD` — calendar plus scheduled tasks
-- `POST /plan-day` — rank work and allocate it around occupied calendar/task blocks; `commit:true` persists slots
-- `GET /pulse` — overdue/blocked work, pipeline deadlines, overdue invoices, opportunity deadlines and external attention signals
-- `GET /estate` — Tuku estate usage, growth, orders and earnings snapshot
-- `POST /devices` — register/refresh an FCM device token
+The auth façade is mounted on the same base URL:
 
-## Work item fields
-`title`, `project_id`, `parent_id`, `description`, `status`, `priority`, `impact`, `strategic_weight`, `estimated_minutes`, `due_at`, `scheduled_start`, `scheduled_end`, `deferred_until`, `blocked`, `blocked_reason`, `pinned`, `context_url`, `source`, `source_ref`, `tags`, `metadata`, `version`.
+```text
+POST /auth/login
+POST /auth/refresh
+GET  /auth/me
+POST /auth/logout
+```
+
+Login request:
+
+```json
+{"email":"user@example.com","password":"..."}
+```
+
+Refresh request:
+
+```json
+{"refreshToken":"..."}
+```
+
+Successful login and refresh are normalized by JakeOS to:
+
+```json
+{
+  "data": {
+    "session": {
+      "accessToken": "...",
+      "refreshToken": "...",
+      "expiresIn": 3600,
+      "expiresAt": 1790170000,
+      "tokenType": "Bearer"
+    },
+    "user": {
+      "coreUserId": "...",
+      "displayName": "...",
+      "email": "...",
+      "avatarUrl": "..."
+    }
+  }
+}
+```
+
+Protected calls send:
+
+```http
+Authorization: Bearer <tuku-access-token>
+```
+
+A 401 means the access token is invalid/expired. Android may refresh once and retry once. A repeated 401 or 403 clears the local Momentum session.
+
+## Canonical operating time
+
+- Timezone: `Africa/Kampala`
+- Workday: `07:30–18:30`
+
+`GET /day` is the canonical Now/Next contract and is shared with JakeOS Web.
+
+## Endpoints
+
+### Runtime and contract
+
+- `GET /contract` — API compatibility/capability declaration.
+- `GET /health` — authenticated API/database status.
+
+### Day and execution
+
+- `GET /day` — canonical current block/task/event, up-next item and merged day timeline.
+- `GET /today?limit=7` — ranked actionable work. **Array order is authoritative priority order.**
+- `GET /inbox?limit=100` — unprocessed captures.
+- `GET /tasks/:id` — canonical task plus recent history.
+- `POST /tasks` — create a work item.
+- `PATCH /tasks/:id` — update a work item. Send `version` for optimistic concurrency; stale versions receive HTTP 409.
+- `POST /tasks/:id/complete` — mark done and clear the scheduled slot.
+- `POST /tasks/:id/defer` — defer until an ISO timestamp.
+- `POST /capture` — fast Inbox capture. A caller-provided `id` is the idempotency key.
+
+### Projects
+
+- `GET /projects`
+- `GET /projects/:id`
+
+Projects are lightweight mobile navigation over canonical JakeOS projects/tasks.
+
+### Schedule and planner
+
+- `GET /schedule?date=YYYY-MM-DD`
+- `POST /schedule/items`
+- `POST /plan-day`
+
+Preferred Plan Day request:
+
+```json
+{
+  "date": "2026-09-24",
+  "startTime": "07:30",
+  "endTime": "18:30",
+  "offsetMinutes": 180,
+  "limit": 10,
+  "commit": true
+}
+```
+
+Legacy integer `startHour` / `endHour` remain accepted for backward compatibility.
+
+### Jake AI
+
+- `GET /ai/status`
+- `GET /chat/history?limit=40`
+- `POST /chat`
+
+Chat request:
+
+```json
+{"message":"Draft an update and add the follow-up to my work queue."}
+```
+
+The response includes the assistant message and may include `actions[]`. When actions create work, Momentum must refresh Today/Inbox/day so the new canonical work is immediately visible.
+
+### Attention and estate
+
+- `GET /pulse` — overdue/blocked work, pipeline/invoice/opportunity/grant deadlines and external attention signals.
+- `GET /estate`
+- `GET /estate/products/:productCode`
+
+Pulse cards may contain `action_url` and `source_ref`. Task-backed cards should open the exact task. Explicit web URLs may open the JakeOS web surface.
+
+### Devices
+
+- `POST /devices` — register/refresh an FCM token when Firebase messaging is configured. Firebase is optional mobile infrastructure, not identity.
+
+## Work item contract
+
+Canonical work statuses:
+
+`inbox | ready | doing | waiting | done | cancelled`
+
+Canonical priorities:
+
+`low | medium | high | critical`
+
+Core fields:
+
+`id`, `title`, `project_id`, `parent_id`, `description`, `status`, `priority`, `impact`, `strategic_weight`, `estimated_minutes`, `due_at`, `scheduled_start`, `scheduled_end`, `deferred_until`, `blocked`, `blocked_reason`, `pinned`, `context_url`, `source`, `source_ref`, `tags`, `metadata`, `version`.
+
+## Day activity contract
+
+`GET /day` returns activities with `kind`:
+
+- `task` — open the exact task in Focus; `task_id` is canonical.
+- `event` — open Schedule/calendar context.
+- `block` — open Schedule/day-plan context.
+
+The app must not substitute a different ranked task when a timed `do_now` activity exists.
+
+## Offline and cache semantics
+
+JakeOS/PostgreSQL is the only system of record.
+
+- Today and Inbox render from Room immediately.
+- Network refresh replaces canonical lanes **without changing Today rank order**.
+- Offline capture is durable: it is stored in the local outbox and remains visible until the idempotent server write succeeds.
+- Successful capture is written locally from the server response before any best-effort lane refresh.
+- Complete/defer/update require server confirmation; they are not silently queued as if committed.
+- Day, Pulse and Estate may fall back to last-successful snapshots.
+- Cached Day/Pulse/Estate must be visibly marked stale.
+- A stale snapshot must never be presented as a current zero-value snapshot.
 
 ## Estate contract
-`GET /estate` returns the same normalized Tuku Core snapshot used by JakeOS desktop, wrapped with freshness metadata:
+
+`GET /estate` returns normalized Tuku Core telemetry with freshness metadata:
 
 ```json
 {
   "configured": true,
   "available": true,
   "stale": false,
-  "lastSuccessfulAt": "2026-09-03T15:00:00.000Z",
+  "lastSuccessfulAt": "2026-09-23T15:00:00.000Z",
   "snapshot": {
     "products": [],
     "usageTrend": [],
     "commerce": [],
+    "telemetry": [],
     "totals": {},
-    "measurement": {},
-    "generatedAt": "2026-09-03T15:00:00.000Z"
+    "generatedAt": "2026-09-23T15:00:00.000Z"
   }
 }
 ```
 
-Each `products[]` record contains:
-- `code`, `name`
-- `reach.organizations`, `reach.users` — access/entitlement, not activity
-- `activeUsers24h`, `activeUsers7d`, `activeUsers30d`
-- `newUsers7d`
-- `growth7dPercent` — distinct active users in the last 7 days vs preceding 7 days
-- `usageEvents7d`, `usageEventsPrevious7d`
-- `lastActivityAt`
+Products separate entitlement/reach from observed usage. Commerce separates live/completed orders and realized/pending earnings. Missing telemetry is not equivalent to zero activity.
 
-Each `commerce[]` record contains:
-- `productCode`, `currency`
-- `orders.total`, `orders.active`, `orders.completed`, `orders.cancelled`
-- product-specific workflow counts where available
-- `earnings.realized`, `earnings.pending`, `earnings.fulfilledGross`
-- `lastOrderAt`
+## Error contract
 
-Kela additionally exposes `orders.new`, `sourcing`, `shopping`, `consolidation`, `ready`, and `outForDelivery`. Kela realized earnings are completed-order service fees; pending earnings are service fees attached to active, non-cancelled orders.
+Safe API failures use:
 
-Momentum should cache the last successful snapshot and visibly show stale/freshness state rather than replacing data with zeroes after a transient failure.
+```json
+{"error":"Human-readable message","code":"OPTIONAL_MACHINE_CODE"}
+```
+
+Clients should show the safe `error` message when present and retain the HTTP status for diagnostics.
 
 ## Cross-work ingestion
-Base URL: `/api/integrations/v1` with `Authorization: Bearer <JAKEOS_INGEST_TOKEN>`.
 
-- `POST /work-items` — idempotent ingestion using `source + source_ref`
-- `POST /signals` — create/update a JakeOS attention signal
-- `PATCH /signals/:id/resolve` — resolve a signal
+Server-to-server ingestion remains separate at `/api/integrations/v1` using `JAKEOS_INGEST_TOKEN`:
 
-## Priority model
-The first production model is deterministic and explainable. It considers explicit priority, impact, strategic weight, deadline proximity/overdue state, manual pinning, task age/carry-over, in-progress continuity, effort/quick wins, fit before the next calendar commitment, blockers and deferrals. Blocked/waiting and future-deferred tasks do not appear in Today.
+- `POST /work-items`
+- `POST /signals`
+- `PATCH /signals/:id/resolve`
 
-## Recommended Momentum presentation
-Keep the companion decision-oriented:
-- **Today:** 5–7 ranked actions plus calendar context
-- **Inbox:** captures needing processing
-- **Focus:** one active task and its JakeOS context
-- **Schedule:** commitments plus planned work
-- **Pulse:** only risks/signals needing attention
-- **Estate:** product usage/growth cards and Orders & Earnings
-- **Capture:** task/note/follow-up/deadline in seconds
-
-Do not reproduce the full JakeOS command-center dashboard in Momentum.
+This credential is not a Momentum human session and cannot be used as one.

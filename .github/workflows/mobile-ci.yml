@@ -6,12 +6,17 @@ on:
     paths:
       - 'android/**'
       - 'server/mobile.js'
+      - 'server/momentum.js'
+      - 'server/momentum-auth.js'
+      - 'server/momentum-projects.js'
       - 'server/index.js'
       - 'server/tuku-auth.js'
       - 'server/overview.js'
       - 'server/estate.js'
       - 'server/ops.js'
+      - 'server/ops-subscriptions.js'
       - 'server/priority.js'
+      - 'docs/MOMENTUM_API.md'
       - 'server/ai.js'
       - 'database/**'
       - 'package.json'
@@ -92,6 +97,46 @@ jobs:
             -d "{\"title\":\"JakeOS CI reminder\",\"type\":\"reminder\",\"date\":\"${SCHEDULE_DATE}\",\"startsAt\":\"${SCHEDULE_DATE}T09:30:00+03:00\",\"endsAt\":\"${SCHEDULE_DATE}T09:35:00+03:00\"}" \
             http://127.0.0.1:3100/api/mobile/v1/schedule/items > /tmp/mobile-schedule.json
           jq -e '.item.title=="JakeOS CI reminder" and .item.type=="reminder"' /tmp/mobile-schedule.json
+      - name: Exercise canonical Momentum v1 contract
+        run: |
+          BASE=http://127.0.0.1:3100/api/momentum/v1
+          AUTH='Authorization: Bearer ci_mobile_token'
+
+          test "$(curl -s -o /tmp/momentum-unauth -w '%{http_code}' "$BASE/day")" = "401"
+
+          curl -fsS -H "$AUTH" "$BASE/contract" > /tmp/momentum-contract.json
+          jq -e '.api=="momentum" and .api_major==1 and .identity_authority=="tuku-core" and .timezone=="Africa/Kampala" and .workday.starts_at=="07:30" and .workday.ends_at=="18:30" and .semantics.today_order=="server_rank_order"' /tmp/momentum-contract.json
+
+          curl -fsS -H "$AUTH" "$BASE/day" > /tmp/momentum-day.json
+          jq -e '.timezone=="Africa/Kampala" and .workday.starts_at=="07:30" and .workday.ends_at=="18:30" and (.timeline|type=="array")' /tmp/momentum-day.json
+
+          curl -fsS -H "$AUTH" "$BASE/today?limit=7" > /tmp/momentum-today.json
+          jq -e '.generated_at and (.priorities|type=="array")' /tmp/momentum-today.json
+
+          curl -fsS -H "$AUTH" "$BASE/projects" > /tmp/momentum-projects.json
+          jq -e '.projects|type=="array"' /tmp/momentum-projects.json
+
+          CAPTURE_ID="momentum-contract-ci"
+          curl -fsS -H "$AUTH" -H 'Content-Type: application/json' \
+            -d "{\"id\":\"${CAPTURE_ID}\",\"text\":\"Momentum contract capture\"}" \
+            "$BASE/capture" > /tmp/momentum-capture-1.json
+          curl -fsS -H "$AUTH" -H 'Content-Type: application/json' \
+            -d "{\"id\":\"${CAPTURE_ID}\",\"text\":\"Momentum contract capture\"}" \
+            "$BASE/capture" > /tmp/momentum-capture-2.json
+          jq -e --arg id "$CAPTURE_ID" '.item.id==$id' /tmp/momentum-capture-1.json
+          jq -e --arg id "$CAPTURE_ID" '.item.id==$id' /tmp/momentum-capture-2.json
+
+          curl -fsS -H "$AUTH" "$BASE/tasks/$CAPTURE_ID" > /tmp/momentum-task.json
+          jq -e --arg id "$CAPTURE_ID" '.item.id==$id and (.history|type=="array")' /tmp/momentum-task.json
+
+          PLAN_DATE="$(date -u -d '+30 days' +%F)"
+          curl -fsS -H "$AUTH" -H 'Content-Type: application/json' \
+            -d "{\"date\":\"${PLAN_DATE}\",\"startTime\":\"07:30\",\"endTime\":\"18:30\",\"offsetMinutes\":180,\"commit\":false}" \
+            "$BASE/plan-day" > /tmp/momentum-plan.json
+          jq -e '.committed==false and (.free_slots|type=="array")' /tmp/momentum-plan.json
+
+          curl -fsS -X POST -H "$AUTH" "$BASE/tasks/$CAPTURE_ID/complete" > /tmp/momentum-complete.json
+          jq -e '.item.status=="done"' /tmp/momentum-complete.json
       - name: Show server log on failure
         if: failure()
         run: cat /tmp/jakeos-mobile.log || true
