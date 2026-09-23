@@ -16,6 +16,7 @@ const {opportunitiesWorkspaceRouter}=require('./opportunities-workspace');
 const {commandCenterOverview}=require('./overview');
 const {desktopRouter}=require('./desktop-routes');
 const {agentWorkBrowserRouter}=require('./agent-work');
+const {errandRouter}=require('./errand-router');
 const localAi=require('./ai');
 
 const app=express();
@@ -34,6 +35,7 @@ async function assertExternalUrl(raw){let url;try{url=new URL(raw);}catch{throw 
 app.get('/health',async(_,res)=>res.json({status:'ok',app:'JakeOS',version:'6.2',db:await db.ping(),time:new Date().toISOString()}));
 app.get('/overview',async(_,res)=>res.json(await commandCenterOverview()));
 app.use(agentWorkBrowserRouter);
+app.use('/errands',errandRouter);
 app.use(desktopRouter);
 app.use('/opportunities',opportunitiesWorkspaceRouter);
 
