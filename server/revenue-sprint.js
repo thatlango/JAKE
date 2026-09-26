@@ -23,8 +23,12 @@ const STAGE_MAP={
 
 function dateOnly(value){
   if(!value)return null;
-  const s=String(value).slice(0,10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s)?s:null;
+  if(value instanceof Date&&!Number.isNaN(value.getTime()))return value.toISOString().slice(0,10);
+  const raw=String(value);
+  const iso=raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if(iso)return iso[1];
+  const parsed=new Date(raw);
+  return Number.isNaN(parsed.getTime())?null:parsed.toISOString().slice(0,10);
 }
 function todayUtc(){return new Date().toISOString().slice(0,10);}
 function dayDiffInclusive(start,end){
@@ -40,7 +44,7 @@ function summarizeAccounts(accounts=[],sprint={},today=todayUtc()){
   const proposalValue=accounts.filter(a=>a.proposal_sent).reduce((s,a)=>s+num(a.pipeline_value_usd),0);
   const stageCounts={};
   for(const a of accounts)stageCounts[a.stage||'Target']=(stageCounts[a.stage||'Target']||0)+1;
-  const atRisk=accounts.filter(a=>!CLOSED_STAGES.has(a.stage)&&a.next_action_date&&a.next_action_date<today);
+  const atRisk=accounts.filter(a=>{const next=dateOnly(a.next_action_date);return !CLOSED_STAGES.has(a.stage)&&next&&next<today;});
   const cashTarget=num(sprint.cash_target_usd||10000);
   const start=dateOnly(sprint.starts_on),end=dateOnly(sprint.ends_on);
   const totalDays=dayDiffInclusive(start,end);
@@ -86,7 +90,7 @@ async function loadAccounts(sprintId){
         WHEN 'Invoiced' THEN 6 WHEN 'Paid' THEN 7 WHEN 'Parked' THEN 8 ELSE 9 END,
       a.probability DESC,a.pipeline_value_usd DESC,a.org
   `,[sprintId]);
-  return result.rows;
+  return result.rows.map(row=>({...row,deadline:dateOnly(row.deadline),next_action_date:dateOnly(row.next_action_date)}));
 }
 async function loadActions(sprintId){
   return (await db.query(`
@@ -97,7 +101,7 @@ async function loadActions(sprintId){
     ORDER BY x.action_date,
       CASE x.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
       x.created_at
-  `,[sprintId])).rows;
+  `,[sprintId])).rows.map(row=>({...row,action_date:dateOnly(row.action_date)}));
 }
 
 router.get('/',async(req,res)=>{
@@ -105,15 +109,16 @@ router.get('/',async(req,res)=>{
     const sprint=await latestSprint(req.query.id);
     if(!sprint)return res.status(404).json({error:'No active revenue sprint'});
     const[accounts,actions]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id)]);
-    const today=todayUtc(),summary=summarizeAccounts(accounts,sprint,today);
-    const dueActions=actions.filter(a=>a.status!=='done'&&a.action_date<=today);
+    const sprintView={...sprint,starts_on:dateOnly(sprint.starts_on),ends_on:dateOnly(sprint.ends_on)};
+    const today=todayUtc(),summary=summarizeAccounts(accounts,sprintView,today);
+    const dueActions=actions.filter(a=>a.status!=='done'&&a.action_date&&a.action_date<=today);
     const upcomingActions=actions.filter(a=>a.status!=='done'&&a.action_date>today).slice(0,12);
     const closeNext=accounts
       .filter(a=>!CLOSED_STAGES.has(a.stage))
       .map(a=>({...a,close_score:num(a.cash_30d_target_usd)*(Math.max(0,Math.min(100,num(a.probability)))/100)}))
       .sort((a,b)=>b.close_score-a.close_score||num(b.pipeline_value_usd)-num(a.pipeline_value_usd))
       .slice(0,10);
-    res.json({sprint,summary,accounts,actions,due_actions:dueActions,upcoming_actions:upcomingActions,close_next:closeNext,today});
+    res.json({sprint:sprintView,summary,accounts,actions,due_actions:dueActions,upcoming_actions:upcomingActions,close_next:closeNext,today});
   }catch(error){
     console.error('[RevenueSprint] load failed:',error.message);
     res.status(500).json({error:'Revenue sprint could not be loaded'});
