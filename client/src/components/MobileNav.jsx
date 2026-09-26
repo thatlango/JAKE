@@ -15,6 +15,7 @@ const MORE=[
   {id:'cashflow',label:'Money',icon:'money'},
   {id:'payments',label:'Payments',icon:'money'},
   {id:'opportunities',label:'Opportunities',icon:'target'},
+  {id:'revenue-sprint',label:'30-Day Revenue',icon:'chart'},
   {id:'finance',label:'Revenue plan',icon:'chart'},
   {id:'ai-search',label:'Search',icon:'search'},
   {id:'voice-memo',label:'Voice capture',icon:'mic'},
