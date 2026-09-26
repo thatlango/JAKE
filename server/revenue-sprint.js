@@ -38,7 +38,10 @@ function dayDiffInclusive(start,end){
 }
 function summarizeAccounts(accounts=[],sprint={},today=todayUtc()){
   const grossPipeline=accounts.filter(a=>!CLOSED_STAGES.has(a.stage)).reduce((s,a)=>s+num(a.pipeline_value_usd),0);
-  const weightedPipeline=accounts.filter(a=>!CLOSED_STAGES.has(a.stage)).reduce((s,a)=>s+num(a.pipeline_value_usd)*(Math.max(0,Math.min(100,num(a.probability)))/100),0);
+  const activeAccounts=accounts.filter(a=>!CLOSED_STAGES.has(a.stage));
+  const weightedPipeline=activeAccounts.reduce((s,a)=>s+num(a.pipeline_value_usd)*(Math.max(0,Math.min(100,num(a.probability)))/100),0);
+  const cashNowPipeline=activeAccounts.filter(a=>a.lane==='Cash now').reduce((s,a)=>s+num(a.pipeline_value_usd),0);
+  const tenderUpsidePipeline=activeAccounts.filter(a=>a.lane==='Tender upside').reduce((s,a)=>s+num(a.pipeline_value_usd),0);
   const cashCollected=accounts.reduce((s,a)=>s+num(a.cash_collected_usd),0);
   const contracted=accounts.reduce((s,a)=>s+num(a.contracted_usd),0);
   const proposalValue=accounts.filter(a=>a.proposal_sent).reduce((s,a)=>s+num(a.pipeline_value_usd),0);
@@ -56,13 +59,15 @@ function summarizeAccounts(accounts=[],sprint={},today=todayUtc()){
   return{
     gross_pipeline_usd:grossPipeline,
     weighted_pipeline_usd:Math.round(weightedPipeline),
+    cash_now_pipeline_usd:cashNowPipeline,
+    tender_upside_pipeline_usd:tenderUpsidePipeline,
     cash_collected_usd:cashCollected,
     contracted_usd:contracted,
     proposal_value_usd:proposalValue,
     cash_gap_usd:Math.max(0,cashTarget-cashCollected),
     target_progress_pct:cashTarget?Math.min(100,Math.round(cashCollected/cashTarget*100)):0,
     stage_counts:stageCounts,
-    active_accounts:accounts.filter(a=>!CLOSED_STAGES.has(a.stage)).length,
+    active_accounts:activeAccounts.length,
     at_risk_count:atRisk.length,
     at_risk_ids:atRisk.map(a=>a.id),
     total_days:totalDays,
@@ -172,6 +177,7 @@ router.patch('/accounts/:id',async(req,res)=>{
     if(req.body.probability!==undefined)data.probability=Math.max(0,Math.min(100,num(req.body.probability)));
     if(req.body.mobilization_pct!==undefined)data.mobilization_pct=Math.max(0,Math.min(100,num(req.body.mobilization_pct)));
     if(req.body.proposal_sent!==undefined)data.proposal_sent=bool(req.body.proposal_sent);
+    if(data.stage!==undefined&&['Proposal','Negotiation','Contracted','Invoiced','Paid'].includes(data.stage))data.proposal_sent=true;
     if(req.body.deadline!==undefined)data.deadline=dateOnly(req.body.deadline);
     if(req.body.next_action_date!==undefined)data.next_action_date=dateOnly(req.body.next_action_date);
     await db.update('revenue_sprint_accounts',account.id,data);
