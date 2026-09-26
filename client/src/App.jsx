@@ -17,6 +17,7 @@ import AlertsSettings from './modules/AlertsSettings';
 import CRM from './modules/CRMNext';
 import CashFlow from './modules/CashFlow';
 import Opportunities from './modules/Opportunities';
+import RevenueSprint from './modules/RevenueSprint';
 import VoiceMemo from './modules/VoiceMemo';
 import ExportCentre from './modules/ExportCentre';
 import AISearch from './modules/AISearch';
@@ -27,7 +28,7 @@ import Accounts from './modules/Accounts';
 import Operations from './modules/Operations';
 import Payments from './modules/Payments';
 
-const KNOWN_MODULES=new Set(['dashboard','agents','work','projects','calendar','crm','cashflow','opportunities','pipeline','radar','estate','estate-control','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
+const KNOWN_MODULES=new Set(['dashboard','agents','work','projects','calendar','crm','cashflow','opportunities','revenue-sprint','pipeline','radar','estate','estate-control','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
 const MODULE_META={
   dashboard:{title:'Executive',subtitle:'Now, decisions, market movement and verified completion'},
   agents:{title:'Agents',subtitle:'Live agent runs, blockers, evidence and decisions'},
@@ -37,6 +38,7 @@ const MODULE_META={
   crm:{title:'Relationships',subtitle:'People, organisations and follow-ups'},
   cashflow:{title:'Money',subtitle:'Cash movement, invoices and financial attention'},
   opportunities:{title:'Opportunities',subtitle:'Qualify demand, pursue, submit and convert'},
+  'revenue-sprint':{title:'30-Day Revenue',subtitle:'Cash target, close queue and daily commercial execution'},
   estate:{title:'Tuku Estate',subtitle:'Products, usage and commercial signals'},
   'estate-control':{title:'Estate Control',subtitle:'Cross-product controls and estate status'},
   operations:{title:'Operations',subtitle:'Infrastructure, continuity and service health'},
@@ -102,7 +104,7 @@ export default function App(){
       </div>
     </header>
     <main className="main-content">
-      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='revenue-sprint'&&<RevenueSprint openAI={openAI} navigate={navigate}/>} {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
     </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={navActive}/><InstallPrompt/>
   </div>;
 }
