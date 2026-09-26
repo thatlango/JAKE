@@ -16,6 +16,7 @@ const {subscriptionRouter,momentumSubscriptionRouter}=require('./ops-subscriptio
 const {opportunitiesConnectorRouter}=require('./opportunities-connector');
 const {opportunitiesMcpRouter}=require('./opportunities-mcp');
 const {opportunityIntakeRouter}=require('./opportunity-intake-router');
+const {revenueSprintRouter}=require('./revenue-sprint');
 const {authenticateOpportunityConnector}=require('./opportunities-connector-auth');
 const {agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector}=require('./agent-control');
 const {agentWorkConnectorRouter,startAgentWorkWorker}=require('./agent-work');
@@ -55,6 +56,7 @@ app.use('/api/estate/control',requireJakeAuth,estateControlRouter);
 app.use('/api/estate',requireJakeAuth,estateRouter);
 app.use('/api/search-console',requireJakeAuth,searchConsoleRouter);
 app.use('/api/accounts',requireJakeAuth,accountsRouter);
+app.use('/api/revenue-sprint',requireJakeAuth,revenueSprintRouter);
 app.use('/api/ops/subscriptions',requireJakeAuth,subscriptionRouter);
 app.use('/api/ops',requireJakeAuth,opsRouter);
 app.use('/api/tukupay',requireJakeAuth,tukuPayRouter);
