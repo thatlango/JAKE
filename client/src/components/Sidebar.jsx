@@ -8,6 +8,7 @@ const GROUPS=[
   ]},
   {label:'Market',items:[
     {id:'opportunities',label:'Opportunities',icon:'target'},
+    {id:'revenue-sprint',label:'30-Day Revenue',icon:'chart'},
     {id:'cashflow',label:'Money',icon:'money'},
     {id:'finance',label:'Revenue plan',icon:'chart'},
     {id:'crm',label:'Relationships',icon:'users'},
