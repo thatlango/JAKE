@@ -42,3 +42,15 @@ test('commercial stages sync into canonical opportunity stages',()=>{
   assert.equal(stageToOpportunityStage('Paid'),'Won');
   assert.equal(stageToOpportunityStage('Parked'),'Closed');
 });
+
+
+test('PostgreSQL-style Date objects are normalized for sprint boundaries and risk dates',()=>{
+  const start=new Date('2026-09-27T00:00:00.000Z');
+  const end=new Date('2026-10-26T00:00:00.000Z');
+  const summary=summarizeAccounts([
+    {stage:'Conversation',pipeline_value_usd:1000,probability:50,next_action_date:new Date('2026-09-30T00:00:00.000Z')}
+  ],{starts_on:start,ends_on:end,cash_target_usd:10000},'2026-10-01');
+  assert.equal(summary.total_days,30);
+  assert.equal(summary.day_number,5);
+  assert.equal(summary.at_risk_count,1);
+});
