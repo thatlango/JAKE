@@ -46,8 +46,8 @@ function summarizeAccounts(accounts=[],sprint={},today=todayUtc()){
   const totalDays=dayDiffInclusive(start,end);
   let dayNumber=1,daysRemaining=totalDays;
   if(start&&end){
-    dayNumber=Math.min(totalDays,Math.max(1,dayDiffInclusive(start,today)));
-    daysRemaining=today>end?0:dayDiffInclusive(today,end);
+    if(today<start){dayNumber=1;daysRemaining=totalDays;}
+    else{dayNumber=Math.min(totalDays,Math.max(1,dayDiffInclusive(start,today)));daysRemaining=today>end?0:dayDiffInclusive(today,end);}
   }
   return{
     gross_pipeline_usd:grossPipeline,
@@ -162,8 +162,10 @@ router.patch('/accounts/:id',async(req,res)=>{
     const data={updated_at:new Date().toISOString()};
     const textFields=['org','offer','lane','relationship','stage','contact_name','contact_email','contact_channel','source_url','next_action','owner','risk','notes'];
     for(const key of textFields)if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='notes'?10000:key==='next_action'?4000:key==='risk'?2000:2000);
-    const numberFields=['pipeline_value_usd','cash_30d_target_usd','probability','mobilization_pct','cash_collected_usd','contracted_usd'];
-    for(const key of numberFields)if(req.body[key]!==undefined)data[key]=num(req.body[key]);
+    const numberFields=['pipeline_value_usd','cash_30d_target_usd','cash_collected_usd','contracted_usd'];
+    for(const key of numberFields)if(req.body[key]!==undefined)data[key]=Math.max(0,num(req.body[key]));
+    if(req.body.probability!==undefined)data.probability=Math.max(0,Math.min(100,num(req.body.probability)));
+    if(req.body.mobilization_pct!==undefined)data.mobilization_pct=Math.max(0,Math.min(100,num(req.body.mobilization_pct)));
     if(req.body.proposal_sent!==undefined)data.proposal_sent=bool(req.body.proposal_sent);
     if(req.body.deadline!==undefined)data.deadline=dateOnly(req.body.deadline);
     if(req.body.next_action_date!==undefined)data.next_action_date=dateOnly(req.body.next_action_date);
