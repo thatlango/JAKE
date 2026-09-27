@@ -73,7 +73,7 @@ jobs:
       - name: Exercise Revenue Mission operator CLI
         run: |
           node scripts/revenue-mission-cli.js snapshot > /tmp/revenue-mission-cli.json
-          jq -e '.sprint.id=="revsprint_20260927_30d" and .summary.cash_gap_usd >= 0 and (.accounts|length) > 0' /tmp/revenue-mission-cli.json
+          jq -e '.sprint.id=="rev30_2026_09" and .summary.cash_gap_usd >= 0 and (.accounts|length) > 0' /tmp/revenue-mission-cli.json
       - name: Exercise Revenue Mission MCP boundary
         run: |
           test "$(curl -s -o /tmp/revenue-mcp-unauth -w '%{http_code}' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}' http://127.0.0.1:3100/mcp/revenue-sprint)" = "401"
