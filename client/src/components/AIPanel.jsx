@@ -26,6 +26,12 @@ const QUICK_PROMPTS = {
     'How do I prepare for the Gulu Digital Literacy workshop?',
     'What happens if the Excel workbook is delayed?',
   ],
+  'revenue-sprint': [
+    'What are the three revenue moves most likely to produce cash fastest?',
+    'Which accounts should I personally push today, and why?',
+    'What should I park so I can stay within the three-item WIP limit?',
+    'Which active deal needs a proposal, decision ask, invoice or collection action next?',
+  ],
   finance: [
     'What cash needs collecting or protecting first?',
     'Where is the revenue gap against the current plan?',
@@ -60,15 +66,17 @@ export default function AIPanel({ context, module, onClose, data }) {
 
     let live={};
     try{
-      const [overviewR,todayR,opportunitiesR]=await Promise.all([
+      const [overviewR,todayR,opportunitiesR,revenueR]=await Promise.all([
         fetch('/api/overview'),
         fetch('/api/work/today?limit=12'),
-        fetch('/api/opportunities?limit=80')
+        fetch('/api/opportunities?limit=80'),
+        fetch('/api/revenue-sprint')
       ]);
-      const [overview,today,opportunities]=await Promise.all([
+      const [overview,today,opportunities,revenueSprint]=await Promise.all([
         overviewR.ok?overviewR.json():{},
         todayR.ok?todayR.json():{},
-        opportunitiesR.ok?opportunitiesR.json():{}
+        opportunitiesR.ok?opportunitiesR.json():{},
+        revenueR.ok?revenueR.json():{}
       ]);
       live={
         tasks:overview.tasks,
@@ -78,7 +86,14 @@ export default function AIPanel({ context, module, onClose, data }) {
         attentionSignals:(overview.attention_signals||[]).slice(0,8),
         rankedWork:(today.priorities||[]).slice(0,12),
         opportunitySummary:opportunities.summary,
-        activeOpportunities:(opportunities.opportunities||[]).filter(o=>!['Won','Lost','Closed'].includes(o.stage)).slice(0,15)
+        activeOpportunities:(opportunities.opportunities||[]).filter(o=>!['Won','Lost','Closed'].includes(o.stage)).slice(0,15),
+        revenueSprint:revenueSprint?.sprint?{
+          sprint:revenueSprint.sprint,
+          summary:revenueSprint.summary,
+          dueActions:(revenueSprint.due_actions||[]).slice(0,15),
+          closeNext:(revenueSprint.close_next||[]).slice(0,10),
+          accounts:(revenueSprint.accounts||[]).slice(0,40)
+        }:null
       };
     }catch{}
     const extraContext=[
