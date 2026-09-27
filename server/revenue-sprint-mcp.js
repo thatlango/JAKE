@@ -2,7 +2,7 @@
 const express=require('express');
 const crypto=require('crypto');
 const db=require('./db');
-const {summarizeAccounts,stageToOpportunityStage,latestSprint,loadAccounts,loadActions,dateOnly,boundedPct}=require('./revenue-sprint');
+const {summarizeAccounts,stageToOpportunityStage,latestSprint,loadAccounts,loadActions,loadRevenueEngine,dateOnly,boundedPct}=require('./revenue-sprint');
 
 const router=express.Router();
 const STAGES=new Set(['Target','Contacted','Conversation','Proposal','Negotiation','Contracted','Invoiced','Paid','Lost','Parked']);
@@ -61,7 +61,7 @@ const result=value=>({content:[{type:'text',text:JSON.stringify(value)}],structu
 async function sprintSnapshot(sprintId){
   const sprint=await latestSprint(sprintId);
   if(!sprint)throw Object.assign(new Error('No active revenue sprint'),{status:404});
-  const [accounts,actions]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id)]);
+  const [accounts,actions,engine]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id),loadRevenueEngine(sprint.id)]);
   const today=localDateInKampala();
   const summary=summarizeAccounts(accounts,sprint,today);
   const dueActions=actions.filter(action=>action.status!=='done'&&action.action_date&&action.action_date<=today);
@@ -77,7 +77,8 @@ async function sprintSnapshot(sprintId){
     due_actions:dueActions,
     close_next:closeNext,
     accounts,
-    actions
+    actions,
+    engine
   };
 }
 
