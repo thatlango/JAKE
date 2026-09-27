@@ -130,12 +130,48 @@ async function loadActions(sprintId){
       x.created_at
   `,[sprintId])).rows.map(row=>({...row,action_date:dateOnly(row.action_date)}));
 }
+async function loadRevenueEngine(sprintId){
+  const [offers,markets,channels,campaigns,experiments,proof]=await Promise.all([
+    db.query(`SELECT * FROM revenue_engine_offers WHERE status<>'archived' ORDER BY cash_speed_days,price_min_usd,name`),
+    db.query(`SELECT * FROM revenue_engine_markets WHERE status<>'archived' ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,sales_cycle_min_days,name`),
+    db.query(`SELECT * FROM revenue_engine_channels WHERE status<>'archived' ORDER BY CASE speed WHEN 'fast' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,name`),
+    db.query(`SELECT c.*,o.name AS offer_name,m.name AS market_name,ch.name AS channel_name
+      FROM revenue_engine_campaigns c
+      LEFT JOIN revenue_engine_offers o ON o.id=c.offer_id
+      LEFT JOIN revenue_engine_markets m ON m.id=c.market_id
+      LEFT JOIN revenue_engine_channels ch ON ch.id=c.channel_id
+      WHERE c.sprint_id=$1 ORDER BY CASE c.status WHEN 'active' THEN 0 WHEN 'planned' THEN 1 ELSE 2 END,c.starts_on,c.name`,[sprintId]),
+    db.query(`SELECT e.*,c.name AS campaign_name,ch.name AS channel_name
+      FROM revenue_engine_experiments e
+      LEFT JOIN revenue_engine_campaigns c ON c.id=e.campaign_id
+      LEFT JOIN revenue_engine_channels ch ON ch.id=e.channel_id
+      WHERE e.sprint_id=$1 ORDER BY CASE e.status WHEN 'active' THEN 0 WHEN 'planned' THEN 1 ELSE 2 END,e.starts_on,e.name`,[sprintId]),
+    db.query(`SELECT * FROM revenue_engine_proof WHERE status<>'archived' ORDER BY created_at,title`)
+  ]);
+  const campaignRows=campaigns.rows.map(row=>({...row,starts_on:dateOnly(row.starts_on),ends_on:dateOnly(row.ends_on)}));
+  const experimentRows=experiments.rows.map(row=>({...row,starts_on:dateOnly(row.starts_on),ends_on:dateOnly(row.ends_on)}));
+  const targetCash=campaignRows.filter(row=>row.status==='active'||row.status==='planned').reduce((sum,row)=>sum+num(row.target_cash_usd),0);
+  return{
+    offers:offers.rows,
+    markets:markets.rows,
+    channels:channels.rows,
+    campaigns:campaignRows,
+    experiments:experimentRows,
+    proof:proof.rows,
+    summary:{
+      target_cash_mix_usd:targetCash,
+      active_campaigns:campaignRows.filter(row=>row.status==='active').length,
+      active_experiments:experimentRows.filter(row=>row.status==='active').length,
+      fast_offers:offers.rows.filter(row=>Number(row.cash_speed_days)<=14).length
+    }
+  };
+}
 
 router.get('/',async(req,res)=>{
   try{
     const sprint=await latestSprint(req.query.id);
     if(!sprint)return res.status(404).json({error:'No active revenue sprint'});
-    const[accounts,actions]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id)]);
+    const[accounts,actions,engine]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id),loadRevenueEngine(sprint.id)]);
     const sprintView={...sprint,starts_on:dateOnly(sprint.starts_on),ends_on:dateOnly(sprint.ends_on)};
     const today=todayUtc(),summary=summarizeAccounts(accounts,sprintView,today);
     const dueActions=actions.filter(a=>a.status!=='done'&&a.action_date&&a.action_date<=today);
@@ -145,7 +181,7 @@ router.get('/',async(req,res)=>{
       .map(a=>({...a,close_score:num(a.cash_30d_target_usd)*(Math.max(0,Math.min(100,num(a.probability)))/100)}))
       .sort((a,b)=>b.close_score-a.close_score||num(b.pipeline_value_usd)-num(a.pipeline_value_usd))
       .slice(0,10);
-    res.json({sprint:sprintView,summary,accounts,actions,due_actions:dueActions,upcoming_actions:upcomingActions,close_next:closeNext,today});
+    res.json({sprint:sprintView,summary,accounts,actions,due_actions:dueActions,upcoming_actions:upcomingActions,close_next:closeNext,engine,today});
   }catch(error){
     console.error('[RevenueSprint] load failed:',error.message);
     res.status(500).json({error:'Revenue sprint could not be loaded'});
@@ -261,4 +297,38 @@ router.patch('/actions/:id',async(req,res)=>{
   }
 });
 
-module.exports={revenueSprintRouter:router,summarizeAccounts,stageToOpportunityStage,dayDiffInclusive,boundedPct,latestSprint,loadAccounts,loadActions,dateOnly};
+router.patch('/engine/campaigns/:id',async(req,res)=>{
+  try{
+    const campaign=await db.get('revenue_engine_campaigns',{eq:{id:text(req.params.id,120)}});
+    if(!campaign)return res.status(404).json({error:'Revenue campaign not found'});
+    const data={updated_at:new Date().toISOString()};
+    for(const key of ['status','success_metric','notes'])if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='notes'?5000:1000);
+    if(req.body.target_cash_usd!==undefined)data.target_cash_usd=Math.max(0,num(req.body.target_cash_usd));
+    if(req.body.target_accounts!==undefined)data.target_accounts=Math.max(0,Math.round(num(req.body.target_accounts)));
+    if(req.body.starts_on!==undefined)data.starts_on=dateOnly(req.body.starts_on);
+    if(req.body.ends_on!==undefined)data.ends_on=dateOnly(req.body.ends_on);
+    await db.update('revenue_engine_campaigns',campaign.id,data);
+    res.json({campaign:await db.get('revenue_engine_campaigns',{eq:{id:campaign.id}})});
+  }catch(error){
+    console.error('[RevenueEngine] update campaign failed:',error.message);
+    res.status(500).json({error:'Revenue campaign could not be updated'});
+  }
+});
+
+router.patch('/engine/experiments/:id',async(req,res)=>{
+  try{
+    const experiment=await db.get('revenue_engine_experiments',{eq:{id:text(req.params.id,120)}});
+    if(!experiment)return res.status(404).json({error:'Revenue experiment not found'});
+    const data={updated_at:new Date().toISOString()};
+    for(const key of ['status','success_threshold','result'])if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='result'?5000:1500);
+    if(req.body.starts_on!==undefined)data.starts_on=dateOnly(req.body.starts_on);
+    if(req.body.ends_on!==undefined)data.ends_on=dateOnly(req.body.ends_on);
+    await db.update('revenue_engine_experiments',experiment.id,data);
+    res.json({experiment:await db.get('revenue_engine_experiments',{eq:{id:experiment.id}})});
+  }catch(error){
+    console.error('[RevenueEngine] update experiment failed:',error.message);
+    res.status(500).json({error:'Revenue experiment could not be updated'});
+  }
+});
+
+module.exports={revenueSprintRouter:router,summarizeAccounts,stageToOpportunityStage,dayDiffInclusive,boundedPct,latestSprint,loadAccounts,loadActions,loadRevenueEngine,dateOnly};
