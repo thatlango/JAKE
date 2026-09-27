@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {summarizeAccounts,stageToOpportunityStage,dayDiffInclusive}=require('../server/revenue-sprint');
+const {summarizeAccounts,stageToOpportunityStage,dayDiffInclusive,boundedPct}=require('../server/revenue-sprint');
 
 test('revenue sprint is exactly 30 days',()=>{
   assert.equal(dayDiffInclusive('2026-09-27','2026-10-26'),30);
@@ -53,4 +53,10 @@ test('PostgreSQL-style Date objects are normalized for sprint boundaries and ris
   assert.equal(summary.total_days,30);
   assert.equal(summary.day_number,5);
   assert.equal(summary.at_risk_count,1);
+});
+
+
+test('explicit zero mobilization is preserved',()=>{
+  assert.equal(boundedPct(0,60),0);
+  assert.equal(boundedPct(undefined,60),60);
 });

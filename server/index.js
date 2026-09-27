@@ -17,6 +17,7 @@ const {opportunitiesConnectorRouter}=require('./opportunities-connector');
 const {opportunitiesMcpRouter}=require('./opportunities-mcp');
 const {opportunityIntakeRouter}=require('./opportunity-intake-router');
 const {revenueSprintRouter}=require('./revenue-sprint');
+const {revenueSprintMcpRouter}=require('./revenue-sprint-mcp');
 const {authenticateOpportunityConnector}=require('./opportunities-connector-auth');
 const {agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector}=require('./agent-control');
 const {agentWorkConnectorRouter,startAgentWorkWorker}=require('./agent-work');
@@ -48,6 +49,7 @@ app.use('/api/integrations/v1',integrationsRouter);
 // Each token is scoped to its own connector and cannot access general JakeOS APIs.
 app.use('/api/connectors/v1/opportunities',authenticateOpportunityConnector,opportunitiesConnectorRouter);
 app.use('/mcp/opportunities',authenticateOpportunityConnector,opportunitiesMcpRouter);
+app.use('/mcp/revenue-sprint',authenticateOpportunityConnector,revenueSprintMcpRouter);
 app.use('/api/connectors/v1/opportunity-intake',authenticateOpportunityConnector,opportunityIntakeRouter);
 app.use('/api/connectors/v1/agents',authenticateAgentConnector,agentConnectorRouter,agentWorkConnectorRouter);
 

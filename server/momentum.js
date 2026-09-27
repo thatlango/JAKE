@@ -8,6 +8,7 @@ const {rankItems,buildReason,daySlots,allocatePlan}=require('./priority');
 const localAi=require('./ai');
 const gcal=require('./gcal');
 const {fetchEstateSnapshot}=require('./estate');
+const {summarizeAccounts}=require('./revenue-sprint');
 const {overview:opsOverview}=require('./ops');
 const {subscriptionSnapshot}=require('./ops-subscriptions');
 const router=express.Router(),integrations=express.Router();
@@ -93,9 +94,34 @@ async function getWorkItem(taskId){return(await db.query('SELECT * FROM work_ite
 async function candidateItems(now=new Date()){return(await db.query(`SELECT wi.*,p.name AS project_name,p.emoji AS project_emoji FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status NOT IN ('done','cancelled') AND (wi.deferred_until IS NULL OR wi.deferred_until<=$1) ORDER BY wi.pinned DESC,wi.due_at NULLS LAST,wi.updated_at ASC LIMIT 500`,[now.toISOString()])).rows;}
 async function nextAvailableMinutes(now=new Date()){const end=new Date(now.getTime()+8*3600000);const result=await db.query(`SELECT COALESCE(starts_at,CASE WHEN date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' THEN date::timestamptz ELSE NULL END) AS starts_at FROM calendar_events WHERE COALESCE(starts_at,CASE WHEN date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' THEN date::timestamptz ELSE NULL END)>$1 AND COALESCE(starts_at,CASE WHEN date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' THEN date::timestamptz ELSE NULL END)<$2 ORDER BY starts_at ASC LIMIT 1`,[now.toISOString(),end.toISOString()]);const next=result.rows[0]?.starts_at?new Date(result.rows[0].starts_at):end;return Math.max(15,Math.min(240,Math.round((next-now)/60000)));}
 
+async function revenueMissionContext(now=new Date()){
+  const sprint=(await db.query(`SELECT * FROM revenue_sprints WHERE status='active' ORDER BY starts_on DESC LIMIT 1`)).rows[0]||null;
+  if(!sprint)return null;
+  const [accountResult,actionResult]=await Promise.all([
+    db.query(`SELECT id,opportunity_id,org,offer,lane,relationship,stage,pipeline_value_usd,cash_30d_target_usd,probability,contact_name,contact_email,contact_channel,deadline,next_action,next_action_date,mobilization_pct,cash_collected_usd,contracted_usd,proposal_sent,owner,risk,notes FROM revenue_sprint_accounts WHERE sprint_id=$1 ORDER BY probability DESC,pipeline_value_usd DESC`,[sprint.id]),
+    db.query(`SELECT x.id,x.account_id,x.action_date,x.title,x.action_type,x.channel,x.priority,x.status,x.result,a.org,a.offer FROM revenue_sprint_actions x LEFT JOIN revenue_sprint_accounts a ON a.id=x.account_id WHERE x.sprint_id=$1 ORDER BY x.action_date,CASE x.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END`,[sprint.id])
+  ]);
+  const accounts=accountResult.rows,actions=actionResult.rows;
+  const today=localDateInTimeZone(now,process.env.JOBS_TIMEZONE||'Africa/Kampala');
+  const summary=summarizeAccounts(accounts,sprint,today);
+  const dueActions=actions.filter(action=>action.status!=='done'&&String(action.action_date).slice(0,10)<=today).slice(0,15);
+  const closeNext=accounts
+    .filter(account=>!['Paid','Lost','Parked'].includes(account.stage))
+    .map(account=>({...account,close_score:Number(account.cash_30d_target_usd||0)*(Math.max(0,Math.min(100,Number(account.probability||0)))/100)}))
+    .sort((a,b)=>b.close_score-a.close_score||Number(b.pipeline_value_usd||0)-Number(a.pipeline_value_usd||0))
+    .slice(0,10)
+    .map(account=>({id:account.id,org:account.org,offer:account.offer,stage:account.stage,lane:account.lane,probability:account.probability,pipeline_value_usd:account.pipeline_value_usd,cash_30d_target_usd:account.cash_30d_target_usd,next_action:account.next_action,next_action_date:account.next_action_date,risk:account.risk}));
+  return{
+    sprint:{id:sprint.id,name:sprint.name,starts_on:sprint.starts_on,ends_on:sprint.ends_on,cash_target_usd:sprint.cash_target_usd,contracted_target_usd:sprint.contracted_target_usd,proposal_target_usd:sprint.proposal_target_usd,pipeline_target_usd:sprint.pipeline_target_usd},
+    summary,
+    due_actions:dueActions,
+    close_next:closeNext
+  };
+}
+
 async function chatContext(){
   const now=new Date(),week=new Date(now.getTime()+7*86400000).toISOString();
-  const[items,events,projects,pipeline,day,estateResult,opsResult,subscriptionsResult]=await Promise.all([
+  const[items,events,projects,pipeline,day,estateResult,opsResult,subscriptionsResult,revenueResult]=await Promise.all([
     candidateItems(now),
     db.query(`SELECT title,starts_at,ends_at,all_day,source FROM calendar_events WHERE done=FALSE AND (starts_at IS NULL OR starts_at BETWEEN $1 AND $2) ORDER BY starts_at NULLS LAST LIMIT 30`,[now.toISOString(),week]),
     db.query(`SELECT id,name,status,priority,progress FROM projects ORDER BY updated_at DESC LIMIT 40`),
@@ -103,7 +129,8 @@ async function chatContext(){
     daySnapshot(now).catch(()=>null),
     fetchEstateSnapshot().catch(error=>({configured:true,available:false,stale:false,snapshot:null,error:error.message})),
     opsOverview().catch(error=>({unavailable:true,error:error.message})),
-    subscriptionSnapshot().catch(error=>({unavailable:true,error:error.message}))
+    subscriptionSnapshot().catch(error=>({unavailable:true,error:error.message})),
+    revenueMissionContext(now).catch(error=>({unavailable:true,error:error.message}))
   ]);
   const ranked=rankItems(items,{now,limit:12});
   const estate=estateResult?.snapshot?{
@@ -145,6 +172,7 @@ async function chatContext(){
     estate,
     operations,
     subscriptions,
+    revenue_sprint:revenueResult,
     day,
     priorities:ranked.map(x=>({id:x.id,title:x.title,priority:x.priority,due_at:x.due_at,project:x.project_name||null,status:x.status,impact:x.impact,strategic_weight:x.strategic_weight})),
     calendar:events.rows,
@@ -286,7 +314,7 @@ router.patch('/tasks/:id',async(req,res)=>{const existing=await getWorkItem(req.
 router.post('/tasks/:id/complete',async(req,res)=>{const existing=await getWorkItem(req.params.id);if(!existing)return res.status(404).json({error:'Task not found'});const result=await db.query(`UPDATE work_items SET status='done',completed_at=NOW(),scheduled_start=NULL,scheduled_end=NULL,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING *`,[existing.id]);await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[existing.id,'completed',JSON.stringify({actor:req.momentumUser.uid})]);res.json({item:result.rows[0]});});
 router.post('/tasks/:id/defer',async(req,res)=>{const until=validDate(req.body.until||req.body.deferred_until||req.body.deferredUntil);if(!until)return res.status(422).json({error:'A valid defer-until time is required'});const result=await db.query(`UPDATE work_items SET deferred_until=$2,scheduled_start=NULL,scheduled_end=NULL,status=CASE WHEN status='doing' THEN 'ready' ELSE status END,updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1 RETURNING *`,[cleanString(req.params.id,100),until]);if(!result.rows[0])return res.status(404).json({error:'Task not found'});await db.query('INSERT INTO work_item_events(work_item_id,event_type,payload) VALUES($1,$2,$3::jsonb)',[req.params.id,'deferred',JSON.stringify({actor:req.momentumUser.uid,until})]);res.json({item:result.rows[0]});});
 router.post('/capture',async(req,res)=>{const title=cleanString(req.body.text||req.body.title,500);if(!title)return res.status(422).json({error:'Capture text is required'});const item=normalizeWorkItem({...req.body,title,status:req.body.status||'inbox',source:'momentum-capture'},{source:'momentum-capture'});res.status(201).json({item:await upsertWorkItem(item,'captured',{actor:req.momentumUser.uid,capture_type:cleanString(req.body.type||'task',50)})});});
-router.get('/ai/status',async(_req,res)=>res.json({...localAi.status(),calendar:gcal.getStatus(),knowledge_sources:['estate','operations','subscriptions','day','work','calendar','projects','pipeline'],fast_paths:['estate'],contracts:{chat:'/api/momentum/v1/chat',history:'/api/momentum/v1/chat/history',day:'/api/momentum/v1/day',estate:'/api/momentum/v1/estate',operations:'/api/momentum/v1/ops',subscriptions:'/api/momentum/v1/ops/subscriptions'}}));
+router.get('/ai/status',async(_req,res)=>res.json({...localAi.status(),calendar:gcal.getStatus(),knowledge_sources:['estate','operations','subscriptions','revenue-sprint','day','work','calendar','projects','pipeline'],fast_paths:['estate'],contracts:{chat:'/api/momentum/v1/chat',history:'/api/momentum/v1/chat/history',day:'/api/momentum/v1/day',estate:'/api/momentum/v1/estate',operations:'/api/momentum/v1/ops',subscriptions:'/api/momentum/v1/ops/subscriptions'}}));
 router.get('/chat/history',async(req,res)=>{const limit=asInt(req.query.limit,40,1,100),rows=(await db.query(`SELECT id,role,content,metadata,created_at FROM jake_chat_messages WHERE user_key=$1 ORDER BY created_at DESC LIMIT $2`,[req.momentumUser.uid,limit])).rows.reverse();res.json({messages:rows});});
 router.post('/chat',async(req,res)=>{const message=cleanString(req.body.message||req.body.text,5000);if(!message)return res.status(422).json({error:'Message is required'});try{const history=(await db.query(`SELECT role,content FROM jake_chat_messages WHERE user_key=$1 ORDER BY created_at DESC LIMIT 8`,[req.momentumUser.uid])).rows.reverse();await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'user',$2,$3::jsonb)`,[req.momentumUser.uid,message,JSON.stringify({source:'jakeos-mobile'})]);const context=await chatContext(),fastReply=estateFastReply(message,context),result=fastReply?{reply:fastReply,actions:[],provider:'jakeos-live-estate',model:'deterministic-v1'}:await localAi.interpretJakeCommand({message,history,context}),executed=await executeJakeActions(result.actions,req.momentumUser.uid);let reply=result.reply;if(executed.length){const titles=executed.map(x=>x.task.title);reply=`${reply}${reply.endsWith('.')?'':'.'} ${executed.length===1?`Added “${titles[0]}” to JakeOS.`:`Added ${executed.length} tasks to JakeOS.`}`;}const meta={provider:result.provider,model:result.model,fast_path:!!fastReply,actions:executed.map(x=>({type:x.type,task_id:x.task.id,calendar_event_id:x.calendar_event?.id||null}))};const inserted=(await db.query(`INSERT INTO jake_chat_messages(user_key,role,content,metadata) VALUES($1,'assistant',$2,$3::jsonb) RETURNING id,role,content,metadata,created_at`,[req.momentumUser.uid,reply,JSON.stringify(meta)])).rows[0];res.json({message:inserted,actions:executed,provider:result.provider,model:result.model,fast_path:!!fastReply});}catch(error){res.status(error.status||502).json({error:error.message||'Ask Jake could not complete this request'});}});
 router.get('/schedule',async(req,res)=>{const date=/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date||''))?String(req.query.date):new Date(Date.now()+180*60000).toISOString().slice(0,10);const events=await db.query(`SELECT id,title,date,project,type,done,notes,starts_at,ends_at,all_day,source FROM calendar_events WHERE (starts_at::date=$1::date OR (starts_at IS NULL AND LEFT(date,10)=($1::date)::text)) ORDER BY COALESCE(starts_at,CASE WHEN date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN date::timestamptz ELSE NOW() END) ASC`,[date]);const tasks=await db.query(`SELECT * FROM work_items WHERE scheduled_start::date=$1::date AND status NOT IN ('done','cancelled') ORDER BY scheduled_start`,[date]);res.json({date,events:events.rows,tasks:tasks.rows});});

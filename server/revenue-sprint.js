@@ -6,6 +6,28 @@ const router=express.Router();
 const text=(v,max=4000)=>String(v??'').trim().slice(0,max);
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
 const bool=v=>v===true||v===1||v==='1'||String(v).toLowerCase()==='true';
+function boundedPct(value,fallback=0){
+  const n=Number(value);
+  return Number.isFinite(n)?Math.max(0,Math.min(100,n)):fallback;
+}
+const IDENT=/^[a-z_][a-z0-9_]*$/i;
+function txValue(value){
+  if(value===undefined)return null;
+  if(value!==null&&typeof value==='object'&&!(value instanceof Date)&&!Buffer.isBuffer(value))return JSON.stringify(value);
+  return value;
+}
+async function txInsert(client,table,data){
+  const cols=Object.keys(data).filter(key=>data[key]!==undefined);
+  if(!IDENT.test(table)||cols.some(col=>!IDENT.test(col)))throw new Error('Unsafe transaction insert identifier');
+  if(!cols.length)throw new Error('Transaction insert requires data');
+  const values=cols.map(key=>txValue(data[key]));
+  const quoted=value=>'"'+String(value).replaceAll('"','""')+'"';
+  const placeholders=cols.map((_,i)=>'$'+(i+1)).join(',');
+  const sql='INSERT INTO '+quoted(table)+' ('+cols.map(quoted).join(',')+') VALUES ('+placeholders+') RETURNING *';
+  const row=(await client.query(sql,values)).rows[0];
+  if(!row)throw new Error('Transaction insert returned no row');
+  return row;
+}
 const id=(prefix='rev')=>prefix+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
 const CLOSED_STAGES=new Set(['Paid','Lost','Parked']);
 const STAGE_MAP={
@@ -137,34 +159,44 @@ router.post('/accounts',async(req,res)=>{
     const org=text(req.body.org,300),offer=text(req.body.offer,1000);
     if(!org||!offer)return res.status(422).json({error:'Organisation and offer are required'});
     const opportunityId=text(req.body.opportunity_id||req.body.opportunityId,120)||id('opp');
-    let opportunity=await db.get('opportunities',{eq:{id:opportunityId}});
-    if(!opportunity){
-      opportunity=await db.insert('opportunities',{
-        id:opportunityId,title:offer,org,source:'JakeOS Revenue Sprint',source_url:text(req.body.source_url||req.body.sourceUrl,2000),
-        deadline:dateOnly(req.body.deadline),budget:'',description:text(req.body.notes,8000),relevance_score:75,status:'Tracked',
-        tags:'revenue-sprint',saved:true,seen:true,audience:'Tuku-Tuku',opportunity_type:text(req.body.opportunity_type||req.body.opportunityType,80)||'Consultancy',
-        stage:stageToOpportunityStage(text(req.body.stage,40)||'Target'),value_amount:num(req.body.pipeline_value_usd||req.body.pipelineValueUSD),
-        currency:'USD',fit_score:4,bid_posture:'Consider',next_action:text(req.body.next_action||req.body.nextAction,4000),
-        contact:text(req.body.contact_name||req.body.contactName,500),notes:text(req.body.notes,10000),updated_at:new Date().toISOString()
-      },false);
-    }
-    const row=await db.insert('revenue_sprint_accounts',{
-      id:text(req.body.id,120)||id('rsa'),sprint_id:sprint.id,opportunity_id:opportunityId,org,offer,
-      lane:text(req.body.lane,80)||'Cash now',relationship:text(req.body.relationship,120)||'Cold',stage:text(req.body.stage,40)||'Target',
-      pipeline_value_usd:num(req.body.pipeline_value_usd||req.body.pipelineValueUSD),cash_30d_target_usd:num(req.body.cash_30d_target_usd||req.body.cash30dTargetUSD),
-      probability:Math.max(0,Math.min(100,num(req.body.probability))),contact_name:text(req.body.contact_name||req.body.contactName,300),
-      contact_email:text(req.body.contact_email||req.body.contactEmail,300),contact_channel:text(req.body.contact_channel||req.body.contactChannel,80)||'Email',
-      source_url:text(req.body.source_url||req.body.sourceUrl,2000),deadline:dateOnly(req.body.deadline),next_action:text(req.body.next_action||req.body.nextAction,4000),
-      next_action_date:dateOnly(req.body.next_action_date||req.body.nextActionDate),mobilization_pct:Math.max(0,Math.min(100,num(req.body.mobilization_pct||req.body.mobilizationPct||60))),
-      cash_collected_usd:0,contracted_usd:0,proposal_sent:false,owner:text(req.body.owner,120)||'Jacob',risk:text(req.body.risk,2000),notes:text(req.body.notes,10000)
-    },false);
-    res.status(201).json({account:row,opportunity});
+    const stage=text(req.body.stage,40)||'Target';
+    const pipelineValue=num(req.body.pipeline_value_usd??req.body.pipelineValueUSD);
+    const nextAction=text(req.body.next_action||req.body.nextAction,4000);
+    const mobilizationInput=req.body.mobilization_pct??req.body.mobilizationPct;
+    const accountId=text(req.body.id,120)||id('rsa');
+
+    const created=await db.withTransaction(async client=>{
+      let opportunity=(await client.query('SELECT * FROM opportunities WHERE id=$1 LIMIT 1',[opportunityId])).rows[0]||null;
+      if(!opportunity){
+        opportunity=await txInsert(client,'opportunities',{
+          id:opportunityId,title:offer,org,source:'JakeOS Revenue Sprint',source_url:text(req.body.source_url||req.body.sourceUrl,2000),
+          deadline:dateOnly(req.body.deadline),budget:'',description:text(req.body.notes,8000),relevance_score:75,status:'Tracked',
+          tags:'revenue-sprint',saved:true,seen:true,audience:'Tuku-Tuku',opportunity_type:text(req.body.opportunity_type||req.body.opportunityType,80)||'Consultancy',
+          stage:stageToOpportunityStage(stage),value_amount:pipelineValue,currency:'USD',fit_score:4,bid_posture:'Consider',
+          next_action:nextAction,contact:text(req.body.contact_name||req.body.contactName,500),notes:text(req.body.notes,10000),updated_at:new Date().toISOString()
+        });
+      }
+
+      const account=await txInsert(client,'revenue_sprint_accounts',{
+        id:accountId,sprint_id:sprint.id,opportunity_id:opportunityId,org,offer,
+        lane:text(req.body.lane,80)||'Cash now',relationship:text(req.body.relationship,120)||'Cold',stage,
+        pipeline_value_usd:pipelineValue,cash_30d_target_usd:num(req.body.cash_30d_target_usd??req.body.cash30dTargetUSD),
+        probability:boundedPct(req.body.probability,0),contact_name:text(req.body.contact_name||req.body.contactName,300),
+        contact_email:text(req.body.contact_email||req.body.contactEmail,300),contact_channel:text(req.body.contact_channel||req.body.contactChannel,80)||'Email',
+        source_url:text(req.body.source_url||req.body.sourceUrl,2000),deadline:dateOnly(req.body.deadline),next_action:nextAction,
+        next_action_date:dateOnly(req.body.next_action_date||req.body.nextActionDate),mobilization_pct:boundedPct(mobilizationInput,60),
+        cash_collected_usd:0,contracted_usd:0,proposal_sent:false,owner:text(req.body.owner,120)||'Jacob',risk:text(req.body.risk,2000),notes:text(req.body.notes,10000)
+      });
+      return{account,opportunity};
+    });
+
+    res.status(201).json(created);
   }catch(error){
     console.error('[RevenueSprint] create account failed:',error.message);
-    res.status(500).json({error:'Revenue sprint account could not be created'});
+    const duplicate=String(error.code||'')==='23505';
+    res.status(duplicate?409:500).json({error:duplicate?'Revenue sprint account already exists':'Revenue sprint account could not be created'});
   }
 });
-
 router.patch('/accounts/:id',async(req,res)=>{
   try{
     const account=await db.get('revenue_sprint_accounts',{eq:{id:text(req.params.id,120)}});
@@ -174,8 +206,8 @@ router.patch('/accounts/:id',async(req,res)=>{
     for(const key of textFields)if(req.body[key]!==undefined)data[key]=text(req.body[key],key==='notes'?10000:key==='next_action'?4000:key==='risk'?2000:2000);
     const numberFields=['pipeline_value_usd','cash_30d_target_usd','cash_collected_usd','contracted_usd'];
     for(const key of numberFields)if(req.body[key]!==undefined)data[key]=Math.max(0,num(req.body[key]));
-    if(req.body.probability!==undefined)data.probability=Math.max(0,Math.min(100,num(req.body.probability)));
-    if(req.body.mobilization_pct!==undefined)data.mobilization_pct=Math.max(0,Math.min(100,num(req.body.mobilization_pct)));
+    if(req.body.probability!==undefined)data.probability=boundedPct(req.body.probability,0);
+    if(req.body.mobilization_pct!==undefined)data.mobilization_pct=boundedPct(req.body.mobilization_pct,0);
     if(req.body.proposal_sent!==undefined)data.proposal_sent=bool(req.body.proposal_sent);
     if(data.stage!==undefined&&['Proposal','Negotiation','Contracted','Invoiced','Paid'].includes(data.stage))data.proposal_sent=true;
     if(req.body.deadline!==undefined)data.deadline=dateOnly(req.body.deadline);
@@ -229,4 +261,4 @@ router.patch('/actions/:id',async(req,res)=>{
   }
 });
 
-module.exports={revenueSprintRouter:router,summarizeAccounts,stageToOpportunityStage,dayDiffInclusive};
+module.exports={revenueSprintRouter:router,summarizeAccounts,stageToOpportunityStage,dayDiffInclusive,boundedPct,latestSprint,loadAccounts,loadActions,dateOnly};
