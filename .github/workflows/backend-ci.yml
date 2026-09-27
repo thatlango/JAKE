@@ -70,6 +70,13 @@ jobs:
           jq -e '.opportunity.title=="Scoped connector CI"' /tmp/opportunity-read.json
           test "$(curl -s -o /tmp/opportunities-no-general-access -w '%{http_code}' -H 'Authorization: Bearer ci_opportunities_connector_token_0123456789' http://127.0.0.1:3100/api/projects)" = "401"
 
+      - name: Exercise Revenue Mission MCP boundary
+        run: |
+          test "$(curl -s -o /tmp/revenue-mcp-unauth -w '%{http_code}' -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}' http://127.0.0.1:3100/mcp/revenue-sprint)" = "401"
+          curl -fsS -H 'Authorization: Bearer ci_opportunities_connector_token_0123456789' -H 'Content-Type: application/json'             -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'             http://127.0.0.1:3100/mcp/revenue-sprint > /tmp/revenue-mcp-init.json
+          jq -e '.result.serverInfo.name=="JakeOS Revenue Mission"' /tmp/revenue-mcp-init.json
+          curl -fsS -H 'Authorization: Bearer ci_opportunities_connector_token_0123456789' -H 'Content-Type: application/json'             -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'             http://127.0.0.1:3100/mcp/revenue-sprint > /tmp/revenue-mcp-tools.json
+          jq -e '[.result.tools[].name] | sort == ["revenue_account_update","revenue_action_complete","revenue_action_create","revenue_sprint_get"]' /tmp/revenue-mcp-tools.json
       - name: Exercise Momentum API
         run: |
           test "$(curl -s -o /tmp/unauth -w '%{http_code}' http://127.0.0.1:3100/api/momentum/v1/today)" = "401"
