@@ -11,6 +11,11 @@ const text=(value,max=4000)=>String(value??'').trim().slice(0,max);
 const num=value=>Number.isFinite(Number(value))?Number(value):0;
 const bool=value=>value===true||value===1||value==='1'||String(value).toLowerCase()==='true';
 const makeId=prefix=>prefix+'_'+crypto.randomUUID();
+function localDateInKampala(date=new Date()){
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date),map={};
+  for(const part of parts)if(part.type!=='literal')map[part.type]=part.value;
+  return map.year+'-'+map.month+'-'+map.day;
+}
 
 const tools=[
   {
@@ -57,7 +62,7 @@ async function sprintSnapshot(sprintId){
   const sprint=await latestSprint(sprintId);
   if(!sprint)throw Object.assign(new Error('No active revenue sprint'),{status:404});
   const [accounts,actions]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id)]);
-  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const today=localDateInKampala();
   const summary=summarizeAccounts(accounts,sprint,today);
   const dueActions=actions.filter(action=>action.status!=='done'&&action.action_date&&action.action_date<=today);
   const closeNext=accounts
@@ -139,7 +144,7 @@ async function createAction(args){
   if(!PRIORITIES.has(priority))throw Object.assign(new Error('Invalid action priority'),{status:422});
   const action=await db.insert('revenue_sprint_actions',{
     id:makeId('rsa_action'),sprint_id:sprint.id,account_id:accountId,
-    action_date:dateOnly(args.action_date)||new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),
+    action_date:dateOnly(args.action_date)||localDateInKampala(),
     title,action_type:text(args.action_type,80)||'follow-up',channel:text(args.channel,80)||'JakeOS',priority,status:'todo',result:''
   },false);
   if(!action)throw new Error('Revenue action could not be created');
@@ -179,5 +184,4 @@ router.post('/',async(req,res)=>{
   }
 });
 
-module.exports={revenueSprintMcpRouter,sprintSnapshot:update=>sprintSnapshot(update),updateAccount,createAction,completeAction};
-function revenueSprintMcpRouter(req,res,next){return router(req,res,next);}
+module.exports={revenueSprintMcpRouter:router,sprintSnapshot,updateAccount,createAction,completeAction,localDateInKampala};
