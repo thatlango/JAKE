@@ -91,6 +91,7 @@ SELECT
   NOW()
 FROM revenue_sprint_actions x
 LEFT JOIN revenue_sprint_accounts a ON a.id=x.account_id
+WHERE x.account_id IS NOT NULL
 ON CONFLICT (id) DO UPDATE SET
   title=EXCLUDED.title,
   description=EXCLUDED.description,
@@ -115,6 +116,10 @@ ON CONFLICT (id) DO UPDATE SET
   last_touched_at=NOW(),
   version=work_items.version+1;
 
+DELETE FROM work_items
+WHERE source='revenue-sprint'
+  AND source_ref IN (SELECT id FROM revenue_sprint_actions WHERE account_id IS NULL);
+
 CREATE OR REPLACE FUNCTION jakeos_revenue_action_to_work_item()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
@@ -123,6 +128,13 @@ DECLARE
   work_status text;
 BEGIN
   IF pg_trigger_depth()>1 THEN
+    RETURN NEW;
+  END IF;
+
+  -- The 30-day calendar is mission guidance. Only account-specific buyer actions
+  -- become canonical Work, otherwise the generic calendar crowds Momentum Today.
+  IF NEW.account_id IS NULL THEN
+    DELETE FROM work_items WHERE id='revwork_'||NEW.id;
     RETURN NEW;
   END IF;
 
