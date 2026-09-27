@@ -119,7 +119,7 @@ function Pulse({rows}){
 }
 
 export default function Dashboard({openAI,navigate}){
-  const[data,setData]=useState({overview:null,day:null,today:{priorities:[]},items:[],projects:[],opportunities:[]});
+  const[data,setData]=useState({overview:null,day:null,today:{priorities:[]},items:[],projects:[],opportunities:[],revenue:null});
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState('');
 
@@ -131,7 +131,8 @@ export default function Dashboard({openAI,navigate}){
       ['today','/api/work/today?limit=20'],
       ['items','/api/work/items?limit=300'],
       ['projects','/api/work/projects'],
-      ['opportunities','/api/opportunities?limit=300']
+      ['opportunities','/api/opportunities?limit=300'],
+      ['revenue','/api/revenue-sprint']
     ];
     const results=await Promise.allSettled(sources.map(async([name,url])=>{
       const response=await fetch(url,{headers:{Accept:'application/json'}});
@@ -139,7 +140,7 @@ export default function Dashboard({openAI,navigate}){
       if(!response.ok)throw new Error(body.error||`${name} returned ${response.status}`);
       return{name,body};
     }));
-    const next={overview:null,day:null,today:{priorities:[]},items:[],projects:[],opportunities:[]};
+    const next={overview:null,day:null,today:{priorities:[]},items:[],projects:[],opportunities:[],revenue:null};
     const failed=[];
     results.forEach((result,index)=>{
       const name=sources[index][0];
@@ -151,6 +152,7 @@ export default function Dashboard({openAI,navigate}){
       if(name==='items')next.items=body.items||[];
       if(name==='projects')next.projects=body.projects||[];
       if(name==='opportunities')next.opportunities=body.opportunities||[];
+      if(name==='revenue')next.revenue=body;
     });
     setData(next);
     if(failed.length===sources.length)setError('Executive operating picture is unavailable.');
@@ -160,6 +162,10 @@ export default function Dashboard({openAI,navigate}){
   useEffect(()=>{load();},[load]);
 
   const overview=data.overview||{};
+  const revenue=data.revenue||{};
+  const revenueSummary=revenue.summary||{};
+  const revenueSprint=revenue.sprint||{};
+  const revenueCloseNext=revenue.close_next||[];
   const tasks=overview.tasks||{};
   const invoices=overview.invoices||{};
   const signals=overview.attention_signals||[];
@@ -261,6 +267,33 @@ export default function Dashboard({openAI,navigate}){
     <section className="exec-loopbar" aria-label="Executive operating loop">
       <span className="is-current">Now</span><Icon name="arrow" size={13}/><span>Decide</span><Icon name="arrow" size={13}/><span>Market</span><Icon name="arrow" size={13}/><span>Finish</span><Icon name="arrow" size={13}/><span>Delegate / review</span><small>Park anything else.</small>
     </section>
+
+    {revenueSprint.id&&<section className="exec-panel exec-panel--market" style={{marginBottom:18}}>
+      <div className="exec-panel-head">
+        <div>
+          <span className="exec-panel-kicker">Governing commercial objective</span>
+          <h2>USD10K Revenue Mission</h2>
+          <p>{revenueSprint.starts_on} → {revenueSprint.ends_on} · Day {revenueSummary.day_number||1} of {revenueSummary.total_days||30}</p>
+        </div>
+        <Button onClick={()=>navigate('revenue-sprint')}>Open Revenue Mission</Button>
+      </div>
+      <div className="exec-metrics" style={{margin:'0 0 14px'}}>
+        <ExecMetric label="Cash collected" value={formatMoney(revenueSummary.cash_collected_usd||0,'USD')} helper={`Gap ${formatMoney(revenueSummary.cash_gap_usd||0,'USD')}`} icon="money" tone="success" onClick={()=>navigate('revenue-sprint')}/>
+        <ExecMetric label="Contracted" value={formatMoney(revenueSummary.contracted_usd||0,'USD')} helper={`Target ${formatMoney(revenueSprint.contracted_target_usd||20000,'USD')}`} icon="check" tone="warning" onClick={()=>navigate('revenue-sprint')}/>
+        <ExecMetric label="Proposal value" value={formatMoney(revenueSummary.proposal_value_usd||0,'USD')} helper={`Target ${formatMoney(revenueSprint.proposal_target_usd||50000,'USD')}`} icon="document" tone="brand" onClick={()=>navigate('revenue-sprint')}/>
+        <ExecMetric label="Gross pipeline" value={formatMoney(revenueSummary.gross_pipeline_usd||0,'USD')} helper={`Weighted ${formatMoney(revenueSummary.weighted_pipeline_usd||0,'USD')}`} icon="chart" tone="brand" onClick={()=>navigate('revenue-sprint')}/>
+      </div>
+      {revenueCloseNext.length>0&&<div className="exec-list">
+        {revenueCloseNext.slice(0,3).map(item=><div className="exec-line" key={item.id}>
+          <div className="exec-line-main">
+            <div className="exec-line-title">{item.org}</div>
+            <div className="exec-line-meta"><span>{item.stage}</span><span>{item.probability}%</span><span>{formatMoney(item.cash_30d_target_usd||0,'USD')} 30-day cash</span></div>
+            {item.next_action&&<div className="exec-next"><strong>Next:</strong> {item.next_action}</div>}
+          </div>
+          <button className="exec-line-action" onClick={()=>navigate('revenue-sprint')}>Open<Icon name="arrow" size={14}/></button>
+        </div>)}
+      </div>}
+    </section>}
 
     <section className="exec-command-grid">
       <DayCard eyebrow="Momentum" title="Do now" item={doNow} timeZone={dayTimeZone} fallbackBody="There is no active day-plan item or ranked work demanding attention." onOpen={()=>openDayItem(doNow)} actionLabel="Open"/>
