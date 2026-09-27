@@ -22,7 +22,12 @@ async function txInsert(client,table,data){
   if(!cols.length)throw new Error('Transaction insert requires data');
   const values=cols.map(key=>txValue(data[key]));
   const quoted=value=>'"'+String(value).replaceAll('"','""')+'"';
-  const sql='INSERT INTO '+quoted(table)+' ('+cols.map(quoted).join(',')+') VALUES ('+cols.map((_,i)=>'
+  const placeholders=cols.map((_,i)=>'$'+(i+1)).join(',');
+  const sql='INSERT INTO '+quoted(table)+' ('+cols.map(quoted).join(',')+') VALUES ('+placeholders+') RETURNING *';
+  const row=(await client.query(sql,values)).rows[0];
+  if(!row)throw new Error('Transaction insert returned no row');
+  return row;
+}
 const id=(prefix='rev')=>prefix+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
 const CLOSED_STAGES=new Set(['Paid','Lost','Parked']);
 const STAGE_MAP={
