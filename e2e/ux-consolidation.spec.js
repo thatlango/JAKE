@@ -95,3 +95,20 @@ test('project deep route opens the selected project directly',async({page})=>{
   await expect(page.getByText('Exact project')).toBeVisible();
   await expect(page.getByText('Next action')).toBeVisible();
 });
+
+
+test('opportunity deep route opens the exact pursuit instead of only the workspace',async({page})=>{
+  await installBase(page);
+  await page.route('**/api/opportunities?*',route=>json(route,{summary:{active:1},watches:[],proposals:[],sources:[],opportunities:[{id:'opp-9',title:'Exact bid opportunity',org:'Buyer',stage:'Pursuing',opportunity_type:'RFP',audience:'Tuku-Tuku',fit_score:4.5,fit_status:'Strong fit',eligibility_status:'Eligible',assessment_status:'Verified',assessment_confidence:'High',notes:'Exact opportunity notes'}]}));
+  await page.goto('/opportunities/opp-9');
+  await expect(page).toHaveURL(/\/opportunities\/opp-9$/);
+  await expect(page.getByText('Exact bid opportunity').first()).toBeVisible();
+  await expect(page.getByText('Exact opportunity notes')).toBeVisible();
+});
+
+test('invalid routes show a recovery surface instead of silently becoming Executive',async({page})=>{
+  await installBase(page);
+  await page.goto('/this-route-does-not-exist');
+  await expect(page.getByRole('heading',{name:'Page not found'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Search JakeOS'})).toBeVisible();
+});
