@@ -45,7 +45,7 @@ export const MOBILE_MORE = NAV_GROUPS
   .flatMap(group => group.items)
   .filter(item => !['dashboard','work','projects','estate'].includes(item.id));
 
-export const KNOWN_MODULES = new Set([...NAV_GROUPS.flatMap(group => group.items.map(item => item.id)),'pipeline','radar','proposals','grants']);
+export const KNOWN_MODULES = new Set([...NAV_GROUPS.flatMap(group => group.items.map(item => item.id)),'pipeline','radar','proposals','grants','not-found']);
 
 export const MODULE_META = {
   dashboard:{title:'Executive',subtitle:'Now, decisions, market movement and verified completion'},
@@ -69,7 +69,8 @@ export const MODULE_META = {
   platforms:{title:'Platforms',subtitle:'Tuku products and system access'},
   'voice-memo':{title:'Voice capture',subtitle:'Capture ideas and actions quickly'},
   'personal-finance':{title:'Personal finance',subtitle:'Personal cashflow and obligations'},
-  export:{title:'Export',subtitle:'Reports, extracts and shareable outputs'}
+  export:{title:'Export',subtitle:'Reports, extracts and shareable outputs'},
+  'not-found':{title:'Not found',subtitle:'This JakeOS route does not exist'}
 };
 
 const decode = value => {
@@ -95,8 +96,9 @@ export function readLocation(){
   if(path==='/revenue-mission'||path==='/revenue-sprint') return {module:'revenue-sprint',recordId:null,estateProduct:null};
   const estate = path.match(/^\/estate(?:\/([^/?#]+))?$/i);
   if(estate) return {module:'estate',recordId:null,estateProduct:estate[1]?decode(estate[1]).toLowerCase():null};
+  if(path!=='/') return {module:'not-found',recordId:null,estateProduct:null};
   const requested = new URLSearchParams(window.location.search).get('module') || 'dashboard';
-  return {module:KNOWN_MODULES.has(requested)?requested:'dashboard',recordId:new URLSearchParams(window.location.search).get('id'),estateProduct:null};
+  return {module:KNOWN_MODULES.has(requested)?requested:'not-found',recordId:new URLSearchParams(window.location.search).get('id'),estateProduct:null};
 }
 
 export function moduleUrl(module, params={}){
