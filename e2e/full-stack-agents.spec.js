@@ -116,7 +116,7 @@ test('real Agent OS telemetry reaches authenticated JakeOS UI and streams live e
   });
 
   await expect(page.getByText('Premium Moodle Partner evidence not verified').first()).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText('Independent Assurance').first()).toBeVisible();
+  await expect(page.locator('.agents-roster').getByText('Independent Assurance',{exact:true})).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath('agent-command-center-full-stack.png'), fullPage: true });
 
