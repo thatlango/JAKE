@@ -7,9 +7,6 @@ import './product.css';
 import './sprint.css';
 import './sprint-modules.css';
 import './relationships.css';
-import './layout-fix.css';
-import './dashboard-reference.css';
-import './minimal-kpi-shell.css';
 import './tds-jakeos.css';
 
 document.documentElement.dataset.tds = '2.0';
