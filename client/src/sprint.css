@@ -1,47 +1,5 @@
 /* JakeOS command-center UI sprint — 4 Sep 2026
    Final-mile hierarchy, shell, Material 3 tonal surfaces, and desktop density. */
-:root{
-  --bg:#f4f6f3;
-  --surface:#ffffff;
-  --surface-2:#f7f8f6;
-  --surface-3:#edf2ee;
-  --border:#e0e6e1;
-  --border-strong:#c8d1ca;
-  --accent:#245c46;
-  --accent-dim:#e3efe8;
-  --green:#1f7a54;
-  --green-dim:#e8f5ee;
-  --red:#b33a3a;
-  --red-dim:#fdecec;
-  --blue:#315f87;
-  --blue-dim:#e9f2fa;
-  --purple:#6e5aa8;
-  --cyan:#287b7b;
-  --text:#17201c;
-  --text-muted:#66736d;
-  --text-dim:#8a958f;
-
-  --px-bg:#f4f6f3;
-  --px-surface:#ffffff;
-  --px-surface-2:#f7f8f6;
-  --px-surface-3:#edf2ee;
-  --px-text:#17201c;
-  --px-muted:#66736d;
-  --px-dim:#8a958f;
-  --px-border:#e0e6e1;
-  --px-border-strong:#c8d1ca;
-  --px-brand:#245c46;
-  --px-brand-strong:#174333;
-  --px-brand-soft:#e3efe8;
-  --px-warning:#a66516;
-  --px-warning-soft:#fff1d8;
-  --px-danger:#b33a3a;
-  --px-danger-soft:#fdecec;
-  --px-content:1480px;
-  --px-sidebar:256px;
-  --px-shadow:0 1px 2px rgba(25,35,30,.025),0 14px 34px rgba(25,35,30,.035);
-}
-
 html,body{overflow:auto!important;background:var(--px-bg)!important}
 body{min-width:320px}
 .main-content{padding-top:58px!important}

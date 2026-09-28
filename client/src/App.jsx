@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
-import AIPanel from './components/AIPanel';
 import InstallPrompt from './components/InstallPrompt';
 import CommandCenter from './components/CommandCenter';
 import { Button, Icon } from './components/ProductUI';
@@ -27,41 +26,8 @@ import EstateControl from './modules/EstateControl';
 import Accounts from './modules/Accounts';
 import Operations from './modules/Operations';
 import Payments from './modules/Payments';
-
-const KNOWN_MODULES=new Set(['dashboard','agents','work','projects','calendar','crm','cashflow','opportunities','revenue-sprint','pipeline','radar','estate','estate-control','operations','payments','accounts','proposals','grants','finance','ai-search','voice-memo','personal-finance','platforms','export','integrations','alerts']);
-const MODULE_META={
-  dashboard:{title:'Executive',subtitle:'Now, decisions, market movement and verified completion'},
-  agents:{title:'Agents',subtitle:'Live agent runs, blockers, evidence and decisions'},
-  work:{title:'Work',subtitle:'Finish, delegate, evidence and close'},
-  projects:{title:'Projects',subtitle:'Delivery, milestones and project health'},
-  calendar:{title:'Calendar',subtitle:'Schedule, deadlines and commitments'},
-  crm:{title:'Relationships',subtitle:'People, organisations and follow-ups'},
-  cashflow:{title:'Money',subtitle:'Cash movement, invoices and financial attention'},
-  opportunities:{title:'Opportunities',subtitle:'Qualify demand, pursue, submit and convert'},
-  'revenue-sprint':{title:'30-Day Revenue',subtitle:'Cash target, close queue and daily commercial execution'},
-  estate:{title:'Tuku Estate',subtitle:'Products, usage and commercial signals'},
-  'estate-control':{title:'Estate Control',subtitle:'Cross-product controls and estate status'},
-  operations:{title:'Operations',subtitle:'Infrastructure, continuity and service health'},
-  payments:{title:'Payments',subtitle:'Collections, movements and exceptions'},
-  accounts:{title:'Accounts',subtitle:'Users, access and product activity'},
-  finance:{title:'Revenue plan',subtitle:'Targets, pipeline economics and commercial direction'},
-  'ai-search':{title:'Search',subtitle:'Search and interpret JakeOS operating context'},
-  integrations:{title:'Integrations',subtitle:'Connected systems and data flows'},
-  alerts:{title:'Alerts',subtitle:'Notification rules and operational signals'},
-  platforms:{title:'Platforms',subtitle:'Tuku products and system access'},
-  'voice-memo':{title:'Voice capture',subtitle:'Capture ideas and actions quickly'},
-  'personal-finance':{title:'Personal finance',subtitle:'Personal cashflow and obligations'},
-  export:{title:'Export',subtitle:'Reports, extracts and shareable outputs'}
-};
-const readLocation=()=>{
-  const path=window.location.pathname.replace(/\/+$/,'')||'/';
-  const match=path.match(/^\/estate(?:\/([^/?#]+))?$/i);
-  if(path==='/estate/control')return{module:'estate-control',estateProduct:null};
-  if(path==='/revenue-sprint')return{module:'revenue-sprint',estateProduct:null};
-  if(match)return{module:'estate',estateProduct:match[1]?decodeURIComponent(match[1]).toLowerCase():null};
-  const requested=new URLSearchParams(window.location.search).get('module')||'dashboard';
-  return{module:KNOWN_MODULES.has(requested)?requested:'dashboard',estateProduct:null};
-};
+import NotFound from './modules/NotFound';
+import { KNOWN_MODULES, MODULE_META, moduleUrl, readLocation } from './navigation';
 
 function AuthGate({checking}){
   const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[submitting,setSubmitting]=useState(false),[error,setError]=useState('');
@@ -75,15 +41,19 @@ export default function App(){
   const initial=readLocation();
   const[module,setModule]=useState(initial.module);
   const[estateProduct,setEstateProduct]=useState(initial.estateProduct);
-  const[aiOpen,setAiOpen]=useState(false),[aiContext,setAiContext]=useState('');
+  const[recordId,setRecordId]=useState(initial.recordId||null);
+  const[profileOpen,setProfileOpen]=useState(false);
+  const profileRef=useRef(null);
   useEffect(()=>{let active=true;fetch('/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})).then(({ok,data})=>active&&setAuthState({checking:false,authenticated:ok&&data.authenticated===true,user:data.user||null})).catch(()=>active&&setAuthState({checking:false,authenticated:false,user:null}));return()=>{active=false;};},[]);
   const signOut=useCallback(async()=>{try{await fetch('/auth/logout',{method:'POST'});}catch{}window.location.replace('/');},[]);
-  const openAI=useCallback(context=>{setAiContext(context||'');setAiOpen(true);},[]);
-  const navigate=useCallback((next,params={})=>{const safe=KNOWN_MODULES.has(next)?next:'dashboard';setModule(safe);setEstateProduct(null);setAiOpen(false);let url;if(safe==='dashboard')url='/';else if(safe==='estate')url='/estate';else if(safe==='estate-control')url='/estate/control';else if(safe==='revenue-sprint')url='/revenue-sprint';else{const query=new URLSearchParams({module:safe});Object.entries(params||{}).forEach(([key,value])=>{if(value!==undefined&&value!==null&&String(value)!=='')query.set(key,String(value));});url=`/?${query.toString()}`;}window.history.replaceState({},'',url);window.scrollTo({top:0,behavior:'smooth'});},[]);
-  const navigateEstateProduct=useCallback(code=>{const safe=String(code||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');if(!safe)return;setModule('estate');setEstateProduct(safe);setAiOpen(false);window.history.pushState({},'',`/estate/${encodeURIComponent(safe)}`);window.scrollTo({top:0,behavior:'smooth'});},[]);
-  const backToEstate=useCallback(()=>{setModule('estate');setEstateProduct(null);setAiOpen(false);window.history.pushState({},'','/estate');window.scrollTo({top:0,behavior:'smooth'});},[]);
-  const openJake=useCallback(()=>window.dispatchEvent(new Event('jake:open')),[]);
-  useEffect(()=>{const onPop=()=>{const next=readLocation();setModule(next.module);setEstateProduct(next.estateProduct);setAiOpen(false);};window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop);},[]);
+  useEffect(()=>{if(!profileOpen)return;const close=e=>{if(e.key==='Escape')setProfileOpen(false);if(e.type==='pointerdown'&&!profileRef.current?.contains(e.target))setProfileOpen(false);};document.addEventListener('keydown',close);document.addEventListener('pointerdown',close);return()=>{document.removeEventListener('keydown',close);document.removeEventListener('pointerdown',close);};},[profileOpen]);
+  const openAI=useCallback(context=>window.dispatchEvent(new CustomEvent('jake:open',{detail:{prompt:context||''}})),[]);
+  const navigate=useCallback((next,params={})=>{const safe=KNOWN_MODULES.has(next)?next:'dashboard';setModule(safe);setEstateProduct(null);setRecordId(params.id==null?null:String(params.id));setProfileOpen(false);const url=moduleUrl(safe,params);window.history.pushState({},'',url);window.scrollTo({top:0,behavior:'smooth'});},[]);
+  const navigateEstateProduct=useCallback(code=>{const safe=String(code||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');if(!safe)return;setModule('estate');setEstateProduct(safe);setRecordId(null);window.history.pushState({},'',`/estate/${encodeURIComponent(safe)}`);window.scrollTo({top:0,behavior:'smooth'});},[]);
+  const backToEstate=useCallback(()=>{setModule('estate');setEstateProduct(null);setRecordId(null);window.history.pushState({},'','/estate');window.scrollTo({top:0,behavior:'smooth'});},[]);
+  const openJake=useCallback(()=>window.dispatchEvent(new CustomEvent('jake:open',{detail:{prompt:''}})),[]);
+  useEffect(()=>{const onPop=()=>{const next=readLocation();setModule(next.module);setEstateProduct(next.estateProduct);setRecordId(next.recordId||null);};window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop);},[]);
+  useEffect(()=>{const aliases=new Set(['opportunities','pipeline','radar','proposals','grants']);const key=aliases.has(module)?'opportunities':module;const meta=MODULE_META[key]||MODULE_META.dashboard;document.title=authState.authenticated?`${meta.title} | JakeOS`:'JakeOS';},[module,authState.authenticated]);
   if(!authState.authenticated)return <AuthGate checking={authState.checking}/>;
   const userName=authState.user?.name||authState.user?.display_name||authState.user?.full_name||'Jacob Odur';
   const userEmail=authState.user?.email||'Tuku account';
@@ -102,11 +72,11 @@ export default function App(){
       <div className="jd-topbar-actions">
         <button className="jd-top-icon" onClick={()=>navigate('crm')} aria-label="Relationships"><Icon name="document" size={17}/></button>
         <button className="jd-top-icon" onClick={()=>navigate('alerts')} aria-label="Alerts"><Icon name="bell" size={17}/></button>
-        <button className="jd-profile-chip" onClick={signOut} title="Sign out of JakeOS"><span className="jd-profile-avatar">{initials}</span><span className="jd-profile-copy"><strong>{userName}</strong><small>{userEmail}</small></span></button>
+        <div className="jd-profile-wrap" ref={profileRef}><button className="jd-profile-chip" onClick={()=>setProfileOpen(v=>!v)} aria-haspopup="menu" aria-expanded={profileOpen} title="Account menu"><span className="jd-profile-avatar">{initials}</span><span className="jd-profile-copy"><strong>{userName}</strong><small>{userEmail}</small></span></button>{profileOpen&&<div className="jd-profile-menu" role="menu"><div className="jd-profile-menu-head"><strong>{userName}</strong><small>{userEmail}</small></div><button role="menuitem" onClick={()=>{setProfileOpen(false);navigate('personal-finance');}}>Personal finance</button><button role="menuitem" onClick={()=>{setProfileOpen(false);navigate('integrations');}}>Connections</button><button role="menuitem" className="jd-profile-menu-danger" onClick={signOut}><Icon name="logout" size={16}/>Sign out</button></div>}</div>
       </div>
     </header>
     <main className="main-content">
-      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI}/>} {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments/>} {module==='accounts'&&<Accounts/>} {module==='projects'&&<Projects openAI={openAI}/>} {module==='revenue-sprint'&&<RevenueSprint openAI={openAI} navigate={navigate}/>} {opportunityModules.has(module)&&<Opportunities key={opportunityView} openAI={openAI} initialView={opportunityView}/>} {module==='calendar'&&<CalendarModule openAI={openAI}/>} {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI}/>} {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
-    </main>{aiOpen&&<AIPanel context={aiContext} module={module} onClose={()=>setAiOpen(false)} data={{}}/>}<CommandCenter navigate={navigate} module={navActive}/><InstallPrompt/>
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI} initialItemId={recordId}/>}  {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments openAI={openAI}/>}  {module==='accounts'&&<Accounts initialCoreUserId={recordId}/>}  {module==='projects'&&<Projects openAI={openAI} initialProjectId={recordId}/>}  {module==='revenue-sprint'&&<RevenueSprint openAI={openAI} navigate={navigate} initialAccountId={recordId}/>}  {opportunityModules.has(module)&&<Opportunities key={`${opportunityView}-${recordId||'none'}`} openAI={openAI} initialView={opportunityView} initialOpportunityId={recordId}/>}  {module==='calendar'&&<CalendarModule openAI={openAI} initialEventId={recordId}/>}  {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI} initialClientId={recordId}/>}  {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} {module==='not-found'&&<NotFound navigate={navigate}/>} 
+    </main><CommandCenter navigate={navigate} module={navActive}/><InstallPrompt/>
   </div>;
 }

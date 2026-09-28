@@ -1,35 +1,5 @@
 import { Icon } from './ProductUI';
-
-const GROUPS=[
-  {label:'Executive',items:[
-    {id:'dashboard',label:'Executive',icon:'grid'},
-    {id:'work',label:'Work',icon:'check'},
-    {id:'agents',label:'Agents',icon:'users'},
-  ]},
-  {label:'Market',items:[
-    {id:'opportunities',label:'Opportunities',icon:'target'},
-    {id:'revenue-sprint',label:'30-Day Revenue',icon:'chart'},
-    {id:'cashflow',label:'Money',icon:'money'},
-    {id:'finance',label:'Revenue plan',icon:'chart'},
-    {id:'crm',label:'Relationships',icon:'users'},
-  ]},
-  {label:'Delivery',items:[
-    {id:'projects',label:'Projects',icon:'folder'},
-    {id:'calendar',label:'Calendar',icon:'calendar'},
-  ]},
-  {label:'Estate',items:[
-    {id:'estate',label:'Tuku Estate',icon:'estate'},
-    {id:'estate-control',label:'Estate Control',icon:'target'},
-    {id:'operations',label:'Operations',icon:'chart'},
-    {id:'payments',label:'Payments',icon:'money'},
-  ]},
-  {label:'System',items:[
-    {id:'ai-search',label:'Search',icon:'search'},
-    {id:'accounts',label:'Accounts',icon:'users'},
-    {id:'integrations',label:'Integrations',icon:'link'},
-    {id:'alerts',label:'Alerts',icon:'bell'},
-  ]},
-];
+import { NAV_GROUPS } from '../navigation';
 
 export default function Sidebar({active,onChange}){
   return <aside className="sidebar jd-sidebar">
@@ -40,7 +10,7 @@ export default function Sidebar({active,onChange}){
       </div>
     </div>
     <nav className="sidebar-nav jd-sidebar-nav" aria-label="JakeOS navigation">
-      {GROUPS.map(group=><div className="jd-nav-group" key={group.label}>
+      {NAV_GROUPS.map(group=><div className="jd-nav-group" key={group.label}>
         <div className="px-nav-section">{group.label}</div>
         {group.items.map(item=><button key={item.id} className={`nav-item ${active===item.id?'nav-item--active':''}`} aria-current={active===item.id?'page':undefined} onClick={()=>onChange(item.id)}>
           <span className="nav-icon"><Icon name={item.icon}/></span><span className="nav-label">{item.label}</span>

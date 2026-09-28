@@ -56,7 +56,7 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
       }
       if (e.key === 'Escape') setOpen(false);
     };
-    const openHandler = () => setOpen(true);
+    const openHandler = event => { setInput(String(event?.detail?.prompt||'')); setOpen(true); };
     window.addEventListener('keydown', handler);
     window.addEventListener('jake:open', openHandler);
     return () => {
@@ -66,7 +66,19 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
   }, []);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100);
+    if (!open) return;
+    const timer=setTimeout(() => inputRef.current?.focus(), 50);
+    const trap=e=>{
+      if(e.key!=='Tab')return;
+      const panel=document.querySelector('.px-jake-panel');
+      const focusable=[...(panel?.querySelectorAll('button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]')||[])];
+      if(!focusable.length)return;
+      const first=focusable[0],last=focusable[focusable.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+    };
+    window.addEventListener('keydown',trap);
+    return()=>{clearTimeout(timer);window.removeEventListener('keydown',trap);};
   }, [open]);
 
   useEffect(() => {
@@ -148,7 +160,7 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
 
   return (
     <div className="px-jake-overlay" onMouseDown={e => e.target === e.currentTarget && setOpen(false)}>
-      <section className="px-jake-panel" aria-label="Ask Jake">
+      <section className="px-jake-panel" role="dialog" aria-modal="true" aria-label="Ask Jake">
         <div className="px-jake-head">
           <div className="px-jake-mark"><img src="/brand/tuku-ai.svg" alt="" aria-hidden="true"/></div>
           <div className="px-jake-title"><strong>Ask Jake</strong><span>Live command-center intelligence · {module}</span></div>

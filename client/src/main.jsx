@@ -1,18 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+import { installAccessibilityBridge } from './accessibility';
 import './index.css';
 import './product.css';
 import './sprint.css';
-import './sprint-modules.css';
-import './relationships.css';
-import './layout-fix.css';
-import './dashboard-reference.css';
-import './minimal-kpi-shell.css';
 import './tds-jakeos.css';
 
 document.documentElement.dataset.tds = '2.0';
 document.documentElement.dataset.product = 'jakeos';
+installAccessibilityBridge();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

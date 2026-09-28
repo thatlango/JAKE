@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { askClaude } from '../api/claude';
 import { Button, EmptyState, LoadingRows, PageHeader, Panel, Pill, StateBanner, formatMoney, relativeDate } from '../components/ProductUI';
 
@@ -28,8 +28,9 @@ function OpportunityRow({o,onOpen,onPatch}){
   </div>;
 }
 
-export default function Opportunities({openAI,initialView='overview'}){
-  const[data,setData]=useState({opportunities:[],watches:[],proposals:[],sources:[],summary:{}}),[view,setViewState]=useState(initialView),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(null),[drawer,setDrawer]=useState(null),[form,setForm]=useState(EMPTY),[saving,setSaving]=useState(false),[proposal,setProposal]=useState(null),[drafting,setDrafting]=useState(false);
+export default function Opportunities({openAI,initialView='overview',initialOpportunityId=null}){
+  const[data,setData]=useState({opportunities:[],watches:[],proposals:[],sources:[],summary:{}}),[view,setViewState]=useState(initialView),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(initialOpportunityId),[drawer,setDrawer]=useState(null),[form,setForm]=useState(EMPTY),[saving,setSaving]=useState(false),[proposal,setProposal]=useState(null),[drafting,setDrafting]=useState(false);
+  const deepOpened=useRef(null);
 
   const load=useCallback(async()=>{
     setLoading(true);setError('');
@@ -41,7 +42,8 @@ export default function Opportunities({openAI,initialView='overview'}){
   useEffect(()=>{setViewState(initialView);},[initialView]);
 
   const setView=v=>{setViewState(v);const q=new URLSearchParams({module:'opportunities',view:v});window.history.replaceState({},'','/?'+q.toString());};
-  const current=data.opportunities.find(x=>x.id===selected)||null;
+  const selectOpportunity=id=>{setSelected(id);window.history.pushState({},'',`/opportunities/${encodeURIComponent(id)}`);};
+  const current=data.opportunities.find(x=>String(x.id)===String(selected))||null;
   const active=data.opportunities.filter(o=>!['Won','Lost','Closed'].includes(o.stage));
   const discover=data.opportunities.filter(o=>o.stage==='Discover');
   const urgent=active.filter(o=>overdue(o)||dueSoon(o)).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
@@ -49,7 +51,9 @@ export default function Opportunities({openAI,initialView='overview'}){
   const pipelineGroups=useMemo(()=>Object.fromEntries(STAGES.map(s=>[s,data.opportunities.filter(o=>o.stage===s)])),[data.opportunities]);
 
   const openNew=()=>{setForm(EMPTY);setDrawer('new');};
-  const edit=o=>{setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||'',fitStatus:o.fit_status||'Needs assessment',eligibilityStatus:o.eligibility_status||'Needs verification',assessmentStatus:o.assessment_status||'Partial',assessmentConfidence:o.assessment_confidence||'Medium'});setDrawer(o.id);setSelected(o.id);};
+  const edit=o=>{setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||'',fitStatus:o.fit_status||'Needs assessment',eligibilityStatus:o.eligibility_status||'Needs verification',assessmentStatus:o.assessment_status||'Partial',assessmentConfidence:o.assessment_confidence||'Medium'});setDrawer(o.id);selectOpportunity(o.id);};
+  const closeDrawer=()=>{setDrawer(null);setSelected(null);if(window.location.pathname.startsWith('/opportunities/'))window.history.replaceState({},'','/?module=opportunities');};
+  useEffect(()=>{if(!initialOpportunityId||deepOpened.current===initialOpportunityId||!data.opportunities.length)return;const o=data.opportunities.find(x=>String(x.id)===String(initialOpportunityId));if(!o)return;deepOpened.current=initialOpportunityId;setSelected(o.id);setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||'',fitStatus:o.fit_status||'Needs assessment',eligibilityStatus:o.eligibility_status||'Needs verification',assessmentStatus:o.assessment_status||'Partial',assessmentConfidence:o.assessment_confidence||'Medium'});setDrawer(o.id);},[initialOpportunityId,data.opportunities]);
 
   const patch=async(id,updates)=>{
     const r=await fetch('/api/opportunities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)});
@@ -65,7 +69,7 @@ export default function Opportunities({openAI,initialView='overview'}){
     const r=await fetch(url,{method:drawer==='new'?'POST':'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const d=await r.json().catch(()=>({}));
     if(!r.ok)setError(d.error||'Opportunity could not be saved.');
-    else{setDrawer(null);await load();setSelected(d.opportunity?.id||selected);}
+    else{const savedId=d.opportunity?.id||selected;setDrawer(null);await load();setSelected(savedId);if(savedId)window.history.replaceState({},'',`/opportunities/${encodeURIComponent(savedId)}`);}
     setSaving(false);
   };
 
@@ -120,7 +124,7 @@ export default function Opportunities({openAI,initialView='overview'}){
     const rows=pipelineGroups[stage]||[];
     return <section className="kanban-col" key={stage}>
       <div className="kanban-col-header"><Pill tone={stageTone(stage)}>{stage}</Pill><span className="kanban-count">{rows.length}</span></div>
-      <div className="kanban-items">{rows.length===0?<div className="px-empty" style={{padding:'20px 8px'}}><span className="px-kicker">No items</span></div>:rows.map(o=><article className={'kanban-card '+(overdue(o)?'kanban-card--overdue':dueSoon(o)?'kanban-card--due':'')} key={o.id} onClick={()=>edit(o)}>
+      <div className="kanban-items">{rows.length===0?<div className="px-empty" style={{padding:'20px 8px'}}><span className="px-kicker">No items</span></div>:rows.map(o=><article className={'kanban-card '+(overdue(o)?'kanban-card--overdue':dueSoon(o)?'kanban-card--due':'')} key={o.id} role="button" tabIndex={0} aria-label={`Open opportunity ${o.title}`} onClick={()=>edit(o)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();edit(o);}}}>
         <div className="kanban-card-org">{o.org}</div><div className="kanban-card-name">{o.title}</div>
         <div className="px-task-meta"><Pill tone={audienceTone(o.audience)}>{o.audience}</Pill><span>{score(o)}</span></div>
         {o.deadline&&<div className="kanban-card-deadline">{relativeDate(o.deadline)}</div>}
@@ -147,7 +151,7 @@ export default function Opportunities({openAI,initialView='overview'}){
     {view==='overview'?overview:view==='discover'?discoverView:view==='pipeline'?pipelineView:view==='applications'?applicationsView:watchesView}
 
     {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card">
-      <PageHeader eyebrow="Canonical opportunity" title={drawer==='new'?'Add opportunity':form.title||'Edit opportunity'} subtitle="One record owns the opportunity, assessment, pursuit decision, application work and outcome." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/>
+      <PageHeader eyebrow="Canonical opportunity" title={drawer==='new'?'Add opportunity':form.title||'Edit opportunity'} subtitle="One record owns the opportunity, assessment, pursuit decision, application work and outcome." actions={<button className="px-icon-button" onClick={closeDrawer}>×</button>}/>
       {drawer!=='new'&&current&&<div className="px-stack" style={{marginBottom:18}}>
         <Panel title="Fit decision" subtitle="The score shows thematic fit; the status accounts for eligibility, evidence and unresolved blockers.">
           <div className="px-row" style={{flexWrap:'wrap',gap:8,marginBottom:12}}>
@@ -210,7 +214,7 @@ export default function Opportunities({openAI,initialView='overview'}){
         <div className="px-field"><label>Next action</label><textarea value={form.nextAction||''} onChange={e=>setForm(f=>({...f,nextAction:e.target.value}))}/></div>
         <div className="px-field"><label>Notes / evidence</label><textarea style={{minHeight:140}} value={form.notes||''} onChange={e=>setForm(f=>({...f,notes:e.target.value}))}/></div>
       </div>
-      <div className="px-form-actions">{drawer!=='new'&&current&&<><Button variant="tonal" onClick={()=>startProposal(current)}>Start proposal</Button>{current.source_url&&<Button variant="secondary" onClick={()=>window.open(current.source_url,'_blank','noopener')}>Open source</Button>}</>}<span style={{flex:1}}/><Button variant="secondary" onClick={()=>setDrawer(null)}>Cancel</Button><Button disabled={saving} onClick={save}>{saving?'Saving…':'Save'}</Button></div>
+      <div className="px-form-actions">{drawer!=='new'&&current&&<><Button variant="tonal" onClick={()=>startProposal(current)}>Start proposal</Button>{current.source_url&&<Button variant="secondary" onClick={()=>window.open(current.source_url,'_blank','noopener')}>Open source</Button>}</>}<span style={{flex:1}}/><Button variant="secondary" onClick={closeDrawer}>Cancel</Button><Button disabled={saving} onClick={save}>{saving?'Saving…':'Save'}</Button></div>
     </div></div>}
 
     {proposal&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setProposal(null)}><div className="px-drawer-card">

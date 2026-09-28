@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, EmptyState, Icon, LoadingRows, PageHeader, Panel, Pill, StateBanner, formatDate, relativeDate } from '../components/ProductUI';
 
 const DEFAULT_META={outcome_type:'delivery',market_stage:'none',completion_definition:'',decision_required:false,delegation_preference:'me',evidence_required:''};
@@ -44,7 +44,7 @@ function TaskRow({item,onComplete,onEdit,onDefer,onAgent,rank=null}){
   </div>;
 }
 
-export default function Work(){
+export default function Work({initialItemId=null}){
   const[tab,setTab]=useState('today');
   const[today,setToday]=useState({priorities:[],events:[]});
   const[inbox,setInbox]=useState([]);
@@ -60,32 +60,53 @@ export default function Work(){
   const[agentInstruction,setAgentInstruction]=useState('');
   const[agentFeedback,setAgentFeedback]=useState('');
   const[agentBusy,setAgentBusy]=useState(false);
+  const deepOpened=useRef(null);
 
   const load=useCallback(async()=>{
     setLoading(true);setError('');
-    try{
-      const[rToday,rInbox,rAll,rProjects]=await Promise.all([fetch('/api/work/today'),fetch('/api/work/inbox'),fetch('/api/work/items?limit=250'),fetch('/api/work/projects')]);
-      if(!rToday.ok||!rInbox.ok||!rAll.ok||!rProjects.ok)throw new Error('JakeOS could not load your work queue.');
-      const[dToday,dInbox,dAll,dProjects]=await Promise.all([rToday.json(),rInbox.json(),rAll.json(),rProjects.json()]);
-      setToday(dToday);setInbox(dInbox.items||[]);setAll(dAll.items||[]);setProjects(dProjects.projects||[]);
-    }catch(e){setError(e.message||'Work could not be loaded.');}
+    const sources=[
+      ['today','/api/work/today'],
+      ['inbox','/api/work/inbox'],
+      ['all','/api/work/items?limit=250'],
+      ['projects','/api/work/projects']
+    ];
+    const results=await Promise.allSettled(sources.map(async([name,url])=>{
+      const response=await fetch(url,{headers:{Accept:'application/json'}});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(body.error||`${name} returned ${response.status}`);
+      return{name,body};
+    }));
+    const failed=[];
+    results.forEach((result,index)=>{
+      const name=sources[index][0];
+      if(result.status==='rejected'){failed.push(name);return;}
+      const body=result.value.body||{};
+      if(name==='today')setToday(body);
+      if(name==='inbox')setInbox(body.items||[]);
+      if(name==='all')setAll(body.items||[]);
+      if(name==='projects')setProjects(body.projects||[]);
+    });
+    if(failed.length===sources.length)setError('Work is unavailable. Your last loaded view has been retained where possible.');
+    else if(failed.length)setError(`Some Work sources could not refresh: ${failed.join(', ')}. Available sections remain usable.`);
     setLoading(false);
   },[]);
   useEffect(()=>{load();},[load]);
 
   const openNew=(seed={})=>{setForm({...DEFAULT_TASK,...seed,metadata:{...DEFAULT_META,...(seed.metadata||{})}});setDrawer('new');};
   const openEdit=item=>{setForm({...DEFAULT_TASK,...item,metadata:{...DEFAULT_META,...(item.metadata||{})},due_at:item.due_at?new Date(item.due_at).toISOString().slice(0,16):''});setDrawer(item.id);};
+  const closeDrawer=()=>{setDrawer(null);if(window.location.pathname.startsWith('/work/'))window.history.replaceState({},'','/?module=work');};
+  useEffect(()=>{if(!initialItemId||deepOpened.current===initialItemId||!all.length)return;const item=all.find(x=>String(x.id)===String(initialItemId));if(item){deepOpened.current=initialItemId;openEdit(item);}},[initialItemId,all]);
   const save=async()=>{
     if(!form.title.trim())return;setSaving(true);setError('');
     try{
       const body={...form,title:form.title.trim(),due_at:form.due_at?new Date(form.due_at).toISOString():null,project_id:form.project_id||null};
       const response=await fetch(drawer==='new'?'/api/work/items':`/api/work/items/${encodeURIComponent(drawer)}`,{method:drawer==='new'?'POST':'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Could not save work item.');setDrawer(null);setForm(DEFAULT_TASK);await load();
+      const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'Could not save work item.');closeDrawer();setForm(DEFAULT_TASK);await load();
     }catch(e){setError(e.message||'Could not save work item.');}setSaving(false);
   };
-  const complete=async item=>{await fetch(`/api/work/items/${encodeURIComponent(item.id)}/complete`,{method:'POST'});await load();};
-  const defer=async item=>{const until=new Date(Date.now()+3600000).toISOString();await fetch(`/api/work/items/${encodeURIComponent(item.id)}/defer`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({until})});await load();};
-  const quickCapture=async()=>{if(!capture.trim())return;const title=capture.trim();setCapture('');const response=await fetch('/api/work/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,status:'inbox',source:'jakeos-capture'})});if(!response.ok)setError('Capture failed. Your text was not saved.');await load();};
+  const complete=async item=>{setError('');const response=await fetch(`/api/work/items/${encodeURIComponent(item.id)}/complete`,{method:'POST'});if(!response.ok){const body=await response.json().catch(()=>({}));setError(body.error||'Could not complete this work item.');return;}await load();};
+  const defer=async item=>{setError('');const until=new Date(Date.now()+3600000).toISOString();const response=await fetch(`/api/work/items/${encodeURIComponent(item.id)}/defer`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({until})});if(!response.ok){const body=await response.json().catch(()=>({}));setError(body.error||'Could not defer this work item.');return;}await load();};
+  const quickCapture=async()=>{if(!capture.trim()||saving)return;const title=capture.trim();setSaving(true);setError('');try{const response=await fetch('/api/work/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,status:'inbox',source:'jakeos-capture'})});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||'Capture failed. Your text is still here; retry when ready.');setCapture('');await load();}catch(e){setError(e.message||'Capture failed. Your text is still here; retry when ready.');}setSaving(false);};
   const openAgent=async item=>{
     setAgentBusy(true);setError('');
     try{
@@ -190,7 +211,7 @@ export default function Work(){
       </div>}
     </div></div>}
 
-    {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card"><PageHeader eyebrow={drawer==='new'?'Capture':'Edit'} title={drawer==='new'?'New work item':'Work item'} subtitle="Define the outcome, what done means, and whether this should move to market, stay with you, or be delegated." actions={<button className="px-icon-button" onClick={()=>setDrawer(null)}>×</button>}/><div className="px-stack">
+    {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&closeDrawer()}><div className="px-drawer-card"><PageHeader eyebrow={drawer==='new'?'Capture':'Edit'} title={drawer==='new'?'New work item':'Work item'} subtitle="Define the outcome, what done means, and whether this should move to market, stay with you, or be delegated." actions={<button className="px-icon-button" onClick={closeDrawer}>×</button>}/><div className="px-stack">
       <div className="px-field"><label>What needs to happen?</label><input autoFocus value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Send revised proposal to client"/></div>
       <div className="px-field"><label>Context</label><textarea value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Useful details, expected outcome, links or constraints"/></div>
       <div className="px-field"><label htmlFor="work-definition-done">Definition of done</label><input id="work-definition-done" value={form.metadata?.completion_definition||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),completion_definition:e.target.value}}))} placeholder="What evidence proves this is actually complete?"/></div>
