@@ -99,7 +99,7 @@ test('real Agent OS telemetry reaches authenticated JakeOS UI and streams live e
   await page.goto('/?module=agents');
 
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
-  await expect(page.getByText('Command Orchestrator').first()).toBeVisible();
+  await expect(page.locator('.agents-roster').getByText('Command Orchestrator',{exact:true})).toBeVisible();
   await expect(page.getByText('UNICEF Agora RFPS 503950').first()).toBeVisible();
   await expect(page.getByText('UNICEF prime-partner route').first()).toBeVisible();
 
