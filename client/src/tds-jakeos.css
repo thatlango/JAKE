@@ -617,3 +617,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .px-icon-button{min-width:2.75rem;min-height:2.75rem;display:inline-grid;place-items:center;border-radius:var(--radius-md);color:var(--foreground-secondary)}
 .px-icon-button:hover{background:var(--surface-muted);color:var(--foreground)}
 @media(max-width:599px){.px-drawer-card{width:100vw}.jd-profile-menu{position:fixed;right:.75rem;top:3.5rem;width:min(18rem,calc(100vw - 1.5rem))}}
+
+.cashflow-bars{display:grid;grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr));gap:.75rem;align-items:end;min-height:12rem}
+.cashflow-bar-group{display:flex;flex-direction:column;gap:.35rem;min-width:0;text-align:center}.cashflow-bar-group strong{font-size:.75rem}.cashflow-bar-group small{color:var(--foreground-secondary);font-size:.7rem}
+.cashflow-bar-track{height:8rem;display:flex;align-items:flex-end;gap:.25rem;padding:.5rem;background:var(--surface-muted);border-radius:var(--radius-md)}
+.cashflow-bar{display:block;flex:1;min-height:.15rem;border-radius:var(--radius-xs) var(--radius-xs) 0 0}.cashflow-bar--income{background:var(--success)}.cashflow-bar--expense{background:var(--danger)}
+.cashflow-line-item{display:grid;grid-template-columns:minmax(0,2.5fr) minmax(5rem,.55fr) minmax(6rem,.75fr) minmax(8rem,1fr);gap:.75rem;align-items:end;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}
+.cashflow-line-total{min-height:2.75rem;display:flex;align-items:center;justify-content:flex-end;gap:.5rem}.cashflow-line-total>span{display:none}.cashflow-invoice-row{align-items:center}
+.px-table-row--selected{background:var(--primary-soft)!important}
+@media(max-width:699px){.cashflow-line-item{grid-template-columns:1fr 1fr}.cashflow-line-item>.px-field:first-child{grid-column:1/-1}.cashflow-line-total{justify-content:space-between}.cashflow-line-total>span{display:inline;color:var(--foreground-secondary)}}
