@@ -53,21 +53,18 @@ export default function Agents({openAI,navigate}){
       if(!r.ok)throw new Error(d.error||(url+' returned '+r.status));
       return[key,d];
     }));
-    const failures=[];
-    setState(prev=>{
-      const next={...prev};
-      results.forEach((result,index)=>{
-        const key=specs[index][0];
-        if(result.status==='rejected'){failures.push(result.reason?.message||key+' unavailable');return;}
-        const data=result.value[1];
-        if(key==='overview')next.overview=data;
-        if(key==='runs')next.runs=data.runs||[];
-        if(key==='decisions')next.decisions=data.decisions||[];
-        if(key==='delegated')next.delegated=data.dispatches||[];
-        if(key==='catalog')next.catalog=data.agents?.length?data.agents:FALLBACK_AGENTS;
-      });
-      return next;
+    const failures=[],patch={};
+    results.forEach((result,index)=>{
+      const key=specs[index][0];
+      if(result.status==='rejected'){failures.push(result.reason?.message||key+' unavailable');return;}
+      const data=result.value[1];
+      if(key==='overview')patch.overview=data;
+      if(key==='runs')patch.runs=data.runs||[];
+      if(key==='decisions')patch.decisions=data.decisions||[];
+      if(key==='delegated')patch.delegated=data.dispatches||[];
+      if(key==='catalog')patch.catalog=data.agents?.length?data.agents:FALLBACK_AGENTS;
     });
+    setState(prev=>({...prev,...patch}));
     setError(failures.length===specs.length?'Agent workspace is unavailable.':failures.length?'Some agent data is temporarily unavailable: '+failures.join(' · '):'');
     if(!silent)setLoading(false);
   },[]);
