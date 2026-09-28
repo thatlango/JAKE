@@ -28,8 +28,8 @@ function OpportunityRow({o,onOpen,onPatch}){
   </div>;
 }
 
-export default function Opportunities({openAI,initialView='overview'}){
-  const[data,setData]=useState({opportunities:[],watches:[],proposals:[],sources:[],summary:{}}),[view,setViewState]=useState(initialView),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(null),[drawer,setDrawer]=useState(null),[form,setForm]=useState(EMPTY),[saving,setSaving]=useState(false),[proposal,setProposal]=useState(null),[drafting,setDrafting]=useState(false);
+export default function Opportunities({openAI,initialView='overview',initialOpportunityId=null}){
+  const[data,setData]=useState({opportunities:[],watches:[],proposals:[],sources:[],summary:{}}),[view,setViewState]=useState(initialView),[loading,setLoading]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(initialOpportunityId),[drawer,setDrawer]=useState(null),[form,setForm]=useState(EMPTY),[saving,setSaving]=useState(false),[proposal,setProposal]=useState(null),[drafting,setDrafting]=useState(false);
 
   const load=useCallback(async()=>{
     setLoading(true);setError('');
@@ -41,7 +41,8 @@ export default function Opportunities({openAI,initialView='overview'}){
   useEffect(()=>{setViewState(initialView);},[initialView]);
 
   const setView=v=>{setViewState(v);const q=new URLSearchParams({module:'opportunities',view:v});window.history.replaceState({},'','/?'+q.toString());};
-  const current=data.opportunities.find(x=>x.id===selected)||null;
+  const selectOpportunity=id=>{selectOpportunity(id);window.history.pushState({},'',`/opportunities/${encodeURIComponent(id)}`);};
+  const current=data.opportunities.find(x=>String(x.id)===String(selected))||null;
   const active=data.opportunities.filter(o=>!['Won','Lost','Closed'].includes(o.stage));
   const discover=data.opportunities.filter(o=>o.stage==='Discover');
   const urgent=active.filter(o=>overdue(o)||dueSoon(o)).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
@@ -49,7 +50,7 @@ export default function Opportunities({openAI,initialView='overview'}){
   const pipelineGroups=useMemo(()=>Object.fromEntries(STAGES.map(s=>[s,data.opportunities.filter(o=>o.stage===s)])),[data.opportunities]);
 
   const openNew=()=>{setForm(EMPTY);setDrawer('new');};
-  const edit=o=>{setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||'',fitStatus:o.fit_status||'Needs assessment',eligibilityStatus:o.eligibility_status||'Needs verification',assessmentStatus:o.assessment_status||'Partial',assessmentConfidence:o.assessment_confidence||'Medium'});setDrawer(o.id);setSelected(o.id);};
+  const edit=o=>{setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||'',fitStatus:o.fit_status||'Needs assessment',eligibilityStatus:o.eligibility_status||'Needs verification',assessmentStatus:o.assessment_status||'Partial',assessmentConfidence:o.assessment_confidence||'Medium'});setDrawer(o.id);selectOpportunity(o.id);};
 
   const patch=async(id,updates)=>{
     const r=await fetch('/api/opportunities/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)});
