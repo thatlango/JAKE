@@ -26,6 +26,7 @@ import EstateControl from './modules/EstateControl';
 import Accounts from './modules/Accounts';
 import Operations from './modules/Operations';
 import Payments from './modules/Payments';
+import NotFound from './modules/NotFound';
 import { KNOWN_MODULES, MODULE_META, moduleUrl, readLocation } from './navigation';
 
 function AuthGate({checking}){
@@ -60,6 +61,7 @@ export default function App(){
   const opportunityView=module==='pipeline'?'pipeline':module==='radar'?'discover':module==='proposals'||module==='grants'?'applications':(new URLSearchParams(window.location.search).get('view')||'overview');
   const navActive=opportunityModules.has(module)?'opportunities':module;
   const moduleMeta=MODULE_META[navActive]||MODULE_META[module]||MODULE_META.dashboard;
+  useEffect(()=>{document.title=`${moduleMeta.title} | JakeOS`;},[moduleMeta.title]);
   return <div className="app-layout" data-product="jakeos">
     <Sidebar active={navActive} onChange={navigate}/><MobileNav active={navActive} onChange={navigate}/>
     <header className="jd-topbar">
@@ -74,7 +76,7 @@ export default function App(){
       </div>
     </header>
     <main className="main-content">
-      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI} initialItemId={recordId}/>}  {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments openAI={openAI}/>}  {module==='accounts'&&<Accounts initialCoreUserId={recordId}/>}  {module==='projects'&&<Projects openAI={openAI} initialProjectId={recordId}/>}  {module==='revenue-sprint'&&<RevenueSprint openAI={openAI} navigate={navigate} initialAccountId={recordId}/>}  {opportunityModules.has(module)&&<Opportunities key={`${opportunityView}-${recordId||'none'}`} openAI={openAI} initialView={opportunityView} initialOpportunityId={recordId}/>}  {module==='calendar'&&<CalendarModule openAI={openAI} initialEventId={recordId}/>}  {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI} initialClientId={recordId}/>}  {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} 
+      {module==='dashboard'&&<Dashboard openAI={openAI} navigate={navigate}/>} {module==='agents'&&<Agents openAI={openAI} navigate={navigate}/>} {module==='work'&&<Work openAI={openAI} initialItemId={recordId}/>}  {module==='estate'&&<Estate key={estateProduct||'estate-overview'} productCode={estateProduct} onSelectProduct={navigateEstateProduct} onBack={backToEstate}/>} {module==='estate-control'&&<EstateControl/>} {module==='operations'&&<Operations/>} {module==='payments'&&<Payments openAI={openAI}/>}  {module==='accounts'&&<Accounts initialCoreUserId={recordId}/>}  {module==='projects'&&<Projects openAI={openAI} initialProjectId={recordId}/>}  {module==='revenue-sprint'&&<RevenueSprint openAI={openAI} navigate={navigate} initialAccountId={recordId}/>}  {opportunityModules.has(module)&&<Opportunities key={`${opportunityView}-${recordId||'none'}`} openAI={openAI} initialView={opportunityView} initialOpportunityId={recordId}/>}  {module==='calendar'&&<CalendarModule openAI={openAI} initialEventId={recordId}/>}  {module==='finance'&&<Finance openAI={openAI}/>} {module==='crm'&&<CRM openAI={openAI} initialClientId={recordId}/>}  {module==='cashflow'&&<CashFlow openAI={openAI}/>} {module==='integrations'&&<Integrations/>} {module==='personal-finance'&&<PersonalFinance openAI={openAI}/>} {module==='alerts'&&<AlertsSettings/>} {module==='ai-search'&&<AISearch navigate={navigate}/>} {module==='voice-memo'&&<VoiceMemo/>} {module==='export'&&<ExportCentre/>} {module==='platforms'&&<Platforms openAI={openAI}/>} {module==='not-found'&&<NotFound navigate={navigate}/>} 
     </main><CommandCenter navigate={navigate} module={navActive}/><InstallPrompt/>
   </div>;
 }
