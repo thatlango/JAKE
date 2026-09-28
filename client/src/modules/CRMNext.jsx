@@ -18,15 +18,17 @@ const contactState=client=>{
 const typeTone=type=>type==='Client'?'brand':type==='Prospect'?'warning':type==='Funder'?'info':'neutral';
 const interactionIcon=type=>({call:'users',email:'document',meeting:'calendar',proposal:'document',payment:'money',note:'document'}[type]||'document');
 
-export default function CRMNext({openAI}){
+export default function CRMNext({openAI,initialClientId=null}){
   const[clients,setClients]=useState([]),[stats,setStats]=useState({}),[selected,setSelected]=useState(null),[detail,setDetail]=useState(null);
   const[filter,setFilter]=useState('All'),[query,setQuery]=useState(''),[loading,setLoading]=useState(true),[detailLoading,setDetailLoading]=useState(false),[error,setError]=useState('');
   const[drawer,setDrawer]=useState(null),[clientForm,setClientForm]=useState(EMPTY_CLIENT),[interactionForm,setInteractionForm]=useState(EMPTY_INTERACTION),[saving,setSaving]=useState(false);
 
-  const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await fetch('/api/crm/clients');if(!r.ok)throw new Error('Relationship data could not be loaded.');const d=await r.json();setClients(d.clients||[]);setStats(d.stats||{});setSelected(s=>s||(d.clients?.[0]?.id??null));}catch(e){setError(e.message||'Relationship data could not be loaded.');}setLoading(false);},[]);
+  const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await fetch('/api/crm/clients');if(!r.ok)throw new Error('Relationship data could not be loaded.');const d=await r.json();setClients(d.clients||[]);setStats(d.stats||{});setSelected(s=>s||initialClientId||(d.clients?.[0]?.id??null));}catch(e){setError(e.message||'Relationship data could not be loaded.');}setLoading(false);},[]);
   const loadDetail=useCallback(async id=>{if(!id){setDetail(null);return;}setDetailLoading(true);try{const r=await fetch(`/api/crm/clients/${encodeURIComponent(id)}`);if(!r.ok)throw new Error('Relationship detail could not be loaded.');const d=await r.json();setDetail(d.client||null);}catch(e){setError(e.message||'Relationship detail could not be loaded.');}setDetailLoading(false);},[]);
   useEffect(()=>{load();},[load]);
   useEffect(()=>{loadDetail(selected);},[selected,loadDetail]);
+
+  const selectClient=id=>{setSelected(id);window.history.pushState({},'',`/relationships/${encodeURIComponent(id)}`);};
 
   const filtered=useMemo(()=>clients.filter(c=>{
     const matchFilter=filter==='All'||c.type===filter||c.status===filter;
@@ -62,13 +64,13 @@ export default function CRMNext({openAI}){
     {attention.length>0&&<div className="px-relationship-brief"><div><div className="px-brief-label">Relationship watch</div><strong>{attention.length} relationship{attention.length===1?'':'s'} need a deliberate move.</strong><span>{attention.slice(0,3).map(c=>c.name).join(' · ')}{attention.length>3?` · +${attention.length-3} more`:''}</span></div><Button variant="tonal" icon="spark" onClick={()=>openAI(`Relationships needing attention: ${attention.map(c=>`${c.name} (${contactState(c).label})`).join(', ')}. Rank who I should contact first and why, then give me the next move for each.`)}>Prioritise outreach</Button></div>}
 
     <div className="px-relationship-toolbar">
-      <div className="px-search-input"><Icon name="search" size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people, organisations or roles…"/></div>
+      <div className="px-search-input"><Icon name="search" size={17}/><input aria-label="Search relationships" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people, organisations or roles…"/></div>
       <div className="px-filter-row">{TYPES.map(x=><button key={x} className={`filter-btn ${filter===x?'filter-btn--active':''}`} onClick={()=>setFilter(x)}>{x}</button>)}</div>
     </div>
 
     <div className="px-relationship-layout">
       <section className="px-relationship-list" aria-label="Relationships">
-        {loading?<LoadingRows count={6}/>:filtered.length===0?<EmptyState icon="users" title="No relationships match" body="Clear the search or add a new client, partner, prospect or funder." action={<Button variant="tonal" onClick={openNewClient}>Add relationship</Button>}/>:filtered.map(c=>{const s=contactState(c);return <button key={c.id} className={`px-relationship-card ${selected===c.id?'px-relationship-card--active':''}`} onClick={()=>setSelected(c.id)}><div className="px-relationship-avatar">{c.avatar_emoji||String(c.name||'?').slice(0,1)}</div><div className="px-relationship-main"><div className="px-between"><div className="px-relationship-name">{c.name}</div><Pill tone={typeTone(c.type)}>{c.type}</Pill></div><div className="px-relationship-org">{c.org||'Independent'}{c.role?` · ${c.role}`:''}</div><div className="px-relationship-meta"><Pill tone={s.tone}>{s.label}</Pill>{c.next_followup&&new Date(c.next_followup)>new Date()&&<span>Next {relativeDate(c.next_followup)}</span>}</div></div><Icon name="chevron" size={17}/></button>})}
+        {loading?<LoadingRows count={6}/>:filtered.length===0?<EmptyState icon="users" title="No relationships match" body="Clear the search or add a new client, partner, prospect or funder." action={<Button variant="tonal" onClick={openNewClient}>Add relationship</Button>}/>:filtered.map(c=>{const s=contactState(c);return <button key={c.id} className={`px-relationship-card ${selected===c.id?'px-relationship-card--active':''}`} onClick={()=>selectClient(c.id)}><div className="px-relationship-avatar">{c.avatar_emoji||String(c.name||'?').slice(0,1)}</div><div className="px-relationship-main"><div className="px-between"><div className="px-relationship-name">{c.name}</div><Pill tone={typeTone(c.type)}>{c.type}</Pill></div><div className="px-relationship-org">{c.org||'Independent'}{c.role?` · ${c.role}`:''}</div><div className="px-relationship-meta"><Pill tone={s.tone}>{s.label}</Pill>{c.next_followup&&new Date(c.next_followup)>new Date()&&<span>Next {relativeDate(c.next_followup)}</span>}</div></div><Icon name="chevron" size={17}/></button>})}
       </section>
 
       <section className="px-relationship-detail">
