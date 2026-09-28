@@ -1,31 +1,6 @@
 import { useState } from 'react';
 import { Icon } from './ProductUI';
-
-const PRIMARY=[
-  {id:'dashboard',label:'Home',icon:'home'},
-  {id:'work',label:'Work',icon:'check'},
-  {id:'projects',label:'Projects',icon:'folder'},
-  {id:'estate',label:'Estate',icon:'estate'},
-  {id:'more',label:'More',icon:'dots'},
-];
-const MORE=[
-  {id:'agents',label:'Agents',icon:'users'},
-  {id:'calendar',label:'Calendar',icon:'calendar'},
-  {id:'crm',label:'Relationships',icon:'users'},
-  {id:'cashflow',label:'Money',icon:'money'},
-  {id:'payments',label:'Payments',icon:'money'},
-  {id:'opportunities',label:'Opportunities',icon:'target'},
-  {id:'revenue-sprint',label:'30-Day Revenue',icon:'chart'},
-  {id:'finance',label:'Revenue plan',icon:'chart'},
-  {id:'ai-search',label:'Search',icon:'search'},
-  {id:'voice-memo',label:'Voice capture',icon:'mic'},
-  {id:'personal-finance',label:'Personal finance',icon:'money'},
-  {id:'platforms',label:'Platforms',icon:'grid'},
-  {id:'export',label:'Export',icon:'upload'},
-  {id:'accounts',label:'Accounts',icon:'users'},
-  {id:'integrations',label:'Integrations',icon:'link'},
-  {id:'alerts',label:'Alerts',icon:'bell'},
-];
+import { MOBILE_PRIMARY as PRIMARY, MOBILE_MORE as MORE } from '../navigation';
 export default function MobileNav({active,onChange}){
   const[open,setOpen]=useState(false),isMore=MORE.some(x=>x.id===active);
   const go=id=>{if(id==='more')return setOpen(v=>!v);setOpen(false);onChange(id);};
