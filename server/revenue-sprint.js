@@ -167,11 +167,23 @@ async function loadRevenueEngine(sprintId){
   };
 }
 
+
+async function loadRevenuePlan(){
+  const[streams,expenses,target]=await Promise.all([
+    db.all('finance_streams',{order:{col:'created_at',asc:false}}),
+    db.all('expenses',{order:{col:'created_at',asc:false}}),
+    db.get('settings',{eq:{key:'finance_targets'}})
+  ]);
+  let targets={quarterly:20000,annual:100000,currency:'USD'};
+  try{if(target?.value)targets={...targets,...JSON.parse(target.value)};}catch{}
+  return{streams,expenses,targets};
+}
+
 router.get('/',async(req,res)=>{
   try{
     const sprint=await latestSprint(req.query.id);
     if(!sprint)return res.status(404).json({error:'No active revenue sprint'});
-    const[accounts,actions,engine]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id),loadRevenueEngine(sprint.id)]);
+    const[accounts,actions,engine,plan]=await Promise.all([loadAccounts(sprint.id),loadActions(sprint.id),loadRevenueEngine(sprint.id),loadRevenuePlan()]);
     const sprintView={...sprint,starts_on:dateOnly(sprint.starts_on),ends_on:dateOnly(sprint.ends_on)};
     const today=todayUtc(),summary=summarizeAccounts(accounts,sprintView,today);
     const dueActions=actions.filter(a=>a.status!=='done'&&a.action_date&&a.action_date<=today);
@@ -181,11 +193,52 @@ router.get('/',async(req,res)=>{
       .map(a=>({...a,close_score:num(a.cash_30d_target_usd)*(Math.max(0,Math.min(100,num(a.probability)))/100)}))
       .sort((a,b)=>b.close_score-a.close_score||num(b.pipeline_value_usd)-num(a.pipeline_value_usd))
       .slice(0,10);
-    res.json({sprint:sprintView,summary,accounts,actions,due_actions:dueActions,upcoming_actions:upcomingActions,close_next:closeNext,engine,today});
+    res.json({sprint:sprintView,summary,accounts,actions,due_actions:dueActions,upcoming_actions:upcomingActions,close_next:closeNext,engine,plan,today});
   }catch(error){
     console.error('[RevenueSprint] load failed:',error.message);
     res.status(500).json({error:'Revenue sprint could not be loaded'});
   }
+});
+
+router.get('/plan',async(_req,res)=>{
+  try{res.json(await loadRevenuePlan());}catch(error){console.error('[RevenuePlan] load failed:',error.message);res.status(500).json({error:'Revenue plan could not be loaded'});}
+});
+router.post('/plan/streams',async(req,res)=>{
+  try{
+    const name=text(req.body.name,500);if(!name)return res.status(422).json({error:'Name is required'});
+    const row=await db.insert('finance_streams',{id:text(req.body.id,120)||id('revenue'),name,type:text(req.body.type,100)||'Consulting',status:text(req.body.status,60)||'Projected',amount:Number(req.body.amount)||0,currency:text(req.body.currency,10)||'USD',month:text(req.body.month,40)},false);
+    res.status(201).json({stream:row});
+  }catch(error){res.status(500).json({error:'Revenue stream could not be created'});}
+});
+router.patch('/plan/streams/:id',async(req,res)=>{
+  try{
+    const existing=await db.get('finance_streams',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Revenue stream not found'});
+    const data={updated_at:new Date().toISOString()};for(const key of ['name','type','status','currency','month'])if(req.body[key]!==undefined)data[key]=text(req.body[key],500);if(req.body.amount!==undefined)data.amount=Number(req.body.amount)||0;
+    await db.update('finance_streams',existing.id,data);res.json({stream:await db.get('finance_streams',{eq:{id:existing.id}})});
+  }catch(error){res.status(500).json({error:'Revenue stream could not be updated'});}
+});
+router.delete('/plan/streams/:id',async(req,res)=>{try{await db.del('finance_streams',text(req.params.id,120));res.json({ok:true});}catch(error){res.status(500).json({error:'Revenue stream could not be deleted'});}});
+router.post('/plan/expenses',async(req,res)=>{
+  try{
+    const name=text(req.body.name,500);if(!name)return res.status(422).json({error:'Name is required'});
+    const row=await db.insert('expenses',{id:text(req.body.id,120)||id('expense'),name,amount:Number(req.body.amount)||0,currency:text(req.body.currency,10)||'USD',monthly:req.body.monthly!==undefined?bool(req.body.monthly):true,category:text(req.body.category,100)||'Operations'},false);
+    res.status(201).json({expense:row});
+  }catch(error){res.status(500).json({error:'Expense could not be created'});}
+});
+router.patch('/plan/expenses/:id',async(req,res)=>{
+  try{
+    const existing=await db.get('expenses',{eq:{id:text(req.params.id,120)}});if(!existing)return res.status(404).json({error:'Expense not found'});
+    const data={updated_at:new Date().toISOString()};for(const key of ['name','currency','category'])if(req.body[key]!==undefined)data[key]=text(req.body[key],500);if(req.body.amount!==undefined)data.amount=Number(req.body.amount)||0;if(req.body.monthly!==undefined)data.monthly=bool(req.body.monthly);
+    await db.update('expenses',existing.id,data);res.json({expense:await db.get('expenses',{eq:{id:existing.id}})});
+  }catch(error){res.status(500).json({error:'Expense could not be updated'});}
+});
+router.delete('/plan/expenses/:id',async(req,res)=>{try{await db.del('expenses',text(req.params.id,120));res.json({ok:true});}catch(error){res.status(500).json({error:'Expense could not be deleted'});}});
+router.patch('/plan/targets',async(req,res)=>{
+  try{
+    const target=await db.get('settings',{eq:{key:'finance_targets'}});let current={};try{current=target?.value?JSON.parse(target.value):{};}catch{}
+    const updatedTargets={...current};for(const key of ['quarterly','annual'])if(req.body[key]!==undefined)updatedTargets[key]=Number(req.body[key])||0;if(req.body.currency!==undefined)updatedTargets.currency=text(req.body.currency,10)||'USD';
+    await db.insert('settings',{key:'finance_targets',value:JSON.stringify(updatedTargets),updated_at:new Date().toISOString()},true);res.json({targets:updatedTargets});
+  }catch(error){res.status(500).json({error:'Revenue targets could not be updated'});}
 });
 
 router.post('/accounts',async(req,res)=>{
@@ -331,4 +384,4 @@ router.patch('/engine/experiments/:id',async(req,res)=>{
   }
 });
 
-module.exports={revenueSprintRouter:router,summarizeAccounts,stageToOpportunityStage,dayDiffInclusive,boundedPct,latestSprint,loadAccounts,loadActions,loadRevenueEngine,dateOnly};
+module.exports={revenueSprintRouter:router,summarizeAccounts,stageToOpportunityStage,dayDiffInclusive,boundedPct,latestSprint,loadAccounts,loadActions,loadRevenueEngine,loadRevenuePlan,dateOnly};

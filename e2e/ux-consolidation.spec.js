@@ -133,3 +133,20 @@ test('revenue account deep route opens a real commercial account detail',async({
   await expect(page.getByText('Decision window is short')).toBeVisible();
   await expect(page.getByRole('button',{name:'Open linked opportunity'})).toBeVisible();
 });
+
+
+test('Revenue Plan is merged into Revenue Mission and legacy links land on Plan & targets',async({page})=>{
+  await installBase(page);
+  await page.route('**/api/revenue-sprint/plan',route=>json(route,{
+    streams:[{id:'stream-1',name:'Consulting retainer',type:'Consulting',status:'Confirmed',amount:4000,currency:'USD',month:'Q4 2026'}],
+    expenses:[{id:'expense-1',name:'Core operating cost',amount:1200,currency:'USD',monthly:true,category:'Operations'}],
+    targets:{quarterly:20000,annual:100000,currency:'USD'}
+  }));
+  await page.goto('/?module=finance');
+  await expect(page).toHaveURL(/\/revenue-mission\?view=plan$/);
+  await expect(page.getByRole('heading',{name:'$10K Revenue Mission'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Plan & targets',exact:true})).toHaveClass(/active/);
+  await expect(page.getByText('Consulting retainer')).toBeVisible();
+  await expect(page.getByText('Core operating cost')).toBeVisible();
+  await expect(page.getByText('Revenue plan',{exact:true})).toHaveCount(0);
+});

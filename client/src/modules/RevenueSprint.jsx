@@ -1,15 +1,31 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, EmptyState, PageHeader, Panel, Pill, StateBanner, formatMoney, relativeDate } from '../components/ProductUI';
+import Finance from './Finance';
 
 const STAGES=['Target','Contacted','Conversation','Proposal','Negotiation','Contracted','Invoiced','Paid','Lost','Parked'];
 const tone=s=>s==='Paid'||s==='Contracted'?'success':s==='Invoiced'||s==='Negotiation'?'info':s==='Proposal'||s==='Conversation'?'warning':s==='Lost'?'danger':'neutral';
 const phase=d=>d<=3?'Activate':d<=7?'Outreach':d<=14?'Qualify':d<=21?'Close':'Deliver + collect';
 
+const initialMissionView=initialAccountId=>{
+  if(initialAccountId)return 'accounts';
+  const params=new URLSearchParams(window.location.search);
+  if(params.get('module')==='finance')return 'plan';
+  const requested=params.get('view');
+  return ['command','engine','accounts','plan'].includes(requested)?requested:'command';
+};
+
 export default function RevenueSprint({openAI,navigate,initialAccountId=null}){
-  const[data,setData]=useState(null),[error,setError]=useState(''),[view,setView]=useState(initialAccountId?'accounts':'command'),[selectedAccountId,setSelectedAccountId]=useState(initialAccountId);
+  const[data,setData]=useState(null),[error,setError]=useState(''),[view,setView]=useState(()=>initialMissionView(initialAccountId)),[selectedAccountId,setSelectedAccountId]=useState(initialAccountId);
   const[actionDraft,setActionDraft]=useState({account_id:'',title:'',action_date:'',priority:'high'});
   const load=useCallback(async()=>{try{const r=await fetch('/api/revenue-sprint');const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Revenue Mission could not be loaded.');setData(d);setError('');}catch(e){setError(e.message);}},[]);
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{
+    const legacy=new URLSearchParams(window.location.search).get('module')==='finance';
+    if(legacy)window.history.replaceState({},'','/revenue-mission?view=plan');
+    const onPop=()=>setView(initialMissionView(null));
+    window.addEventListener('popstate',onPop);
+    return()=>window.removeEventListener('popstate',onPop);
+  },[]);
   const patchAccount=async(id,updates)=>{const r=await fetch('/api/revenue-sprint/accounts/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)});if(!r.ok){const d=await r.json().catch(()=>({}));setError(d.error||'Could not update account.');return;}await load();};
   const finishAction=async id=>{const r=await fetch('/api/revenue-sprint/actions/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'done'})});if(!r.ok){setError('Could not complete action.');return;}await load();};
   const createAction=async()=>{
@@ -28,9 +44,15 @@ export default function RevenueSprint({openAI,navigate,initialAccountId=null}){
   const accountActions=(data.actions||[]).filter(a=>String(a.account_id||'')===String(selectedAccountId||''));
   const openAccount=id=>{setSelectedAccountId(id);setView('accounts');window.history.pushState({},'',`/revenue/accounts/${encodeURIComponent(id)}`);window.scrollTo({top:0,behavior:'smooth'});};
   const closeAccount=()=>{setSelectedAccountId(null);if(window.location.pathname.startsWith('/revenue/accounts/'))window.history.replaceState({},'','/revenue-mission');};
-  const setMissionView=id=>{setView(id);if(id!=='accounts'&&window.location.pathname.startsWith('/revenue/accounts/')){setSelectedAccountId(null);window.history.replaceState({},'','/revenue-mission');}};
+  const setMissionView=id=>{
+    setView(id);
+    if(id!=='accounts')setSelectedAccountId(null);
+    const url=id==='command'?'/revenue-mission':('/revenue-mission?view='+encodeURIComponent(id));
+    window.history.pushState({},'',url);
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
 
-  const ask=()=>openAI('Revenue Mission: cash target '+s.cash_target_usd+' USD; cash collected '+m.cash_collected_usd+'; contracted '+m.contracted_usd+'; proposal value '+m.proposal_value_usd+'; gross pipeline '+m.gross_pipeline_usd+'; day '+m.day_number+' of '+m.total_days+'; at-risk accounts '+m.at_risk_count+'. Tell me the shortest credible route to cash today, what to stop, and the three accounts I should personally push.');
+  const ask=()=>openAI('Revenue Mission: cash target '+s.cash_target_usd+' USD; cash collected '+m.cash_collected_usd+'; contracted '+m.contracted_usd+'; proposal value '+m.proposal_value_usd+'; gross pipeline '+m.gross_pipeline_usd+'; durable quarterly target '+(data.plan?.targets?.quarterly||0)+'; annual target '+(data.plan?.targets?.annual||0)+'; day '+m.day_number+' of '+m.total_days+'; at-risk accounts '+m.at_risk_count+'. Reconcile the durable revenue plan with the active mission. Tell me the shortest credible route to cash today, what to stop, and the three accounts I should personally push.');
   const metrics=<div className='px-metrics'>
     <div className='px-metric px-metric--success'><div className='px-metric-value'>{formatMoney(m.cash_collected_usd||0,'USD')}</div><div className='px-metric-label'>Cash collected</div><div className='px-metric-helper'>{m.target_progress_pct||0}% of {formatMoney(s.cash_target_usd||10000,'USD')}</div></div>
     <div className='px-metric px-metric--warning'><div className='px-metric-value'>{formatMoney(m.contracted_usd||0,'USD')}</div><div className='px-metric-label'>Contracted</div><div className='px-metric-helper'>Target {formatMoney(s.contracted_target_usd||20000,'USD')}</div></div>
@@ -104,7 +126,13 @@ export default function RevenueSprint({openAI,navigate,initialAccountId=null}){
       </tr>)}</tbody></table></div>
     </Panel>
   </>;
-  const plan=<div className='px-grid-2'><Panel title='Mission operating calendar' subtitle='One commercial focus for each mission day.'><div className='px-list'>{(data.actions||[]).map(a=><div className='px-list-row' key={a.id}><div className='px-list-main'><div className='px-list-title'>{a.title}</div><div className='px-list-sub'>{a.action_date} · {a.action_type}</div></div><Pill tone={a.status==='done'?'success':a.priority==='critical'?'danger':'neutral'}>{a.status==='done'?'Done':a.priority}</Pill>{a.status!=='done'&&<Button variant='ghost' onClick={()=>finishAction(a.id)}>Done</Button>}</div>)}</div></Panel><Panel title='Funnel' subtitle='Accounts must move or be parked.'><div className='px-list'>{STAGES.filter(x=>(m.stage_counts||{})[x]).map(x=><div className='px-list-row' key={x}><strong>{x}</strong><Pill tone={tone(x)}>{m.stage_counts[x]}</Pill></div>)}</div></Panel></div>;
+  const plan=<div className='px-stack'>
+    <Finance embedded openAI={openAI} baseUrl='/api/revenue-sprint/plan'/>
+    <div className='px-grid-2'>
+      <Panel title='Mission operating calendar' subtitle='The active mission turns the durable plan into dated commercial action.'><div className='px-list'>{(data.actions||[]).map(a=><div className='px-list-row' key={a.id}><div className='px-list-main'><div className='px-list-title'>{a.title}</div><div className='px-list-sub'>{a.action_date} · {a.action_type}</div></div><Pill tone={a.status==='done'?'success':a.priority==='critical'?'danger':'neutral'}>{a.status==='done'?'Done':a.priority}</Pill>{a.status!=='done'&&<Button variant='ghost' onClick={()=>finishAction(a.id)}>Done</Button>}</div>)}</div></Panel>
+      <Panel title='Mission funnel' subtitle='Accounts must move, convert or be parked.'><div className='px-list'>{STAGES.filter(x=>(m.stage_counts||{})[x]).map(x=><div className='px-list-row' key={x}><strong>{x}</strong><Pill tone={tone(x)}>{m.stage_counts[x]}</Pill></div>)}</div></Panel>
+    </div>
+  </div>;
   const engineView=<>
     <div className='px-metrics'>
       <div className='px-metric px-metric--success'><div className='px-metric-value'>{formatMoney(engine.summary?.target_cash_mix_usd||0,'USD')}</div><div className='px-metric-label'>Campaign cash mix</div><div className='px-metric-helper'>Diversified target across active/planned engines</div></div>
@@ -123,5 +151,5 @@ export default function RevenueSprint({openAI,navigate,initialAccountId=null}){
       <Panel title='Proof library' subtitle='Reusable evidence for proposals, outreach and partner conversations.'><div className='px-list'>{proof.map(x=><div className='px-list-row' key={x.id}><div className='px-list-main'><div className='px-list-title'>{x.title}</div><div className='px-list-sub'>{x.proof_type} · {x.relevance_tags}</div><div className='px-list-sub'>{x.summary}</div></div></div>)}</div></Panel>
     </div>
   </>;
-  return <div className='module'><PageHeader eyebrow='Commercial execution' title='$10K Revenue Mission' subtitle={(s.starts_on||'2026-09-27')+' → '+(s.ends_on||'2026-10-26')+' · Revenue is the governing objective.'} actions={<><Button variant='secondary' onClick={()=>navigate('opportunities',{view:'pipeline'})}>Opportunities</Button><Button variant='tonal' icon='spark' onClick={ask}>Ask Jake</Button></>}/>{error&&<StateBanner tone='danger' title='Revenue Mission needs attention'>{error}</StateBanner>}<div className='px-tabs' style={{marginBottom:18}}>{[['command','Command'],['engine','Revenue Engine'],['accounts','Accounts'],['plan','Mission plan']].map(([id,label])=><button key={id} className={view===id?'active':''} onClick={()=>setMissionView(id)}>{label}</button>)}</div>{view==='command'?command:view==='engine'?engineView:view==='accounts'?accountsView:plan}</div>;
+  return <div className='module'><PageHeader eyebrow='Commercial execution' title='$10K Revenue Mission' subtitle={(s.starts_on||'2026-09-27')+' → '+(s.ends_on||'2026-10-26')+' · Revenue is the governing objective.'} actions={<><Button variant='secondary' onClick={()=>navigate('opportunities',{view:'pipeline'})}>Opportunities</Button><Button variant='tonal' icon='spark' onClick={ask}>Ask Jake</Button></>}/>{error&&<StateBanner tone='danger' title='Revenue Mission needs attention'>{error}</StateBanner>}<div className='px-tabs' style={{marginBottom:18}}>{[['command','Command'],['plan','Plan & targets'],['engine','Revenue Engine'],['accounts','Accounts']].map(([id,label])=><button key={id} className={view===id?'active':''} onClick={()=>setMissionView(id)}>{label}</button>)}</div>{view==='command'?command:view==='engine'?engineView:view==='accounts'?accountsView:plan}</div>;
 }
