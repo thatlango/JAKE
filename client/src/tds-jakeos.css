@@ -544,7 +544,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .mobile-nav-item--active{color:var(--primary)!important}
 .more-menu{
   background:var(--surface-raised)!important;border:1px solid var(--border)!important;border-radius:var(--radius-xl)!important;
-  box-shadow:var(--shadow-e3)!important;
+  box-shadow:var(--shadow-e3)!important;max-height:min(70dvh,38rem)!important;overflow-y:auto!important;overscroll-behavior:contain!important;
 }
 .more-menu-item--active{background:var(--primary-soft)!important;color:var(--primary)!important}
 
