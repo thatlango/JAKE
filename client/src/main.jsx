@@ -5,8 +5,6 @@ import { installAccessibilityBridge } from './accessibility';
 import './index.css';
 import './product.css';
 import './sprint.css';
-import './sprint-modules.css';
-import './relationships.css';
 import './tds-jakeos.css';
 
 document.documentElement.dataset.tds = '2.0';
