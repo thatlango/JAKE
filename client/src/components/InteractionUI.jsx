@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { cloneElement, isValidElement, useEffect, useId, useRef } from 'react';
 import { Button } from './ProductUI';
 
 function useDialogFocus(open,onClose){
@@ -61,10 +61,12 @@ export function FormField({label,description,error,required=false,children,class
   const generated=useId();
   const id=`field-${generated.replace(/:/g,'')}`;
   const describedBy=[description?`${id}-help`:null,error?`${id}-error`:null].filter(Boolean).join(' ')||undefined;
-  const control=children&&typeof children==='object'?{
-    ...children,
-    props:{...children.props,id:children.props.id||id,'aria-describedby':children.props['aria-describedby']||describedBy,'aria-invalid':error?true:children.props['aria-invalid'],required:children.props.required??required}
-  }:children;
+  const control=isValidElement(children)?cloneElement(children,{
+    id:children.props.id||id,
+    'aria-describedby':children.props['aria-describedby']||describedBy,
+    'aria-invalid':error?true:children.props['aria-invalid'],
+    required:children.props.required??required
+  }):children;
   return <div className={`px-field ${className}`.trim()}>
     <label htmlFor={control?.props?.id||id}>{label}{required&&<span aria-hidden="true"> *</span>}</label>
     {control}
