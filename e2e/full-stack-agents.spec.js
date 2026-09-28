@@ -134,8 +134,11 @@ test('Jake delegation stays in the canonical Work queue through claim, review, r
     headers: userHeaders,
     data: {
       request_id: unique,
-      request: 'Draft a concise two-paragraph concept note for a youth entrepreneurship bootcamp in Northern Uganda.',
-      module: 'work'
+      request: 'Review and rewrite a concise two-paragraph concept note for a youth entrepreneurship bootcamp in Northern Uganda.',
+      module: 'work',
+      agent_id: 'document-knowledge',
+      deliverable_type: 'draft',
+      priority: 'high'
     }
   });
   expect(first.status(), await first.text()).toBe(201);
@@ -149,7 +152,7 @@ test('Jake delegation stays in the canonical Work queue through claim, review, r
     headers: userHeaders,
     data: {
       request_id: unique,
-      request: 'Draft a concise two-paragraph concept note for a youth entrepreneurship bootcamp in Northern Uganda.',
+      request: 'Review and rewrite a concise two-paragraph concept note for a youth entrepreneurship bootcamp in Northern Uganda.',
       module: 'work'
     }
   });
@@ -213,11 +216,13 @@ test('Jake delegation stays in the canonical Work queue through claim, review, r
 
   const revise = await request.post('/api/work/items/' + encodeURIComponent(delegated.work.id) + '/agent/revise', {
     headers: userHeaders,
-    data: { feedback: 'Add a short paragraph on graduation pitches and post-bootcamp coaching.' }
+    data: { feedback: 'Add a short paragraph on graduation pitches and post-bootcamp coaching.', agent_id: 'bid-partnerships' }
   });
   expect(revise.ok(), await revise.text()).toBeTruthy();
   const reviseBody = await revise.json();
   expect(reviseBody.dispatch.state).toBe('queued');
+  expect(reviseBody.dispatch.requested_agent_id).toBe('bid-partnerships');
+  expect(reviseBody.dispatch.requested_agent_name).toBe('Bid & Partnerships');
   expect(reviseBody.work.status).toBe('ready');
 
   const reclaim = await connectorPost(request, '/api/connectors/v1/agents/work/' + encodeURIComponent(delegated.dispatch.id) + '/claim', {
