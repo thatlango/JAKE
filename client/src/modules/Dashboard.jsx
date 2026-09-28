@@ -235,8 +235,9 @@ export default function Dashboard({openAI,navigate}){
 
   const openDayItem=item=>{
     if(!item)return;
-    if(item.kind==='event'||item.kind==='block')navigate('calendar');
-    else navigate('work');
+    if(item.kind==='event')navigate('calendar',{id:item.id});
+    else if(item.kind==='block')navigate('calendar');
+    else navigate('work',{id:item.task_id||item.id});
   };
   const challengeQueue=()=>openAI?.(
     'Act as my executive chief of staff. Challenge this JakeOS operating picture before I start anything new. Prioritise verified completion, revenue/market movement, client delivery and decisions only I can make. Identify what I should finish, delegate, park or decline. Do not reward novelty or old backlog merely because it exists.'
@@ -338,7 +339,7 @@ export default function Dashboard({openAI,navigate}){
         </div>
         <div className="exec-list">
           {decisionQueue.length?decisionQueue.map(item=>{
-            if(!item.signal)return <WorkLine key={item.id} item={item} onOpen={()=>navigate('work')} actionLabel={item.agent_state==='review'?'Review':'Decide'}/>;
+            if(!item.signal)return <WorkLine key={item.id} item={item} onOpen={()=>navigate('work',{id:item.id})} actionLabel={item.agent_state==='review'?'Review':'Decide'}/>;
             const href=safeActionHref(item.action_url);
             return <div className="exec-line" key={item.id}>
               <div className="exec-line-main"><div className="exec-line-title">{item.title}</div><div className="exec-line-meta"><span>{item.severity}</span><span>{item.decision_source}</span></div>{item.description&&<div className="exec-next">{item.description}</div>}</div>
@@ -356,13 +357,13 @@ export default function Dashboard({openAI,navigate}){
         <div className="exec-market-section">
           <div className="exec-subhead"><span>Opportunities</span><strong>{marketOpportunities.length}</strong></div>
           <div className="exec-list">
-            {marketOpportunities.length?marketOpportunities.map(item=><OpportunityLine key={item.id} item={item} onOpen={()=>navigate('opportunities',{view:'pipeline'})}/>)
+            {marketOpportunities.length?marketOpportunities.map(item=><OpportunityLine key={item.id} item={item} onOpen={()=>navigate('opportunities',{id:item.id,view:'pipeline'})}/>)
               :<EmptyState icon="target" title="No active market movement" body="Use Opportunities to qualify demand before creating more product work."/>}
           </div>
         </div>
         {marketWork.length>0&&<div className="exec-market-section">
           <div className="exec-subhead"><span>Work that must ship</span><strong>{marketWork.length}</strong></div>
-          <div className="exec-list">{marketWork.slice(0,3).map(item=><WorkLine key={item.id} item={item} onOpen={()=>navigate('work')} actionLabel="Ship"/>)}</div>
+          <div className="exec-list">{marketWork.slice(0,3).map(item=><WorkLine key={item.id} item={item} onOpen={()=>navigate('work',{id:item.id})} actionLabel="Ship"/>)}</div>
         </div>}
       </article>
     </section>
@@ -374,7 +375,7 @@ export default function Dashboard({openAI,navigate}){
           <Pill tone={wipOver?'warning':'success'}>WIP {personalDoing.length}/{wipLimit}</Pill>
         </div>
         <div className="exec-list">
-          {finishQueue.length?finishQueue.map(item=><WorkLine key={item.id} item={item} onOpen={()=>navigate('work')} actionLabel="Finish"/>)
+          {finishQueue.length?finishQueue.map(item=><WorkLine key={item.id} item={item} onOpen={()=>navigate('work',{id:item.id})} actionLabel="Finish"/>)
             :<EmptyState icon="check" title="No completion queue" body="There is no personal execution competing for closure."/>}
         </div>
       </article>
@@ -385,7 +386,7 @@ export default function Dashboard({openAI,navigate}){
           <button onClick={()=>navigate('agents')}>Agents <Icon name="arrow" size={14}/></button>
         </div>
         <div className="exec-list">
-          {delegated.length?delegated.map(item=><WorkLine key={item.id} item={item} onOpen={()=>navigate(item.agent_state==='review'?'work':'agents')} actionLabel={item.agent_state==='review'?'Review':'Inspect'}/>)
+          {delegated.length?delegated.map(item=><WorkLine key={item.id} item={item} onOpen={()=>navigate(item.agent_state==='review'?'work':'agents',item.agent_state==='review'?{id:item.id}:{})} actionLabel={item.agent_state==='review'?'Review':'Inspect'}/>)
             :<EmptyState icon="users" title="No delegated work in flight" body="Move suitable drafting, research and review work to agents instead of carrying it personally."/>}
         </div>
       </article>
@@ -397,7 +398,7 @@ export default function Dashboard({openAI,navigate}){
         <Pill tone={parkCandidates.length?'warning':'success'}>{parkCandidates.length} candidate{parkCandidates.length===1?'':'s'}</Pill>
       </summary>
       <div className="exec-backlog-body">
-        {parkCandidates.length?<div className="exec-list">{parkCandidates.map(item=><div className="exec-line" key={item.id}><div className="exec-line-main"><div className="exec-line-title">{item.title}</div><div className="exec-line-meta"><span>{item.project_name||'No project'}</span><span>{daysOpen(item)}d open</span><span>{item.priority||'medium'}</span></div></div><button className="exec-line-action" onClick={()=>navigate('work')}>Triage<Icon name="arrow" size={14}/></button></div>)}</div>
+        {parkCandidates.length?<div className="exec-list">{parkCandidates.map(item=><div className="exec-line" key={item.id}><div className="exec-line-main"><div className="exec-line-title">{item.title}</div><div className="exec-line-meta"><span>{item.project_name||'No project'}</span><span>{daysOpen(item)}d open</span><span>{item.priority||'medium'}</span></div></div><button className="exec-line-action" onClick={()=>navigate('work',{id:item.id})}>Triage<Icon name="arrow" size={14}/></button></div>)}</div>
           :<EmptyState icon="check" title="No obvious backlog drag" body="Open work is currently tied to deadlines, market movement, active delivery or decisions."/>}
       </div>
     </details>
