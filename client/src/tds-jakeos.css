@@ -704,3 +704,29 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .px-relationship-hero{align-items:flex-start;flex-wrap:wrap}.px-relationship-hero .px-btn{width:100%}.px-relationship-actions .px-btn{flex:1}
   .px-relationship-brief{align-items:stretch;flex-direction:column}.px-relationship-brief .px-btn{width:100%}
 }
+
+
+/* Legacy structural classes resolve exclusively through canonical TDS tokens. */
+:root{
+  --bg:var(--background);
+  --surface-2:var(--surface-muted);
+  --surface-3:color-mix(in oklab,var(--surface-muted) 82%,var(--border));
+  --accent:var(--primary);
+  --accent-dim:var(--primary-soft);
+  --green:var(--success);
+  --green-dim:var(--success-soft);
+  --red:var(--danger);
+  --red-dim:var(--danger-soft);
+  --blue:var(--info);
+  --blue-dim:var(--info-soft);
+  --purple:var(--info);
+  --cyan:var(--primary);
+  --text:var(--foreground);
+  --text-muted:var(--foreground-secondary);
+  --text-dim:var(--foreground-tertiary);
+  --radius:var(--radius-lg);
+  --transition:120ms ease;
+  --px-surface-3:color-mix(in oklab,var(--surface-muted) 82%,var(--border));
+  --px-content:84rem;
+  --px-sidebar:var(--sidebar-w);
+}
