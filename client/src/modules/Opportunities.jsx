@@ -41,7 +41,7 @@ export default function Opportunities({openAI,initialView='overview',initialOppo
   useEffect(()=>{setViewState(initialView);},[initialView]);
 
   const setView=v=>{setViewState(v);const q=new URLSearchParams({module:'opportunities',view:v});window.history.replaceState({},'','/?'+q.toString());};
-  const selectOpportunity=id=>{selectOpportunity(id);window.history.pushState({},'',`/opportunities/${encodeURIComponent(id)}`);};
+  const selectOpportunity=id=>{setSelected(id);window.history.pushState({},'',`/opportunities/${encodeURIComponent(id)}`);};
   const current=data.opportunities.find(x=>String(x.id)===String(selected))||null;
   const active=data.opportunities.filter(o=>!['Won','Lost','Closed'].includes(o.stage));
   const discover=data.opportunities.filter(o=>o.stage==='Discover');
