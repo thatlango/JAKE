@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import InstallPrompt from './components/InstallPrompt';
@@ -42,8 +42,10 @@ export default function App(){
   const[estateProduct,setEstateProduct]=useState(initial.estateProduct);
   const[recordId,setRecordId]=useState(initial.recordId||null);
   const[profileOpen,setProfileOpen]=useState(false);
+  const profileRef=useRef(null);
   useEffect(()=>{let active=true;fetch('/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(async r=>({ok:r.ok,data:await r.json().catch(()=>({}))})).then(({ok,data})=>active&&setAuthState({checking:false,authenticated:ok&&data.authenticated===true,user:data.user||null})).catch(()=>active&&setAuthState({checking:false,authenticated:false,user:null}));return()=>{active=false;};},[]);
   const signOut=useCallback(async()=>{try{await fetch('/auth/logout',{method:'POST'});}catch{}window.location.replace('/');},[]);
+  useEffect(()=>{if(!profileOpen)return;const close=e=>{if(e.key==='Escape')setProfileOpen(false);if(e.type==='pointerdown'&&!profileRef.current?.contains(e.target))setProfileOpen(false);};document.addEventListener('keydown',close);document.addEventListener('pointerdown',close);return()=>{document.removeEventListener('keydown',close);document.removeEventListener('pointerdown',close);};},[profileOpen]);
   const openAI=useCallback(context=>window.dispatchEvent(new CustomEvent('jake:open',{detail:{prompt:context||''}})),[]);
   const navigate=useCallback((next,params={})=>{const safe=KNOWN_MODULES.has(next)?next:'dashboard';setModule(safe);setEstateProduct(null);setRecordId(params.id==null?null:String(params.id));setProfileOpen(false);const url=moduleUrl(safe,params);window.history.pushState({},'',url);window.scrollTo({top:0,behavior:'smooth'});},[]);
   const navigateEstateProduct=useCallback(code=>{const safe=String(code||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');if(!safe)return;setModule('estate');setEstateProduct(safe);setRecordId(null);window.history.pushState({},'',`/estate/${encodeURIComponent(safe)}`);window.scrollTo({top:0,behavior:'smooth'});},[]);
@@ -68,7 +70,7 @@ export default function App(){
       <div className="jd-topbar-actions">
         <button className="jd-top-icon" onClick={()=>navigate('crm')} aria-label="Relationships"><Icon name="document" size={17}/></button>
         <button className="jd-top-icon" onClick={()=>navigate('alerts')} aria-label="Alerts"><Icon name="bell" size={17}/></button>
-        <div className="jd-profile-wrap"><button className="jd-profile-chip" onClick={()=>setProfileOpen(v=>!v)} aria-haspopup="menu" aria-expanded={profileOpen} title="Account menu"><span className="jd-profile-avatar">{initials}</span><span className="jd-profile-copy"><strong>{userName}</strong><small>{userEmail}</small></span></button>{profileOpen&&<div className="jd-profile-menu" role="menu"><div className="jd-profile-menu-head"><strong>{userName}</strong><small>{userEmail}</small></div><button role="menuitem" onClick={()=>{setProfileOpen(false);navigate('personal-finance');}}>Personal finance</button><button role="menuitem" onClick={()=>{setProfileOpen(false);navigate('integrations');}}>Connections</button><button role="menuitem" className="jd-profile-menu-danger" onClick={signOut}><Icon name="logout" size={16}/>Sign out</button></div>}</div>
+        <div className="jd-profile-wrap" ref={profileRef}><button className="jd-profile-chip" onClick={()=>setProfileOpen(v=>!v)} aria-haspopup="menu" aria-expanded={profileOpen} title="Account menu"><span className="jd-profile-avatar">{initials}</span><span className="jd-profile-copy"><strong>{userName}</strong><small>{userEmail}</small></span></button>{profileOpen&&<div className="jd-profile-menu" role="menu"><div className="jd-profile-menu-head"><strong>{userName}</strong><small>{userEmail}</small></div><button role="menuitem" onClick={()=>{setProfileOpen(false);navigate('personal-finance');}}>Personal finance</button><button role="menuitem" onClick={()=>{setProfileOpen(false);navigate('integrations');}}>Connections</button><button role="menuitem" className="jd-profile-menu-danger" onClick={signOut}><Icon name="logout" size={16}/>Sign out</button></div>}</div>
       </div>
     </header>
     <main className="main-content">
