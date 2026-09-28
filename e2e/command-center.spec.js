@@ -127,7 +127,7 @@ async function openAgents(page) {
     return;
   }
   await page.getByRole('button', { name: /^More$/ }).click();
-  await page.getByRole('button', { name: /^Agents$/ }).click();
+  await page.locator('.more-menu').getByRole('menuitem', { name: /^Agents$/ }).click();
 }
 
 test('Agents is an additive section with live states, runs and decisions', async ({ page }) => {
@@ -136,8 +136,8 @@ test('Agents is an additive section with live states, runs and decisions', async
   await openAgents(page);
 
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
-  await expect(page.getByText('Command Orchestrator').first()).toBeVisible();
-  await expect(page.getByText('Independent Assurance').first()).toBeVisible();
+  await expect(page.locator('.agents-roster').getByText('Command Orchestrator',{exact:true})).toBeVisible();
+  await expect(page.locator('.agents-roster').getByText('Independent Assurance',{exact:true})).toBeVisible();
   await expect(page.getByText('UNICEF Agora RFPS 503950').first()).toBeVisible();
   await expect(page.getByText('Premium Moodle Partner evidence not verified').first()).toBeVisible();
   await expect(page.getByText('UNICEF prime-partner route').first()).toBeVisible();
@@ -163,9 +163,9 @@ test('Agents supports direct delegation and in-place output review', async ({ pa
   await page.goto('/?module=agents');
   await expect(page.getByLabel('What should the agent deliver?')).toBeVisible();
   await page.getByLabel('What should the agent deliver?').fill('Prepare a concise donor partner briefing note using our existing programme evidence.');
-  await page.getByLabel('Agent').selectOption('document-knowledge');
-  await page.getByLabel('Deliverable').selectOption('draft');
-  await page.getByLabel('Priority').selectOption('high');
+  await page.locator('.agents-delegate').getByLabel('Agent',{exact:true}).selectOption('document-knowledge');
+  await page.locator('.agents-delegate').getByLabel('Deliverable',{exact:true}).selectOption('draft');
+  await page.locator('.agents-delegate').getByLabel('Priority',{exact:true}).selectOption('high');
   await page.getByRole('button',{name:'Delegate',exact:true}).click();
   await expect(page.getByText(/Assigned to Document & Knowledge/)).toBeVisible();
   expect(delegatedBody.agent_id).toBe('document-knowledge');
@@ -188,7 +188,7 @@ test('agent API failure stays inside the Agents section', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
   await openAgents(page);
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
-  await expect(page.getByText('Agent telemetry unavailable', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/agent telemetry unavailable/i).first()).toBeVisible();
 });
 
 test('mobile keeps the original primary navigation and exposes Agents under More', async ({ page }) => {
