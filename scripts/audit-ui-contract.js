@@ -47,6 +47,10 @@ for(const file of active){
 
 const app=fs.readFileSync(path.join(root,'client/src/App.jsx'),'utf8');
 if(/jd-profile-chip[^>]*onClick=\{signOut\}/.test(app))report('client/src/App.jsx','profile chip must never sign out directly');
+for(const legacyCss of ['client/src/index.css','client/src/product.css','client/src/sprint.css']){
+  const css=fs.readFileSync(path.join(root,legacyCss),'utf8');
+  if(/:root\s*\{/.test(css))report(legacyCss,'legacy structural CSS must not define global tokens; TDS owns them');
+}
 const main=fs.readFileSync(path.join(root,'client/src/main.jsx'),'utf8');
 for(const removed of ['layout-fix.css','dashboard-reference.css','minimal-kpi-shell.css','sprint-modules.css','relationships.css']){
   if(main.includes(removed))report('client/src/main.jsx',`superseded stylesheet still loaded: ${removed}`);
