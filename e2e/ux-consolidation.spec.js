@@ -112,3 +112,23 @@ test('invalid routes show a recovery surface instead of silently becoming Execut
   await expect(page.getByRole('heading',{name:'Page not found'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Search JakeOS'})).toBeVisible();
 });
+
+
+test('revenue account deep route opens a real commercial account detail',async({page})=>{
+  await installBase(page);
+  await page.route('**/api/revenue-sprint',route=>json(route,{
+    today:'2026-09-28',
+    sprint:{cash_target_usd:10000,starts_on:'2026-09-27',ends_on:'2026-10-26'},
+    summary:{cash_collected_usd:500,contracted_usd:2000,proposal_value_usd:6000,gross_pipeline_usd:12000,day_number:2,total_days:30,days_remaining:28,active_accounts:1,at_risk_count:0,stage_counts:{Conversation:1}},
+    accounts:[{id:'rev-1',org:'Acme Buyer',offer:'MSME diagnostic sprint',lane:'Cash now',stage:'Conversation',probability:60,pipeline_value_usd:2500,contracted_usd:0,cash_collected_usd:0,cash_30d_target_usd:1500,owner:'Jacob',contact_name:'Buyer Lead',contact_email:'buyer@example.com',contact_channel:'Email',next_action:'Send scoped proposal',next_action_date:'2026-09-29',risk:'Decision window is short',notes:'Use proof from prior MSME programmes',opportunity_id:'opp-1'}],
+    actions:[{id:'act-1',account_id:'rev-1',title:'Send scoped proposal',action_date:'2026-09-29',priority:'high',status:'open',channel:'Email'}],
+    due_actions:[],close_next:[],engine:{offers:[],markets:[],channels:[],campaigns:[],experiments:[],proof:[],summary:{}}
+  }));
+  await page.goto('/revenue/accounts/rev-1');
+  await expect(page).toHaveURL(/\/revenue\/accounts\/rev-1$/);
+  await expect(page.getByRole('heading',{name:'Acme Buyer'})).toBeVisible();
+  await expect(page.getByText('MSME diagnostic sprint').first()).toBeVisible();
+  await expect(page.getByText('Send scoped proposal').first()).toBeVisible();
+  await expect(page.getByText('Decision window is short')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Open linked opportunity'})).toBeVisible();
+});
