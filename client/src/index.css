@@ -1,31 +1,4 @@
 /* ── Variables ── */
-:root {
-  --bg:          #07090F;
-  --surface:     #0D1117;
-  --surface-2:   #131820;
-  --surface-3:   #1A2030;
-  --border:      rgba(255,255,255,0.055);
-  --border-strong: rgba(255,255,255,0.10);
-  --accent:      #F0B429;
-  --accent-dim:  rgba(240,180,41,0.12);
-  --green:       #0ECB81;
-  --green-dim:   rgba(14,203,129,0.12);
-  --red:         #FF4757;
-  --red-dim:     rgba(255,71,87,0.12);
-  --blue:        #5E6AD2;
-  --blue-dim:    rgba(94,106,210,0.12);
-  --purple:      #9F7AEA;
-  --cyan:        #22D3EE;
-  --text:        #DDE3F0;
-  --text-muted:  #5C6680;
-  --text-dim:    #2A3050;
-  --sidebar-w:   220px;
-  --header-h:    56px;
-  --radius:      10px;
-  --radius-sm:   6px;
-  --transition:  0.18s ease;
-}
-
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
