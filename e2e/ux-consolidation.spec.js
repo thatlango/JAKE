@@ -21,8 +21,17 @@ test('desktop navigation exposes every canonical JakeOS destination and profile 
   let logoutCalls=0;
   await page.route('**/auth/logout',async route=>{logoutCalls++;await json(route,{ok:true});});
   await page.goto('/');
-  for(const label of ['Voice capture','Personal finance','Platforms','Export','Estate Control','Operations']){
-    await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
+  const compact=await page.evaluate(()=>window.innerWidth<840);
+  if(compact){
+    await page.getByRole('button',{name:'More',exact:true}).click();
+    for(const label of ['Voice capture','Personal finance','Platforms','Export','Estate Control','Operations']){
+      await expect(page.locator('.more-menu').getByRole('menuitem',{name:label,exact:true})).toBeVisible();
+    }
+    await page.getByRole('button',{name:'More',exact:true}).click();
+  }else{
+    for(const label of ['Voice capture','Personal finance','Platforms','Export','Estate Control','Operations']){
+      await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
+    }
   }
   await page.getByRole('button',{name:/Jacob Odur/}).click();
   await expect(page.getByRole('menuitem',{name:'Sign out'})).toBeVisible();
@@ -35,7 +44,7 @@ test('mobile More exposes estate control and operations instead of dropping vali
   await page.goto('/');
   await page.getByRole('button',{name:'More',exact:true}).click();
   for(const label of ['Estate Control','Operations','Payments','Voice capture','Personal finance','Platforms','Export']){
-    await expect(page.locator('.more-menu').getByRole('button',{name:label,exact:true})).toBeVisible();
+    await expect(page.locator('.more-menu').getByRole('menuitem',{name:label,exact:true})).toBeVisible();
   }
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
@@ -89,11 +98,11 @@ test('cash-flow outage is explicit and is never rendered as a zero financial sna
 test('project deep route opens the selected project directly',async({page})=>{
   await installBase(page);
   await page.route('**/api/work/projects',route=>json(route,{projects:[{id:'p-2',name:'Second project',status:'Active',priority:'High',open_tasks:1,total_tasks:1,completed_tasks:0,blocked_tasks:0,doing_tasks:0}]}));
-  await page.route('**/api/work/projects/p-2',route=>json(route,{project:{id:'p-2',name:'Second project',status:'Active',priority:'High',description:'Exact project'},summary:{total:1,completed:0,open:1,doing:0,blocked:0},items:[{id:'t-1',title:'Next action',status:'ready',priority:'high',version:1}]}));
+  await page.route('**/api/work/projects/p-2',route=>json(route,{project:{id:'p-2',name:'Second project',status:'Active',priority:'High',description:'Exact project'},summary:{total:1,completed:0,open:1,doing:0,blocked:0},items:[{id:'t-1',title:'Ship project package',status:'ready',priority:'high',version:1}]}));
   await page.goto('/projects/p-2');
   await expect(page).toHaveURL(/\/projects\/p-2$/);
   await expect(page.getByText('Exact project')).toBeVisible();
-  await expect(page.getByText('Next action')).toBeVisible();
+  await expect(page.getByText('Ship project package',{exact:true})).toBeVisible();
 });
 
 
