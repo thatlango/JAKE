@@ -45,7 +45,7 @@ export const MOBILE_MORE = NAV_GROUPS
   .flatMap(group => group.items)
   .filter(item => !['dashboard','work','projects','estate'].includes(item.id));
 
-export const KNOWN_MODULES = new Set(NAV_GROUPS.flatMap(group => group.items.map(item => item.id)));
+export const KNOWN_MODULES = new Set([...NAV_GROUPS.flatMap(group => group.items.map(item => item.id)),'pipeline','radar','proposals','grants']);
 
 export const MODULE_META = {
   dashboard:{title:'Executive',subtitle:'Now, decisions, market movement and verified completion'},
