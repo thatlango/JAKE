@@ -53,6 +53,7 @@ export default function App(){
   const backToEstate=useCallback(()=>{setModule('estate');setEstateProduct(null);setRecordId(null);window.history.pushState({},'','/estate');window.scrollTo({top:0,behavior:'smooth'});},[]);
   const openJake=useCallback(()=>window.dispatchEvent(new CustomEvent('jake:open',{detail:{prompt:''}})),[]);
   useEffect(()=>{const onPop=()=>{const next=readLocation();setModule(next.module);setEstateProduct(next.estateProduct);setRecordId(next.recordId||null);};window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop);},[]);
+  useEffect(()=>{const aliases=new Set(['opportunities','pipeline','radar','proposals','grants']);const key=aliases.has(module)?'opportunities':module;const meta=MODULE_META[key]||MODULE_META.dashboard;document.title=authState.authenticated?`${meta.title} | JakeOS`:'JakeOS';},[module,authState.authenticated]);
   if(!authState.authenticated)return <AuthGate checking={authState.checking}/>;
   const userName=authState.user?.name||authState.user?.display_name||authState.user?.full_name||'Jacob Odur';
   const userEmail=authState.user?.email||'Tuku account';
@@ -61,7 +62,6 @@ export default function App(){
   const opportunityView=module==='pipeline'?'pipeline':module==='radar'?'discover':module==='proposals'||module==='grants'?'applications':(new URLSearchParams(window.location.search).get('view')||'overview');
   const navActive=opportunityModules.has(module)?'opportunities':module;
   const moduleMeta=MODULE_META[navActive]||MODULE_META[module]||MODULE_META.dashboard;
-  useEffect(()=>{document.title=`${moduleMeta.title} | JakeOS`;},[moduleMeta.title]);
   return <div className="app-layout" data-product="jakeos">
     <Sidebar active={navActive} onChange={navigate}/><MobileNav active={navActive} onChange={navigate}/>
     <header className="jd-topbar">
