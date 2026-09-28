@@ -50,7 +50,15 @@ async function installMocks(page, options = {}) {
   await mockJson(page, '**/api/agents/overview', agentsStatus === 200 ? agents : { error: 'agent telemetry unavailable' }, agentsStatus);
   await mockJson(page, '**/api/agents/runs*', runs);
   await mockJson(page, '**/api/agents/decisions*', decisions);
-  await mockJson(page, '**/api/agents/work*', { dispatches: [] });
+  await mockJson(page, '**/api/agents/catalog', { agents: [
+    { id: 'command-orchestrator', name: 'Command Orchestrator', description: 'Plan and coordinate multi-step work.', local: true },
+    { id: 'document-knowledge', name: 'Document & Knowledge', description: 'Draft and structure documents.', local: true },
+    { id: 'bid-partnerships', name: 'Bid & Partnerships', description: 'Prepare bids and proposals.', local: true },
+    { id: 'assurance-reviewer', name: 'Independent Assurance', description: 'Review evidence and quality.', local: false }
+  ] });
+  await mockJson(page, '**/api/agents/work*', { dispatches: [
+    { id:'dispatch-review', work_item_id:'w5', work_title:'Review agent evidence pack', work_status:'waiting', requested_agent_id:'document-knowledge', requested_agent_name:'Document & Knowledge', request_text:'Prepare an evidence pack for the bid.', deliverable_type:'draft', state:'review', result_summary:'Evidence pack ready for review.', result_content:'Finished evidence pack with verified programme examples.', artifact_uri:'jakeos://work/w5/deliverable', project_name:'Bid', updated_at:'2026-09-22T12:00:00Z' }
+  ] });
   await mockJson(page, '**/api/work/day', {
     timezone: 'Africa/Kampala',
     workday: { starts_at: '07:30', ends_at: '18:30' },
@@ -119,7 +127,7 @@ async function openAgents(page) {
     return;
   }
   await page.getByRole('button', { name: /^More$/ }).click();
-  await page.getByRole('button', { name: /^Agents$/ }).click();
+  await page.locator('.more-menu').getByRole('menuitem', { name: /^Agents$/ }).click();
 }
 
 test('Agents is an additive section with live states, runs and decisions', async ({ page }) => {
@@ -128,11 +136,49 @@ test('Agents is an additive section with live states, runs and decisions', async
   await openAgents(page);
 
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
-  await expect(page.getByText('Command Orchestrator').first()).toBeVisible();
-  await expect(page.getByText('Independent Assurance').first()).toBeVisible();
+  await expect(page.locator('.agents-roster').getByText('Command Orchestrator',{exact:true})).toBeVisible();
+  await expect(page.locator('.agents-roster').getByText('Independent Assurance',{exact:true})).toBeVisible();
   await expect(page.getByText('UNICEF Agora RFPS 503950').first()).toBeVisible();
   await expect(page.getByText('Premium Moodle Partner evidence not verified').first()).toBeVisible();
   await expect(page.getByText('UNICEF prime-partner route').first()).toBeVisible();
+});
+
+
+test('Agents supports direct delegation and in-place output review', async ({ page }) => {
+  await installMocks(page);
+  let delegatedBody = null;
+  let accepted = false;
+  await page.route('**/api/jake/delegate', async route => {
+    delegatedBody = route.request().postDataJSON();
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
+      work:{id:'w-new',title:'Partner brief'},
+      dispatch:{id:'dispatch-new',work_item_id:'w-new',requested_agent_id:'document-knowledge',requested_agent_name:'Document & Knowledge',state:'queued'}
+    })});
+  });
+  await page.route('**/api/work/items/w5/agent/accept', async route => {
+    accepted = true;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({work:{id:'w5',status:'done'},dispatch:{id:'dispatch-review',state:'completed'}}) });
+  });
+
+  await page.goto('/?module=agents');
+  await expect(page.getByLabel('What should the agent deliver?')).toBeVisible();
+  await page.getByLabel('What should the agent deliver?').fill('Prepare a concise donor partner briefing note using our existing programme evidence.');
+  await page.locator('.agents-delegate').getByLabel('Agent',{exact:true}).selectOption('document-knowledge');
+  await page.locator('.agents-delegate').getByLabel('Deliverable',{exact:true}).selectOption('draft');
+  await page.locator('.agents-delegate').getByLabel('Priority',{exact:true}).selectOption('high');
+  await page.getByRole('button',{name:'Delegate',exact:true}).click();
+  await expect(page.getByText(/Assigned to Document & Knowledge/)).toBeVisible();
+  expect(delegatedBody.agent_id).toBe('document-knowledge');
+  expect(delegatedBody.deliverable_type).toBe('draft');
+  expect(delegatedBody.priority).toBe('high');
+
+  await page.getByRole('tab',{name:/Needs you/}).click();
+  await page.getByRole('button',{name:/Review agent evidence pack/}).click();
+  await expect(page.getByRole('dialog')).toContainText('Finished evidence pack with verified programme examples.');
+  await expect(page.getByRole('button',{name:'Accept & complete'})).toBeVisible();
+  await page.getByRole('button',{name:'Accept & complete'}).click();
+  expect(accepted).toBe(true);
+  await expect(page.getByText(/Result accepted/)).toBeVisible();
 });
 
 test('agent API failure stays inside the Agents section', async ({ page }) => {
@@ -142,7 +188,7 @@ test('agent API failure stays inside the Agents section', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Executive', exact: true })).toBeVisible();
   await openAgents(page);
   await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
-  await expect(page.getByText('Agent telemetry unavailable', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/agent telemetry unavailable/i).first()).toBeVisible();
 });
 
 test('mobile keeps the original primary navigation and exposes Agents under More', async ({ page }) => {
