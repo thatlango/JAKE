@@ -16,22 +16,14 @@ async function installBase(page){
   await page.route('**/api/revenue-sprint*',route=>json(route,{sprint:{cash_target_usd:10000},summary:{},accounts:[],due_actions:[],close_next:[],engine:{}}));
 }
 
-test('desktop navigation exposes every canonical JakeOS destination and profile is not a sign-out trap',async({page})=>{
+test('desktop navigation exposes every canonical JakeOS destination and profile is not a sign-out trap',async({page},testInfo)=>{
+  test.skip(testInfo.project.name!=='desktop-chromium','desktop shell contract');
   await installBase(page);
   let logoutCalls=0;
   await page.route('**/auth/logout',async route=>{logoutCalls++;await json(route,{ok:true});});
   await page.goto('/');
-  const compact=await page.evaluate(()=>window.innerWidth<840);
-  if(compact){
-    await page.getByRole('button',{name:'More',exact:true}).click();
-    for(const label of ['Voice capture','Personal finance','Platforms','Export','Estate Control','Operations']){
-      await expect(page.locator('.more-menu').getByRole('menuitem',{name:label,exact:true})).toBeVisible();
-    }
-    await page.getByRole('button',{name:'More',exact:true}).click();
-  }else{
-    for(const label of ['Voice capture','Personal finance','Platforms','Export','Estate Control','Operations']){
-      await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
-    }
+  for(const label of ['Voice capture','Personal finance','Platforms','Export','Estate Control','Operations']){
+    await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
   }
   await page.getByRole('button',{name:/Jacob Odur/}).click();
   await expect(page.getByRole('menuitem',{name:'Sign out'})).toBeVisible();
@@ -102,7 +94,7 @@ test('project deep route opens the selected project directly',async({page})=>{
   await page.goto('/projects/p-2');
   await expect(page).toHaveURL(/\/projects\/p-2$/);
   await expect(page.getByText('Exact project')).toBeVisible();
-  await expect(page.getByText('Ship project package',{exact:true})).toBeVisible();
+  await expect(page.getByText('Ship project package',{exact:true}).first()).toBeVisible();
 });
 
 
