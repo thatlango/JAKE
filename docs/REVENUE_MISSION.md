@@ -37,7 +37,7 @@ A lead is not useful merely because it exists. Every live account must have a na
 
 ## Surfaces
 
-### 30-Day Revenue → Command
+### Revenue Mission → Command
 
 Use this as the executive commercial home.
 
@@ -52,7 +52,23 @@ It answers:
 
 The **Close next** queue is ranked by expected 30-day cash, not prestige.
 
-### 30-Day Revenue → Accounts
+### Revenue Mission → Plan & targets
+
+This replaces the former standalone **Revenue plan** module. It is the durable planning layer inside the same mission workspace.
+
+Maintain:
+
+- quarterly and annual revenue targets;
+- confirmed, pending and projected revenue streams;
+- recurring and one-time operating costs;
+- mission operating calendar;
+- funnel distribution across commercial stages.
+
+The durable plan and the active mission are intentionally shown together: targets and cost assumptions explain the required commercial pressure; the mission turns them into named accounts, dated actions, contracts, invoices and cash.
+
+Legacy `/?module=finance` links resolve to `/revenue-mission?view=plan`.
+
+### Revenue Mission → Accounts
 
 This is the account operating table.
 
@@ -103,7 +119,7 @@ Keep the normal executive WIP limit of **three Doing items**. Revenue pressure i
 
 ## Working with Jake inside JakeOS
 
-Desktop **Ask Jake** reads the live Revenue Mission snapshot in addition to current Work, Opportunities, pipeline and finance context.
+Desktop **Ask Jake** reads the unified Revenue Mission snapshot, including durable targets/revenue-plan assumptions, current Work, Opportunities, accounts, actions and cash conversion.
 
 Useful prompts:
 
