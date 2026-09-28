@@ -92,10 +92,15 @@ export default function CommandCenter({ navigate, module = 'dashboard' }) {
 
     const navMap = {
       dashboard: 'dashboard', overview: 'dashboard', work: 'work', projects: 'projects', pipeline: 'opportunities',
-      calendar: 'calendar', finance: 'finance', crm: 'crm', relationships: 'crm', radar: 'opportunities', opportunities: 'opportunities',
+      calendar: 'calendar', crm: 'crm', relationships: 'crm', radar: 'opportunities', opportunities: 'opportunities', revenue: 'revenue-sprint',
       estate: 'estate', accounts: 'accounts', users: 'accounts', invoices: 'cashflow', money: 'cashflow', alerts: 'alerts', grants: 'opportunities', proposals: 'opportunities'
     };
     const lower = q.toLowerCase();
+    if ((lower.includes('open revenue plan')||lower.includes('show revenue plan')||lower.includes('go to revenue plan')||lower.includes('open finance')||lower.includes('show finance')||lower.includes('go to finance')) && navigate) {
+      navigate('revenue-sprint',{view:'plan'});
+      setOpen(false);
+      return;
+    }
     for (const [kw, mod] of Object.entries(navMap)) {
       if ((lower.includes(`go to ${kw}`) || lower.includes(`open ${kw}`) || lower.includes(`show ${kw}`)) && navigate) {
         navigate(mod);
