@@ -48,7 +48,7 @@ for(const file of active){
 const app=fs.readFileSync(path.join(root,'client/src/App.jsx'),'utf8');
 if(/jd-profile-chip[^>]*onClick=\{signOut\}/.test(app))report('client/src/App.jsx','profile chip must never sign out directly');
 const main=fs.readFileSync(path.join(root,'client/src/main.jsx'),'utf8');
-for(const removed of ['layout-fix.css','dashboard-reference.css','minimal-kpi-shell.css']){
+for(const removed of ['layout-fix.css','dashboard-reference.css','minimal-kpi-shell.css','sprint-modules.css','relationships.css']){
   if(main.includes(removed))report('client/src/main.jsx',`superseded stylesheet still loaded: ${removed}`);
 }
 const nav=fs.readFileSync(path.join(root,'client/src/navigation.js'),'utf8');
