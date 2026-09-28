@@ -157,7 +157,7 @@ test('mobile keeps the original primary navigation and exposes Agents under More
   await expect(page.getByRole('button', { name: /^Estate$/ })).toBeVisible();
 
   await page.getByRole('button', { name: /^More$/ }).click();
-  await expect(page.locator('.more-menu').getByRole('button', { name: /^Agents$/ })).toBeVisible();
+  await expect(page.locator('.more-menu').getByRole('menuitem', { name: /^Agents$/ })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
