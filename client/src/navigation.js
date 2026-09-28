@@ -8,7 +8,6 @@ export const NAV_GROUPS = [
     { id: 'opportunities', label: 'Opportunities', icon: 'target' },
     { id: 'revenue-sprint', label: 'Revenue Mission', icon: 'chart' },
     { id: 'cashflow', label: 'Money', icon: 'money' },
-    { id: 'finance', label: 'Revenue plan', icon: 'chart' },
     { id: 'crm', label: 'Relationships', icon: 'users' },
   ]},
   { label: 'Delivery', items: [
@@ -56,13 +55,12 @@ export const MODULE_META = {
   crm:{title:'Relationships',subtitle:'People, organisations and follow-ups'},
   cashflow:{title:'Money',subtitle:'Cash movement, invoices and financial attention'},
   opportunities:{title:'Opportunities',subtitle:'Qualify demand, pursue, submit and convert'},
-  'revenue-sprint':{title:'Revenue Mission',subtitle:'Cash target, close queue and daily commercial execution'},
+  'revenue-sprint':{title:'Revenue Mission',subtitle:'Plan, targets, pipeline, accounts, actions and cash conversion'},
   estate:{title:'Tuku Estate',subtitle:'Products, usage and commercial signals'},
   'estate-control':{title:'Estate Control',subtitle:'Cross-product controls and estate status'},
   operations:{title:'Operations',subtitle:'Infrastructure, continuity and service health'},
   payments:{title:'Payments',subtitle:'Collections, movements and exceptions'},
   accounts:{title:'Accounts',subtitle:'Users, access and product activity'},
-  finance:{title:'Revenue plan',subtitle:'Targets, pipeline economics and commercial direction'},
   'ai-search':{title:'Search',subtitle:'Search and interpret JakeOS operating context'},
   integrations:{title:'Integrations',subtitle:'Connected systems and data flows'},
   alerts:{title:'Alerts',subtitle:'Notification rules and operational signals'},
@@ -97,8 +95,10 @@ export function readLocation(){
   const estate = path.match(/^\/estate(?:\/([^/?#]+))?$/i);
   if(estate) return {module:'estate',recordId:null,estateProduct:estate[1]?decode(estate[1]).toLowerCase():null};
   if(path!=='/') return {module:'not-found',recordId:null,estateProduct:null};
-  const requested = new URLSearchParams(window.location.search).get('module') || 'dashboard';
-  return {module:KNOWN_MODULES.has(requested)?requested:'not-found',recordId:new URLSearchParams(window.location.search).get('id'),estateProduct:null};
+  const params=new URLSearchParams(window.location.search);
+  const requested = params.get('module') || 'dashboard';
+  if(requested==='finance') return {module:'revenue-sprint',recordId:null,estateProduct:null};
+  return {module:KNOWN_MODULES.has(requested)?requested:'not-found',recordId:params.get('id'),estateProduct:null};
 }
 
 export function moduleUrl(module, params={}){
@@ -106,7 +106,10 @@ export function moduleUrl(module, params={}){
   if(module==='dashboard') return '/';
   if(module==='estate') return '/estate';
   if(module==='estate-control') return '/estate/control';
-  if(module==='revenue-sprint') return id ? `/revenue/accounts/${id}` : '/revenue-mission';
+  if(module==='revenue-sprint'){
+    if(id)return `/revenue/accounts/${id}`;
+    return params.view&&params.view!=='command'?`/revenue-mission?view=${encodeURIComponent(String(params.view))}`:'/revenue-mission';
+  }
   if(id && module==='work') return `/work/${id}`;
   if(id && module==='projects') return `/projects/${id}`;
   if(id && module==='opportunities') return `/opportunities/${id}`;
