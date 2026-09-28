@@ -9,11 +9,11 @@ const agentWorkBrowserRouter=express.Router();
 const agentWorkConnectorRouter=express.Router();
 
 const AGENTS={
-  'command-orchestrator':{name:'Command Orchestrator',local:true},
-  'opportunity-watch':{name:'Opportunity Watch',local:false},
-  'bid-partnerships':{name:'Bid & Partnerships',local:true},
-  'document-knowledge':{name:'Document & Knowledge',local:true},
-  'assurance-reviewer':{name:'Independent Assurance',local:false}
+  'command-orchestrator':{name:'Command Orchestrator',local:true,description:'Plan, coordinate and turn ambiguous work into a clear execution path.'},
+  'opportunity-watch':{name:'Opportunity Watch',local:false,description:'Find, verify and monitor opportunities, tenders, grants and procurement notices.'},
+  'bid-partnerships':{name:'Bid & Partnerships',local:true,description:'Prepare bids, proposals, partnership material and submission-ready commercial work.'},
+  'document-knowledge':{name:'Document & Knowledge',local:true,description:'Draft, rewrite, structure and summarise reports, briefs, manuals, memos and other documents.'},
+  'assurance-reviewer':{name:'Independent Assurance',local:false,description:'Review evidence, verify claims, challenge assumptions and surface quality or security gaps.'}
 };
 const text=(v,max=10000)=>String(v??'').trim().slice(0,max);
 const makeId=p=>p+'_'+Date.now()+'_'+crypto.randomBytes(4).toString('hex');
@@ -108,27 +108,29 @@ async function createDispatchForWork(workId,{requestText,agentId,requestKey=null
     return{dispatch:row,replayed:false};
   });
 }
-async function createJakeDelegation({requestId,request,module='dashboard'}){
+async function createJakeDelegation({requestId,request,module='dashboard',agentId=null,deliverable=null,priority='medium'}){
   const req=cleanRequest(request);
   if(!req)throw Object.assign(new Error('Request is required'),{status:422});
   if(requestId){
     const existing=(await db.query('SELECT * FROM agent_work_dispatches WHERE request_key=$1 LIMIT 1',[requestId])).rows[0];
     if(existing)return{work:await getWork(existing.work_item_id),dispatch:existing,replayed:true};
   }
-  const agentId=routeAgent(req),agent=AGENTS[agentId],workId=makeId('work');
+  const chosen=AGENTS[agentId]?agentId:routeAgent(req),agent=AGENTS[chosen],workId=makeId('work');
+  const safePriority=['critical','high','medium','low'].includes(String(priority||'').toLowerCase())?String(priority).toLowerCase():'medium';
+  const type=text(deliverable,80)||deliverableType(req);
   return db.withTransaction(async client=>{
     const work=(await client.query(`INSERT INTO work_items(id,title,description,status,priority,impact,strategic_weight,estimated_minutes,source,source_ref,tags,metadata,last_touched_at)
-      VALUES($1,$2,$3,'ready','medium',3,3,45,'jake-ai',$4,$5::jsonb,$6::jsonb,NOW()) RETURNING *`,[
-        workId,titleFromRequest(req),req,requestId||null,JSON.stringify(['agent-delegated',module]),JSON.stringify({delegated_by:'jake-ai',module})
+      VALUES($1,$2,$3,'ready',$4,3,3,45,'jake-ai',$5,$6::jsonb,$7::jsonb,NOW()) RETURNING *`,[
+        workId,titleFromRequest(req),req,safePriority,requestId||null,JSON.stringify(['agent-delegated',module]),JSON.stringify({delegated_by:'jake-ai',module,requested_agent_id:chosen,deliverable_type:type})
       ])).rows[0];
-    const runId=makeId('run'),dispatchId=makeId('dispatch'),type=deliverableType(req);
+    const runId=makeId('run'),dispatchId=makeId('dispatch');
     await client.query(`INSERT INTO agent_runs(id,title,status,progress,context_type,context_ref,current_agent,blockers_count,evidence_required,metadata,created_at,updated_at)
-      VALUES($1,$2,'queued',0,'work_item',$3,$4,0,TRUE,$5::jsonb,NOW(),NOW())`,[runId,work.title,workId,agentId,JSON.stringify({work_item_id:workId,deliverable_type:type})]);
+      VALUES($1,$2,'queued',0,'work_item',$3,$4,0,TRUE,$5::jsonb,NOW(),NOW())`,[runId,work.title,workId,chosen,JSON.stringify({work_item_id:workId,deliverable_type:type})]);
     const dispatch=(await client.query(`INSERT INTO agent_work_dispatches(id,work_item_id,run_id,request_key,requested_agent_id,requested_agent_name,request_text,deliverable_type,state,local_executable,requested_by)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,'jake-ai') RETURNING *`,[dispatchId,workId,runId,requestId||null,agentId,agent.name,req,type,agent.local])).rows[0];
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,'queued',$9,'jake-ai') RETURNING *`,[dispatchId,workId,runId,requestId||null,chosen,agent.name,req,type,agent.local])).rows[0];
     await recordWorkEvent(client,workId,'created',{actor:'jake-ai'});
-    await recordWorkEvent(client,workId,'agent_delegated',{dispatch_id:dispatchId,run_id:runId,agent_id:agentId,agent_name:agent.name,deliverable_type:type});
-    await recordAgentEvent(client,{runId,agentId,agentName:agent.name,eventType:'work_queued',state:'queued',summary:'Jake delegated work to '+agent.name,metadata:{work_item_id:workId,dispatch_id:dispatchId}});
+    await recordWorkEvent(client,workId,'agent_delegated',{dispatch_id:dispatchId,run_id:runId,agent_id:chosen,agent_name:agent.name,deliverable_type:type});
+    await recordAgentEvent(client,{runId,agentId:chosen,agentName:agent.name,eventType:'work_queued',state:'queued',summary:'Jake delegated work to '+agent.name,metadata:{work_item_id:workId,dispatch_id:dispatchId}});
     return{work,dispatch,replayed:false};
   });
 }
@@ -169,9 +171,17 @@ async function submitResult(id,{executorId,status='review',summary='',resultCont
   });
 }
 
+agentWorkBrowserRouter.get('/agents/catalog',(_req,res)=>res.json({agents:Object.entries(AGENTS).map(([id,agent])=>({id,name:agent.name,description:agent.description||'',local:!!agent.local}))}));
 agentWorkBrowserRouter.post('/jake/delegate',async(req,res)=>{
   try{
-    const result=await createJakeDelegation({requestId:text(req.body.request_id,200)||null,request:req.body.request,module:text(req.body.module,80)||'dashboard'});
+    const result=await createJakeDelegation({
+      requestId:text(req.body.request_id,200)||null,
+      request:req.body.request,
+      module:text(req.body.module,80)||'dashboard',
+      agentId:text(req.body.agent_id,120)||null,
+      deliverable:text(req.body.deliverable_type,80)||null,
+      priority:text(req.body.priority,40)||'medium'
+    });
     res.status(result.replayed?200:201).json({...result,reply:'Added to Work and assigned to '+result.dispatch.requested_agent_name+'.'});
   }catch(error){res.status(error.status||500).json({error:error.message||'Could not delegate work'});}
 });
@@ -201,7 +211,7 @@ agentWorkBrowserRouter.post('/work/items/:id/delegate',async(req,res)=>{
 });
 agentWorkBrowserRouter.post('/work/items/:id/agent/revise',async(req,res)=>{
   try{
-    const workId=text(req.params.id,120),feedback=text(req.body.feedback,8000);
+    const workId=text(req.params.id,120),feedback=text(req.body.feedback,8000),requestedAgentId=text(req.body.agent_id,120);
     if(!feedback)return res.status(422).json({error:'Revision feedback is required'});
     const result=await db.withTransaction(async client=>{
       const current=(await client.query('SELECT * FROM agent_work_dispatches WHERE work_item_id=$1 FOR UPDATE',[workId])).rows[0];
@@ -211,11 +221,13 @@ agentWorkBrowserRouter.post('/work/items/:id/agent/revise',async(req,res)=>{
       feedbackHistory.push({at:now(),feedback});
       const resultHistory=Array.isArray(current.result_history)?current.result_history:[];
       if(current.result_content||current.result_summary)resultHistory.push({at:now(),summary:current.result_summary||'',content:current.result_content||'',artifact_uri:current.artifact_uri||null});
-      const row=(await client.query(`UPDATE agent_work_dispatches SET state='queued',executor_id=NULL,lease_expires_at=NULL,claimed_at=NULL,failure_reason=NULL,feedback_history=$2::jsonb,result_history=$3::jsonb,updated_at=NOW() WHERE id=$1 RETURNING *`,[current.id,JSON.stringify(feedbackHistory),JSON.stringify(resultHistory)])).rows[0];
+      const chosen=AGENTS[requestedAgentId]?requestedAgentId:current.requested_agent_id;
+      const chosenAgent=AGENTS[chosen]||{name:current.requested_agent_name,local:current.local_executable};
+      const row=(await client.query(`UPDATE agent_work_dispatches SET state='queued',requested_agent_id=$4,requested_agent_name=$5,local_executable=$6,executor_id=NULL,lease_expires_at=NULL,claimed_at=NULL,failure_reason=NULL,feedback_history=$2::jsonb,result_history=$3::jsonb,updated_at=NOW() WHERE id=$1 RETURNING *`,[current.id,JSON.stringify(feedbackHistory),JSON.stringify(resultHistory),chosen,chosenAgent.name,!!chosenAgent.local])).rows[0];
       await client.query(`UPDATE work_items SET status='ready',blocked=FALSE,blocked_reason='',updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1`,[workId]);
-      await client.query(`UPDATE agent_runs SET status='queued',progress=0,blockers_count=0,updated_at=NOW() WHERE id=$1`,[current.run_id]);
-      await recordWorkEvent(client,workId,'agent_revision_requested',{dispatch_id:current.id,feedback});
-      await recordAgentEvent(client,{runId:current.run_id,agentId:current.requested_agent_id,agentName:current.requested_agent_name,eventType:'revision_requested',state:'queued',summary:'Revision requested: '+feedback.slice(0,500),metadata:{work_item_id:workId,dispatch_id:current.id}});
+      await client.query(`UPDATE agent_runs SET status='queued',progress=0,current_agent=$2,blockers_count=0,updated_at=NOW() WHERE id=$1`,[current.run_id,chosen]);
+      await recordWorkEvent(client,workId,'agent_revision_requested',{dispatch_id:current.id,feedback,agent_id:chosen});
+      await recordAgentEvent(client,{runId:current.run_id,agentId:chosen,agentName:chosenAgent.name,eventType:'revision_requested',state:'queued',summary:'Revision requested: '+feedback.slice(0,500),metadata:{work_item_id:workId,dispatch_id:current.id}});
       return{dispatch:row,work:await getWork(workId,client)};
     });
     if(!result)return res.status(404).json({error:'No agent dispatch for this work item'});
