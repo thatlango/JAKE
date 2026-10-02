@@ -45,11 +45,10 @@ test('Operations opens to the live pipeline board and preserves Health', async (
   await page.goto('/?module=operations');
 
   await expect(page.getByRole('heading', { name: 'Operations Pipeline' })).toBeVisible();
-  await expect(page.getByText('Needs attention', { exact: true })).toBeVisible();
-  await expect(page.getByText('Ready to act', { exact: true })).toBeVisible();
-  await expect(page.getByText('In progress', { exact: true })).toBeVisible();
-  await expect(page.getByText('Waiting', { exact: true })).toBeVisible();
-  await expect(page.getByText('Monitoring', { exact: true })).toBeVisible();
+  const stageLabels = page.locator('.op-column > header strong');
+  for (const label of ['Needs attention', 'Ready to act', 'In progress', 'Waiting', 'Monitoring']) {
+    await expect(stageLabels.filter({ hasText: label })).toBeVisible();
+  }
   await expect(page.getByText('ECITAA sync backlog')).toBeVisible();
   await expect(page.getByText('PRUDEV BCP').first()).toBeVisible();
   await expect(page.getByText('tukutuku.org')).toBeVisible();
