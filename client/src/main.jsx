@@ -6,6 +6,7 @@ import './index.css';
 import './product.css';
 import './sprint.css';
 import './tds-jakeos.css';
+import './ops-pipeline.css';
 
 document.documentElement.dataset.tds = '2.0';
 document.documentElement.dataset.product = 'jakeos';

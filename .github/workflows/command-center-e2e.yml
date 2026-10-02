@@ -20,7 +20,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run dashboard contract E2E
-        run: npx playwright test e2e/command-center.spec.js e2e/ux-consolidation.spec.js
+        run: npx playwright test e2e/command-center.spec.js e2e/ux-consolidation.spec.js e2e/operations-pipeline.spec.js
       - name: Upload UI evidence
         if: always()
         uses: actions/upload-artifact@v4
