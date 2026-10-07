@@ -16,6 +16,7 @@ on:
       - 'server/ops.js'
       - 'server/ops-subscriptions.js'
       - 'server/priority.js'
+      - 'server/portfolio.js'
       - 'docs/MOMENTUM_API.md'
       - 'server/ai.js'
       - 'database/**'

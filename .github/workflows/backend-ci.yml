@@ -85,7 +85,7 @@ jobs:
         run: |
           test "$(curl -s -o /tmp/unauth -w '%{http_code}' http://127.0.0.1:3100/api/momentum/v1/today)" = "401"
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
-            -d '{"title":"CI task","priority":"high","impact":5,"strategic_weight":4,"estimated_minutes":25}' \
+            -d '{"title":"CI task","priority":"high","impact":5,"strategic_weight":4,"estimated_minutes":25,"metadata":{"portfolio_lane":"SHIP","portfolio":{"lane":"SHIP"},"initiative":"ci-momentum"}}' \
             http://127.0.0.1:3100/api/momentum/v1/tasks > /tmp/task.json
           grep -q 'CI task' /tmp/task.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/today.json
@@ -102,8 +102,9 @@ jobs:
           curl -fsS -H 'Authorization: Bearer ci_jakeos_token' -H 'Content-Type: application/json' \
             -d '{"id":"ci-project","name":"CI Project","priority":"High","tasks":[{"id":1,"text":"Legacy project task","done":false}]}' \
             http://127.0.0.1:3100/api/projects > /tmp/project.json
-          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/today-bridge.json
-          grep -q 'Legacy project task' /tmp/today-bridge.json
+          grep -q 'Legacy project task' /tmp/project.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/portfolio > /tmp/portfolio-bridge.json
+          jq -e '.operating_rule=="Unlimited interests. Limited work in progress." and (.daily_outcomes|length)<=3' /tmp/portfolio-bridge.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
             -d '{"title":"Momentum project task","project_id":"ci-project","priority":"high"}' \
             http://127.0.0.1:3100/api/momentum/v1/tasks > /tmp/momentum-project-task.json
@@ -139,10 +140,12 @@ jobs:
           curl -fsS -H 'Authorization: Bearer ci_jakeos_token' -H 'Content-Type: application/json' \
             -d '{"id":"polish-tx","flow":"out","amount":1000,"party":"CI Merchant","category":"Other","currency":"UGX"}' \
             http://127.0.0.1:3100/api/personal-finance/transactions > /tmp/polish-tx.json
-          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/polish-today.json
-          jq -e 'any(.priorities[]; .id=="polish-task")' /tmp/polish-today.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/portfolio > /tmp/polish-portfolio.json
+          jq -e '(.daily_outcomes|length)<=3' /tmp/polish-portfolio.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/projects > /tmp/polish-projects.json
           jq -e 'any(.projects[]; .id=="polish-project")' /tmp/polish-projects.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/projects/polish-project > /tmp/polish-project-detail.json
+          jq -e 'any(.tasks[]; .id=="polish-task")' /tmp/polish-project-detail.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' 'http://127.0.0.1:3100/api/momentum/v1/schedule?date=2026-09-04' > /tmp/polish-schedule.json
           jq -e 'any(.events[]; .id=="polish-event")' /tmp/polish-schedule.json
           curl -fsS -X POST -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/tasks/polish-task/complete > /tmp/polish-complete.json

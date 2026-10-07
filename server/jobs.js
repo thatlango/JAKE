@@ -14,6 +14,7 @@ const {evaluateSubscriptionSignals}=require('./ops-subscriptions');
 const {processOpportunityIntake,recoverStaleClaims}=require('./opportunity-intake');
 const {checkSearchConsoleHealth}=require('./search-console-monitor');
 const {planWeekday}=require('./day-planner');
+const {portfolioSnapshot}=require('./portfolio');
 
 async function withJobLock(name,fn){
   const pool=db.getPool();
@@ -110,6 +111,37 @@ async function runSearchConsoleCheck(){
   });
 }
 
+async function runPortfolioReset(){
+  return withJobLock('portfolio-reset',async()=>{
+    const now=new Date();
+    const since=new Date(now.getTime()-7*86400000).toISOString();
+    const [portfolio,completed]=await Promise.all([
+      portfolioSnapshot({now}),
+      db.query(`SELECT id,title,completed_at FROM work_items WHERE status='done' AND completed_at >= $1 ORDER BY completed_at DESC LIMIT 100`,[since])
+    ]);
+    const active=['SHIP','REVENUE','WORK','LEARN','LAB']
+      .map(lane=>portfolio.lanes[lane])
+      .filter(Boolean)
+      .map(data=>`${data.lane}: ${data.initiative_count}${data.limit==null?'':`/${data.limit}`}`)
+      .join(' · ');
+    const lines=[
+      '🧭 *Founder Portfolio Reset*','',
+      portfolio.operating_rule,
+      active,
+      `Parked: ${portfolio.parked_count} work items · completed this week: ${completed.rowCount}`,
+      portfolio.violations.length?`WIP guardrail: ${portfolio.violations.map(v=>`${v.lane} +${v.excess}`).join(' · ')}`:'WIP guardrails clear.',
+      '',
+      'Next outcomes:',
+      ...portfolio.daily_outcomes.slice(0,3).map((item,index)=>`${index+1}. [${item.portfolio_effective_lane}] ${item.title}`),
+      '',
+      '_Use JakeOS Work to promote, park or change a lane. Explicit strategic lane changes remain yours to approve._'
+    ];
+    const result=await sendAlert({message:lines.join('\n'),subject:'JakeOS Founder Portfolio Reset',channels:['telegram','email','whatsapp']});
+    console.log(`[Jobs] portfolio reset complete: parked=${portfolio.parked_count}, outcomes=${portfolio.daily_outcomes.length}`);
+    return{portfolio,completed:completed.rowCount,alerts:result};
+  });
+}
+
 async function runWeeklyReview(){
   return withJobLock('weekly-review',async()=>{
     const overview=await commandCenterOverview();
@@ -145,15 +177,16 @@ function startJobs(){
     cron.schedule('*/5 * * * *',()=>runOpsChecks().catch(e=>console.error('[Jobs] ops failed:',e)),{timezone}),
     cron.schedule('20 */6 * * *',()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] ops domains failed:',e)),{timezone}),
     cron.schedule('0 7 * * *',()=>runDailyOperations().catch(e=>console.error('[Jobs] daily failed:',e)),{timezone}),
-    cron.schedule('8 7 * * 1-5',()=>runWeekdayPlanner().catch(e=>console.error('[Jobs] weekday planner failed:',e)),{timezone}),
+    cron.schedule('25 6 * * 1-5',()=>runWeekdayPlanner().catch(e=>console.error('[Jobs] weekday planner failed:',e)),{timezone}),
     cron.schedule('15 */6 * * *',()=>runRadarScan().catch(e=>console.error('[Jobs] radar failed:',e)),{timezone}),
     cron.schedule('30 */6 * * *',()=>runSearchConsoleCheck().catch(e=>console.error('[Jobs] Search Console failed:',e)),{timezone}),
+    cron.schedule('0 19 * * 0',()=>runPortfolioReset().catch(e=>console.error('[Jobs] portfolio reset failed:',e)),{timezone}),
     cron.schedule('15 7 * * 1',()=>runWeeklyReview().catch(e=>console.error('[Jobs] weekly failed:',e)),{timezone})
   ];
-  console.log(`[Jobs] scheduled in ${timezone}: opportunity intake every 1m, ops every 5m, domain/SSL every 6h, daily 07:00, weekday planner 07:08 Mon-Fri, Radar every 6h, Search Console every 6h, weekly Monday 07:15`);
+  console.log(`[Jobs] scheduled in ${timezone}: opportunity intake every 1m, ops every 5m, domain/SSL every 6h, weekday planner 06:25 Mon-Fri, daily 07:00, Radar every 6h, Search Console every 6h, portfolio reset Sunday 19:00, weekly Monday 07:15`);
   setTimeout(()=>runOpsChecks({domains:true}).catch(e=>console.error('[Jobs] initial ops failed:',e)),15000).unref?.();
   setTimeout(()=>runSearchConsoleCheck().catch(e=>console.error('[Jobs] initial Search Console check failed:',e)),30000).unref?.();
   return jobs;
 }
 
-module.exports={startJobs,runDailyOperations,runWeekdayPlanner,runRadarScan,runOpportunityIntake,runWeeklyReview,runOpsChecks,runSearchConsoleCheck,syncGoogleCalendar,withJobLock};
+module.exports={startJobs,runDailyOperations,runWeekdayPlanner,runPortfolioReset,runRadarScan,runOpportunityIntake,runWeeklyReview,runOpsChecks,runSearchConsoleCheck,syncGoogleCalendar,withJobLock};

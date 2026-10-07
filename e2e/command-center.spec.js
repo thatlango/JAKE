@@ -67,6 +67,25 @@ async function installMocks(page, options = {}) {
     current_block: { kind: 'block', id: 'block-1', title: 'Deep work', starts_at: '2026-09-23T14:00:00Z', ends_at: '2026-09-23T16:30:00Z' },
     timeline: []
   });
+  await mockJson(page, '**/api/portfolio', {
+    operating_rule: 'Unlimited interests. Limited work in progress.',
+    limits: { SHIP: 1, REVENUE: 3, WORK: null, LEARN: 1, LAB: 1, PARKED: null },
+    daily_outcomes: [
+      { id: 'w1', title: 'Finish LendFlow production cutover', status: 'doing', priority: 'critical', estimated_minutes: 30, project_name: 'LendFlow', portfolio_effective_lane: 'SHIP', why_now: 'finish what is already in progress' },
+      { id: 'w3', title: 'Submit UNICEF regional evidence application', status: 'ready', priority: 'high', project_name: 'Business development', portfolio_effective_lane: 'REVENUE', why_now: 'moves market or revenue' },
+      { id: 'w2', title: 'Approve consultant network launch copy', status: 'ready', priority: 'high', project_name: 'Tuku-Tuku', portfolio_effective_lane: 'WORK', why_now: 'needs your decision' }
+    ],
+    lanes: {
+      SHIP: { lane: 'SHIP', limit: 1, initiative_count: 1, item_count: 1, initiatives: [] },
+      REVENUE: { lane: 'REVENUE', limit: 3, initiative_count: 2, item_count: 2, initiatives: [] },
+      WORK: { lane: 'WORK', limit: null, initiative_count: 1, item_count: 1, initiatives: [] },
+      LEARN: { lane: 'LEARN', limit: 1, initiative_count: 1, item_count: 1, initiatives: [] },
+      LAB: { lane: 'LAB', limit: 1, initiative_count: 1, item_count: 1, initiatives: [] },
+      PARKED: { lane: 'PARKED', limit: null, initiative_count: 4, item_count: 5, initiatives: [] }
+    },
+    violations: [{ lane: 'SHIP', limit: 1, count: 3, excess: 2 }],
+    parked_count: 5
+  });
   await mockJson(page, '**/api/work/today*', { priorities: [
     { id: 'w1', title: 'Finish LendFlow production cutover', status: 'doing', priority: 'critical', estimated_minutes: 30, project_name: 'LendFlow', due_at: '2026-09-23T17:00:00Z', metadata: { outcome_type: 'delivery', completion_definition: 'Production smoke test passes' } },
     { id: 'w2', title: 'Approve consultant network launch copy', status: 'waiting', priority: 'high', estimated_minutes: 15, project_name: 'Tuku-Tuku', metadata: { outcome_type: 'decision', decision_required: true } }
@@ -218,12 +237,17 @@ test('Work captures outcome, completion, market and delegation intent', async ({
   await page.getByRole('button', { name: 'New task' }).click();
 
   await expect(page.getByLabel('Definition of done')).toBeVisible();
+  await expect(page.getByLabel('Portfolio lane', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Outcome')).toBeVisible();
   await expect(page.getByLabel('Market stage')).toBeVisible();
   await expect(page.getByLabel('Execution mode')).toBeVisible();
   await expect(page.getByLabel('Completion evidence')).toBeVisible();
   await expect(page.getByText('This requires an executive decision from me')).toBeVisible();
 
+  await page.getByLabel('Portfolio lane', { exact: true }).selectOption('PARKED');
+  await expect(page.getByText('Parked bookmark')).toBeVisible();
+  await expect(page.getByText('Restart condition')).toBeVisible();
+  await page.getByLabel('Portfolio lane', { exact: true }).selectOption('REVENUE');
   await page.getByLabel('Outcome').selectOption('market');
   await page.getByLabel('Market stage').selectOption('submit');
   await page.getByLabel('Execution mode').selectOption('agent');
@@ -231,6 +255,7 @@ test('Work captures outcome, completion, market and delegation intent', async ({
   await page.getByLabel('Completion evidence').fill('Receipt URL');
   await page.getByText('This requires an executive decision from me').click();
 
+  await expect(page.getByLabel('Portfolio lane', { exact: true })).toHaveValue('REVENUE');
   await expect(page.getByLabel('Outcome')).toHaveValue('market');
   await expect(page.getByLabel('Market stage')).toHaveValue('submit');
   await expect(page.getByLabel('Execution mode')).toHaveValue('agent');
