@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { planWeekday } = require('../server/day-planner');
 
 test.skip(process.env.E2E_FULL_STACK !== '1', 'Full-stack run is executed by the dedicated CI job.');
 
@@ -321,3 +322,50 @@ test('Founder portfolio enforces WIP, parks overflow and exposes only three dail
   }
 });
 
+
+
+test('weekday planner schedules only the three canonical portfolio outcomes', async ({ request }, testInfo) => {
+  const unique = 'planner-' + testInfo.retry + '-' + testInfo.workerIndex + '-' + Date.now();
+  const headers = { Authorization: 'Bearer ' + browserToken, 'Content-Type': 'application/json' };
+  const created = [];
+
+  async function create(title, lane, initiative, priority, impact, minutes) {
+    const response = await request.post('/api/work/items', {
+      headers,
+      data: {
+        title,
+        status: 'ready',
+        priority,
+        impact,
+        strategic_weight: impact,
+        estimated_minutes: minutes,
+        metadata: { portfolio_lane: lane, portfolio: { lane }, initiative }
+      }
+    });
+    expect(response.status(), await response.text()).toBe(201);
+    const item = (await response.json()).item;
+    created.push(item.id);
+    return item;
+  }
+
+  await create('Planner SHIP ' + unique, 'SHIP', 'planner-ship-' + unique, 'critical', 5, 90);
+  await create('Planner REVENUE ' + unique, 'REVENUE', 'planner-revenue-' + unique, 'critical', 5, 90);
+  await create('Planner WORK ' + unique, 'WORK', 'planner-work-' + unique, 'high', 5, 90);
+  await create('Planner LAB ' + unique, 'LAB', 'planner-lab-' + unique, 'low', 1, 30);
+
+  const snapshotResponse = await request.get('/api/portfolio', { headers: { Authorization: 'Bearer ' + browserToken } });
+  expect(snapshotResponse.ok(), await snapshotResponse.text()).toBeTruthy();
+  const snapshot = await snapshotResponse.json();
+  const dailyIds = new Set(snapshot.daily_outcomes.map(item => item.id));
+  expect(dailyIds.size).toBeLessThanOrEqual(3);
+
+  const plan = await planWeekday({ now: new Date('2026-10-07T06:00:00.000Z') });
+  expect(plan.skipped).toBe(false);
+  const scheduled = [...plan.scheduled.deep_work, ...plan.scheduled.execution];
+  expect(scheduled.length).toBeLessThanOrEqual(3);
+  for (const item of scheduled) expect(dailyIds.has(item.id)).toBe(true);
+
+  for (const id of created) {
+    await request.delete('/api/work/items/' + encodeURIComponent(id), { headers });
+  }
+});
