@@ -35,7 +35,8 @@ function inferLane(item){
   if(/\b(course|study|learning|learn|certification|cloud|infrastructure lab|training module)\b/.test(text))return 'LEARN';
   if(/\b(prudev|gopa|bge|contractual|timesheet|manual review|client delivery|programme delivery)\b/.test(text))return 'WORK';
   if(/\b(lab|prototype|experiment|spike|side quest|side-quest|exploration)\b/.test(text))return 'LAB';
-  return 'SHIP';
+  if(/\b(ship|shipping|release|deploy|deployment|production|cutover|commercial mvp|go-live|go live|launch gate|production readiness)\b/.test(text))return 'SHIP';
+  return 'PARKED';
 }
 function initiativeKey(item){
   if(item.project_id)return 'project:'+String(item.project_id);
