@@ -85,7 +85,7 @@ jobs:
         run: |
           test "$(curl -s -o /tmp/unauth -w '%{http_code}' http://127.0.0.1:3100/api/momentum/v1/today)" = "401"
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
-            -d '{"title":"CI task","priority":"high","impact":5,"strategic_weight":4,"estimated_minutes":25}' \
+            -d '{"title":"CI task","priority":"high","impact":5,"strategic_weight":4,"estimated_minutes":25,"metadata":{"portfolio_lane":"SHIP","portfolio":{"lane":"SHIP"},"initiative":"ci-momentum"}}' \
             http://127.0.0.1:3100/api/momentum/v1/tasks > /tmp/task.json
           grep -q 'CI task' /tmp/task.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/today.json
