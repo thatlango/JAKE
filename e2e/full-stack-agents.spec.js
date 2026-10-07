@@ -262,3 +262,61 @@ test('Jake delegation stays in the canonical Work queue through claim, review, r
 
   await page.screenshot({ path: testInfo.outputPath('jake-agent-work-bridge.png'), fullPage: true });
 });
+
+
+test('Founder portfolio enforces WIP, parks overflow and exposes only three daily outcomes', async ({ request }, testInfo) => {
+  const unique = 'portfolio-' + testInfo.retry + '-' + testInfo.workerIndex + '-' + Date.now();
+  const userHeaders = { Authorization: 'Bearer ' + browserToken, 'Content-Type': 'application/json' };
+
+  async function create(title, lane, initiative, extra = {}) {
+    const response = await request.post('/api/work/items', {
+      headers: userHeaders,
+      data: {
+        title,
+        status: 'ready',
+        priority: extra.priority || 'medium',
+        impact: extra.impact || 3,
+        strategic_weight: extra.strategic_weight || 3,
+        pinned: !!extra.pinned,
+        metadata: { portfolio_lane: lane, portfolio: { lane }, initiative }
+      }
+    });
+    expect(response.status(), await response.text()).toBe(201);
+    return (await response.json()).item;
+  }
+
+  const shipPrimary = await create('Primary SHIP ' + unique, 'SHIP', 'primary-' + unique, { priority: 'critical', impact: 5, strategic_weight: 5, pinned: true });
+  const shipOverflow = await create('Overflow SHIP ' + unique, 'SHIP', 'overflow-' + unique, { priority: 'low', impact: 2, strategic_weight: 2 });
+  const revenue = await create('Revenue outcome ' + unique, 'REVENUE', 'revenue-' + unique, { priority: 'high', impact: 5, strategic_weight: 4 });
+  const work = await create('Contractual work ' + unique, 'WORK', 'work-' + unique, { priority: 'high', impact: 4, strategic_weight: 4 });
+  const learn = await create('Learning outcome ' + unique, 'LEARN', 'learn-' + unique, { priority: 'medium' });
+
+  const snapshotResponse = await request.get('/api/portfolio', { headers: { Authorization: 'Bearer ' + browserToken } });
+  expect(snapshotResponse.ok(), await snapshotResponse.text()).toBeTruthy();
+  const snapshot = await snapshotResponse.json();
+
+  expect(snapshot.operating_rule).toBe('Unlimited interests. Limited work in progress.');
+  expect(snapshot.limits.SHIP).toBe(1);
+  expect(snapshot.daily_outcomes.length).toBeLessThanOrEqual(3);
+  expect(snapshot.lanes.SHIP.initiatives.some(x => x.key === 'initiative:primary-' + unique)).toBe(true);
+  expect(snapshot.lanes.PARKED.initiatives.some(x => x.key === 'initiative:overflow-' + unique)).toBe(true);
+  expect(snapshot.violations.some(x => x.lane === 'SHIP' && x.excess >= 1)).toBe(true);
+
+  const promote = await request.patch('/api/portfolio/items/' + encodeURIComponent(shipOverflow.id), {
+    headers: userHeaders,
+    data: {
+      lane: 'LAB',
+      bookmark: 'SHIP experiment paused before implementation',
+      restart_condition: 'LAB slot remains open'
+    }
+  });
+  expect(promote.ok(), await promote.text()).toBeTruthy();
+  const promoted = await promote.json();
+  expect(promoted.item.metadata.portfolio.lane).toBe('LAB');
+  expect(promoted.item.metadata.portfolio.bookmark).toContain('paused');
+
+  for (const item of [shipPrimary, shipOverflow, revenue, work, learn]) {
+    await request.delete('/api/work/items/' + encodeURIComponent(item.id), { headers: userHeaders });
+  }
+});
+
