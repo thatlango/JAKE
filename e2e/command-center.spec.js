@@ -244,10 +244,10 @@ test('Work captures outcome, completion, market and delegation intent', async ({
   await expect(page.getByLabel('Completion evidence')).toBeVisible();
   await expect(page.getByText('This requires an executive decision from me')).toBeVisible();
 
-  await page.getByLabel('Portfolio lane').selectOption('PARKED');
+  await page.getByLabel('Portfolio lane', { exact: true }).selectOption('PARKED');
   await expect(page.getByText('Parked bookmark')).toBeVisible();
   await expect(page.getByText('Restart condition')).toBeVisible();
-  await page.getByLabel('Portfolio lane').selectOption('REVENUE');
+  await page.getByLabel('Portfolio lane', { exact: true }).selectOption('REVENUE');
   await page.getByLabel('Outcome').selectOption('market');
   await page.getByLabel('Market stage').selectOption('submit');
   await page.getByLabel('Execution mode').selectOption('agent');
@@ -255,7 +255,7 @@ test('Work captures outcome, completion, market and delegation intent', async ({
   await page.getByLabel('Completion evidence').fill('Receipt URL');
   await page.getByText('This requires an executive decision from me').click();
 
-  await expect(page.getByLabel('Portfolio lane')).toHaveValue('REVENUE');
+  await expect(page.getByLabel('Portfolio lane', { exact: true })).toHaveValue('REVENUE');
   await expect(page.getByLabel('Outcome')).toHaveValue('market');
   await expect(page.getByLabel('Market stage')).toHaveValue('submit');
   await expect(page.getByLabel('Execution mode')).toHaveValue('agent');
