@@ -11,6 +11,7 @@ const {fetchEstateSnapshot}=require('./estate');
 const {summarizeAccounts}=require('./revenue-sprint');
 const {overview:opsOverview}=require('./ops');
 const {subscriptionSnapshot}=require('./ops-subscriptions');
+const {portfolioSnapshot}=require('./portfolio');
 const router=express.Router(),integrations=express.Router();
 function id(prefix='wi'){return `${prefix}_${crypto.randomUUID()}`;}
 function cleanString(value,max=1000){return String(value??'').trim().slice(0,max);}
@@ -29,7 +30,7 @@ const MOMENTUM_CONTRACT={
   timezone:'Africa/Kampala',
   workday:{starts_at:'07:30',ends_at:'18:30'},
   routes:{
-    contract:'GET /contract',day:'GET /day',today:'GET /today',inbox:'GET /inbox',
+    contract:'GET /contract',day:'GET /day',today:'GET /today',portfolio:'GET /portfolio',inbox:'GET /inbox',
     task:'GET /tasks/:id',create_task:'POST /tasks',update_task:'PATCH /tasks/:id',
     complete_task:'POST /tasks/:id/complete',defer_task:'POST /tasks/:id/defer',
     capture:'POST /capture',projects:'GET /projects',project:'GET /projects/:id',
@@ -306,7 +307,7 @@ router.use(rateLimit({windowMs:60000,limit:240,standardHeaders:'draft-7',legacyH
 router.get('/contract',(_req,res)=>res.set('Cache-Control','no-store').json(MOMENTUM_CONTRACT));
 router.get('/health',async(req,res)=>res.json({status:'ok',service:'momentum-api',user:req.momentumUser,db:await db.ping(),time:new Date().toISOString()}));
 router.get('/day',async(_req,res)=>{try{res.set('Cache-Control','no-store').json(await daySnapshot());}catch(error){res.status(500).json({error:'Day plan unavailable',detail:process.env.NODE_ENV==='development'?error.message:undefined});}});
-router.get('/today',async(req,res)=>{const now=new Date(),limit=asInt(req.query.limit,7,1,20),[items,availableMinutes]=await Promise.all([candidateItems(now),nextAvailableMinutes(now)]),ranked=rankItems(items,{now,limit,availableMinutes}).map(item=>({...item,why_now:buildReason(item)}));res.json({generated_at:now.toISOString(),available_minutes_before_next_commitment:availableMinutes,priorities:ranked});});
+router.get('/today',async(req,res)=>{const now=new Date(),limit=asInt(req.query.limit,3,1,3),[snapshot,availableMinutes]=await Promise.all([portfolioSnapshot({now}),nextAvailableMinutes(now)]);res.json({generated_at:now.toISOString(),available_minutes_before_next_commitment:availableMinutes,priorities:snapshot.daily_outcomes.slice(0,limit),portfolio:{limits:snapshot.limits,violations:snapshot.violations,parked_count:snapshot.parked_count}});});
 router.get('/inbox',async(req,res)=>res.json({items:(await db.query(`SELECT wi.*,p.name AS project_name FROM work_items wi LEFT JOIN projects p ON p.id=wi.project_id WHERE wi.status='inbox' ORDER BY wi.created_at DESC LIMIT $1`,[asInt(req.query.limit,100,1,300)])).rows}));
 router.get('/tasks/:id',async(req,res)=>{const item=await getWorkItem(req.params.id);if(!item)return res.status(404).json({error:'Task not found'});const events=await db.query('SELECT event_type,payload,created_at FROM work_item_events WHERE work_item_id=$1 ORDER BY created_at DESC LIMIT 50',[item.id]);res.json({item,history:events.rows});});
 router.post('/tasks',async(req,res)=>{const item=normalizeWorkItem(req.body,{source:'momentum'});if(!item.title)return res.status(422).json({error:'Task title is required'});res.status(201).json({item:await upsertWorkItem(item,'created',{actor:req.momentumUser.uid})});});
