@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, EmptyState, Icon, LoadingRows, PageHeader, Panel, Pill, StateBanner, formatDate, relativeDate } from '../components/ProductUI';
 
-const DEFAULT_META={outcome_type:'delivery',market_stage:'none',completion_definition:'',decision_required:false,delegation_preference:'me',evidence_required:''};
+const DEFAULT_META={outcome_type:'delivery',market_stage:'none',completion_definition:'',decision_required:false,delegation_preference:'me',evidence_required:'',portfolio_lane:'',portfolio:{lane:'',bookmark:'',restart_condition:''}};
 const DEFAULT_TASK={title:'',description:'',project_id:'',status:'inbox',priority:'medium',impact:3,strategic_weight:3,estimated_minutes:30,due_at:'',pinned:false,blocked:false,blocked_reason:'',metadata:{...DEFAULT_META}};
 const toneForPriority=p=>p==='critical'?'danger':p==='high'?'warning':p==='low'?'neutral':'info';
 
@@ -19,6 +19,7 @@ function TaskRow({item,onComplete,onEdit,onDefer,onAgent,rank=null}){
   const overdue=item.due_at&&new Date(item.due_at)<new Date();
   const guidance=guidanceFor(item,rank);
   const meta=item.metadata&&typeof item.metadata==='object'?item.metadata:{};
+  const lane=String(item.portfolio_effective_lane||meta.portfolio?.lane||meta.portfolio_lane||'').toUpperCase();
   return <div className="px-task">
     <button className="px-check" onClick={()=>onComplete(item)} title="Complete"><Icon name="check" size={15}/></button>
     <div>
@@ -27,6 +28,7 @@ function TaskRow({item,onComplete,onEdit,onDefer,onAgent,rank=null}){
       <div className="px-task-meta">
         {guidance&&<span className="px-guidance">{guidance}</span>}
         {item.project_name&&<Pill tone="brand">{item.project_name}</Pill>}
+        {lane&&<Pill tone={lane==='PARKED'?'neutral':lane==='REVENUE'?'success':lane==='WORK'?'warning':'brand'}>{lane}</Pill>}
         {meta.outcome_type&&<Pill tone={meta.outcome_type==='market'||meta.outcome_type==='revenue'?'success':meta.outcome_type==='decision'?'warning':'neutral'}>{meta.outcome_type}</Pill>}
         {meta.market_stage&&meta.market_stage!=='none'&&<Pill tone="brand">{meta.market_stage}</Pill>}
         <Pill tone={toneForPriority(item.priority)}>{item.priority}</Pill>
@@ -50,6 +52,7 @@ export default function Work({initialItemId=null}){
   const[inbox,setInbox]=useState([]);
   const[all,setAll]=useState([]);
   const[projects,setProjects]=useState([]);
+  const[portfolio,setPortfolio]=useState(null);
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState('');
   const[drawer,setDrawer]=useState(null);
@@ -68,7 +71,8 @@ export default function Work({initialItemId=null}){
       ['today','/api/work/today'],
       ['inbox','/api/work/inbox'],
       ['all','/api/work/items?limit=250'],
-      ['projects','/api/work/projects']
+      ['projects','/api/work/projects'],
+      ['portfolio','/api/portfolio']
     ];
     const results=await Promise.allSettled(sources.map(async([name,url])=>{
       const response=await fetch(url,{headers:{Accept:'application/json'}});
@@ -85,6 +89,7 @@ export default function Work({initialItemId=null}){
       if(name==='inbox')setInbox(body.items||[]);
       if(name==='all')setAll(body.items||[]);
       if(name==='projects')setProjects(body.projects||[]);
+      if(name==='portfolio')setPortfolio(body);
     });
     if(failed.length===sources.length)setError('Work is unavailable. Your last loaded view has been retained where possible.');
     else if(failed.length)setError(`Some Work sources could not refresh: ${failed.join(', ')}. Available sections remain usable.`);
@@ -153,27 +158,30 @@ export default function Work({initialItemId=null}){
     setAgentBusy(false);
   };
 
-  const items=tab==='today'?today.priorities:tab==='inbox'?inbox:all.filter(x=>!['done','cancelled'].includes(x.status));
+  const dailyOutcomes=portfolio?.daily_outcomes?.length?portfolio.daily_outcomes:(today.priorities||[]).slice(0,3);
+  const items=tab==='today'?dailyOutcomes:tab==='inbox'?inbox:all.filter(x=>!['done','cancelled'].includes(x.status));
   const weekAgo=Date.now()-7*86400000;
   const completed=all.filter(x=>x.status==='done'&&x.completed_at&&new Date(x.completed_at).getTime()>=weekAgo).length;
   const doing=all.filter(x=>x.status==='doing').length;
   const blocked=all.filter(x=>x.blocked||x.status==='waiting').length;
   const overdue=all.filter(x=>!['done','cancelled'].includes(x.status)&&x.due_at&&new Date(x.due_at)<new Date()).length;
-  const focus=useMemo(()=>today.priorities?.[0]||null,[today]);
+  const focus=useMemo(()=>dailyOutcomes?.[0]||null,[dailyOutcomes]);
 
   return <div className="module">
     <PageHeader eyebrow="Execution" title="Work" subtitle="Finish active work, move market and client outcomes, delegate what others can do, and keep new WIP constrained." actions={<><Button variant="secondary" icon="refresh" onClick={load}>Refresh</Button><Button icon="plus" onClick={()=>openNew()}>New task</Button></>}/>
     {error&&<StateBanner tone="danger" title="Work needs attention">{error}</StateBanner>}
 
     <div className="px-status-ribbon" aria-label="Work status">
-      <div className="px-status-ribbon-item"><strong>{today.priorities?.length||0}</strong><span>priorities now</span></div>
-      <div className="px-status-ribbon-item" data-alert={doing>3}><strong>{doing}/3</strong><span>active WIP</span></div>
+      <div className="px-status-ribbon-item"><strong>{dailyOutcomes.length}</strong><span>outcomes today</span></div>
+      <div className="px-status-ribbon-item" data-alert={(portfolio?.violations||[]).length>0}><strong>{portfolio?.lanes?.SHIP?.initiative_count||0}/1</strong><span>SHIP WIP</span></div>
       <div className="px-status-ribbon-item" data-alert={overdue>0}><strong>{overdue}</strong><span>overdue</span></div>
       <div className="px-status-ribbon-item"><strong>{blocked}</strong><span>blocked / waiting</span></div>
       <div className="px-status-ribbon-item"><strong>{completed}</strong><span>completed / 7d</span></div>
     </div>
 
-    {doing>3&&<StateBanner tone="warning" title={`WIP guardrail exceeded: ${doing} active items`}>Finish, delegate or stop work before pulling another major item into Doing.</StateBanner>}
+    {(portfolio?.violations||[]).length>0&&<StateBanner tone="warning" title="Portfolio WIP guardrail is active">Overflow initiatives are parked automatically for planning. Promote one by explicitly moving another initiative out of its active lane.</StateBanner>}
+
+    {portfolio&&<Panel title="Portfolio lanes" subtitle="Unlimited interests. Limited work in progress. JakeOS keeps overflow work bookmarked instead of letting it compete for today."><div className="px-status-ribbon" aria-label="Portfolio lanes">{['SHIP','REVENUE','WORK','LEARN','LAB','PARKED'].map(lane=>{const data=portfolio.lanes?.[lane]||{};const limit=portfolio.limits?.[lane];return <div className="px-status-ribbon-item" key={lane}><strong>{data.initiative_count||0}{limit?`/${limit}`:''}</strong><span>{lane}</span></div>;})}</div></Panel>}
 
     <div className="px-grid-2">
       <Panel title="Your queue" subtitle="Today is the ranked shortlist. Inbox is unprocessed capture. All is the complete open system." action={<div className="px-row">{['today','inbox','all'].map(x=><Button key={x} variant={tab===x?'tonal':'ghost'} onClick={()=>setTab(x)}>{x[0].toUpperCase()+x.slice(1)}</Button>)}</div>}>
@@ -216,9 +224,11 @@ export default function Work({initialItemId=null}){
       <div className="px-field"><label>Context</label><textarea value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Useful details, expected outcome, links or constraints"/></div>
       <div className="px-field"><label htmlFor="work-definition-done">Definition of done</label><input id="work-definition-done" value={form.metadata?.completion_definition||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),completion_definition:e.target.value}}))} placeholder="What evidence proves this is actually complete?"/></div>
       <div className="px-form-grid">
+        <div className="px-field"><label htmlFor="work-lane">Portfolio lane</label><select id="work-lane" value={form.metadata?.portfolio?.lane||form.metadata?.portfolio_lane||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),portfolio_lane:e.target.value,portfolio:{...(f.metadata?.portfolio||{}),lane:e.target.value}}}))}><option value="">Auto classify</option>{['SHIP','REVENUE','WORK','LEARN','LAB','PARKED'].map(x=><option value={x} key={x}>{x}</option>)}</select></div>
         <div className="px-field"><label htmlFor="work-outcome">Outcome</label><select id="work-outcome" value={form.metadata?.outcome_type||'delivery'} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),outcome_type:e.target.value}}))}><option value="market">Market / revenue</option><option value="delivery">Client / delivery</option><option value="decision">Executive decision</option><option value="internal">Internal operation</option><option value="maintenance">Maintenance</option></select></div>
         <div className="px-field"><label htmlFor="work-market-stage">Market stage</label><select id="work-market-stage" value={form.metadata?.market_stage||'none'} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),market_stage:e.target.value}}))}><option value="none">Not market-facing</option><option value="validate">Validate</option><option value="sell">Sell</option><option value="bid">Bid</option><option value="submit">Submit</option><option value="deliver">Deliver</option><option value="collect">Collect</option><option value="retain">Retain</option></select></div>
       </div>
+      {(form.metadata?.portfolio?.lane||form.metadata?.portfolio_lane)==='PARKED'&&<div className="px-form-grid"><div className="px-field"><label>Parked bookmark</label><input value={form.metadata?.portfolio?.bookmark||form.title||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),portfolio:{...(f.metadata?.portfolio||{}),bookmark:e.target.value}}}))} placeholder="Where did this stop?"/></div><div className="px-field"><label>Restart condition</label><input value={form.metadata?.portfolio?.restart_condition||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),portfolio:{...(f.metadata?.portfolio||{}),restart_condition:e.target.value}}}))} placeholder="What must be true before this returns?"/></div></div>}
       <div className="px-form-grid">
         <div className="px-field"><label htmlFor="work-execution-mode">Execution mode</label><select id="work-execution-mode" value={form.metadata?.delegation_preference||'me'} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),delegation_preference:e.target.value}}))}><option value="me">I must execute</option><option value="delegate">Delegate to a person</option><option value="agent">Delegate to an agent</option></select></div>
         <div className="px-field"><label htmlFor="work-completion-evidence">Completion evidence</label><input id="work-completion-evidence" value={form.metadata?.evidence_required||''} onChange={e=>setForm(f=>({...f,metadata:{...DEFAULT_META,...(f.metadata||{}),evidence_required:e.target.value}}))} placeholder="e.g. receipt, URL, screenshot, signed document"/></div>
