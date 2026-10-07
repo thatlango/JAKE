@@ -2,7 +2,7 @@
 
 const db=require('./db');
 const {rankItems,buildReason}=require('./priority');
-const {applyWipLimits}=require('./portfolio');
+const {applyWipLimits,chooseDailyOutcomes}=require('./portfolio');
 
 const TIMEZONE='Africa/Kampala';
 const UTC_OFFSET='+03:00';
@@ -165,8 +165,9 @@ async function planWeekday({now=new Date()}={}){
   await ensureFixedBlocks(date);
 
   const [busy,items]=await Promise.all([busyForDate(date),candidates(now)]);
-  const portfolioItems=applyWipLimits(items,{now}).filter(item=>item.portfolio_active);
-  const ranked=rankItems(portfolioItems,{now,limit:120});
+  const portfolioItems=applyWipLimits(items,{now});
+  const dailyItems=chooseDailyOutcomes(portfolioItems,{now,limit:3}).filter(item=>item.portfolio_active);
+  const ranked=rankItems(dailyItems,{now,limit:3});
   const used=new Set();
 
   const deepRanked=[...ranked].sort((a,b)=>{
