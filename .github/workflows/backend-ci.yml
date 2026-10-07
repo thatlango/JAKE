@@ -102,8 +102,9 @@ jobs:
           curl -fsS -H 'Authorization: Bearer ci_jakeos_token' -H 'Content-Type: application/json' \
             -d '{"id":"ci-project","name":"CI Project","priority":"High","tasks":[{"id":1,"text":"Legacy project task","done":false}]}' \
             http://127.0.0.1:3100/api/projects > /tmp/project.json
-          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/today > /tmp/today-bridge.json
-          grep -q 'Legacy project task' /tmp/today-bridge.json
+          grep -q 'Legacy project task' /tmp/project.json
+          curl -fsS -H 'Authorization: Bearer ci_momentum_token' http://127.0.0.1:3100/api/momentum/v1/portfolio > /tmp/portfolio-bridge.json
+          jq -e '.operating_rule=="Unlimited interests. Limited work in progress." and (.daily_outcomes|length)<=3' /tmp/portfolio-bridge.json
           curl -fsS -H 'Authorization: Bearer ci_momentum_token' -H 'Content-Type: application/json' \
             -d '{"title":"Momentum project task","project_id":"ci-project","priority":"high"}' \
             http://127.0.0.1:3100/api/momentum/v1/tasks > /tmp/momentum-project-task.json
