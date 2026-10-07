@@ -3,6 +3,7 @@
 const express=require('express');
 const db=require('./db');
 const {rankItems,buildReason}=require('./priority');
+const {decorateWorkRows}=require('./agent-work');
 
 const LANES=['SHIP','REVENUE','WORK','LEARN','LAB','PARKED'];
 const WIP_LIMITS={SHIP:1,REVENUE:3,WORK:null,LEARN:1,LAB:1,PARKED:null};
@@ -29,6 +30,7 @@ function haystack(item){
 function inferLane(item){
   const fixed=explicitLane(item);
   if(fixed)return fixed;
+  if(String(item?.agent_state||'').toLowerCase()==='review')return 'WORK';
   const meta=metadataOf(item),text=haystack(item);
   if(['market','revenue'].includes(String(meta.outcome_type||'').toLowerCase())||
     /\b(bid|proposal|tender|rfp|eoi|sales|revenue|customer|client acquisition|application)\b/.test(text))return 'REVENUE';
@@ -85,9 +87,12 @@ function applyWipLimits(items,{now=new Date()}={}){
   });
 }
 function chooseDailyOutcomes(items,{now=new Date(),limit=3}={}){
-  const active=items.filter(x=>x.portfolio_active&&!x.blocked&&String(x.status||'').toLowerCase()!=='waiting');
+  const reviews=items
+    .filter(x=>x.portfolio_active&&String(x.agent_state||'').toLowerCase()==='review')
+    .map(x=>({...x,why_now:'Agent deliverable ready for your review.'}));
+  const active=items.filter(x=>x.portfolio_active&&String(x.agent_state||'').toLowerCase()!=='review'&&!x.blocked&&String(x.status||'').toLowerCase()!=='waiting');
   const ranked=rankItems(active,{now,limit:Math.max(30,active.length)}).map(x=>({...x,why_now:buildReason(x)}));
-  const chosen=[],usedInitiatives=new Set();
+  const chosen=reviews.slice(0,limit),usedInitiatives=new Set(chosen.map(x=>x.portfolio_initiative));
   const take=(predicate)=>{
     const item=ranked.find(x=>!chosen.some(y=>y.id===x.id)&&!usedInitiatives.has(x.portfolio_initiative)&&predicate(x));
     if(item){chosen.push(item);usedInitiatives.add(item.portfolio_initiative);}
@@ -134,7 +139,7 @@ async function openItems(){
     ORDER BY wi.pinned DESC,wi.due_at NULLS LAST,wi.updated_at DESC
     LIMIT 1000
   `);
-  return result.rows;
+  return decorateWorkRows(result.rows);
 }
 async function portfolioSnapshot({now=new Date()}={}){
   const constrained=applyWipLimits(await openItems(),{now});
