@@ -237,7 +237,7 @@ test('Work captures outcome, completion, market and delegation intent', async ({
   await page.getByRole('button', { name: 'New task' }).click();
 
   await expect(page.getByLabel('Definition of done')).toBeVisible();
-  await expect(page.getByLabel('Portfolio lane')).toBeVisible();
+  await expect(page.getByLabel('Portfolio lane', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Outcome')).toBeVisible();
   await expect(page.getByLabel('Market stage')).toBeVisible();
   await expect(page.getByLabel('Execution mode')).toBeVisible();
