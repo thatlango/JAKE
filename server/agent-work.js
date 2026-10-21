@@ -259,7 +259,7 @@ agentWorkConnectorRouter.get('/work',async(req,res)=>{
   try{
     const state=['queued','working','review','blocked','failed'].includes(text(req.query.state,40))?text(req.query.state,40):'queued';
     const limit=Math.max(1,Math.min(Number(req.query.limit)||50,200));
-    const agentId=text(req.query.agent_id,120);
+    const agentId=req.agentPrincipal?.id==='tuku-pm-ovh'?'tuku-pm':text(req.query.agent_id,120);
     const rows=(await db.query(`SELECT d.*,w.title AS work_title,w.description AS work_description,w.priority,w.due_at,w.project_id,p.name AS project_name
       FROM agent_work_dispatches d JOIN work_items w ON w.id=d.work_item_id LEFT JOIN projects p ON p.id=w.project_id
       WHERE (d.state=$1 OR ($1='queued' AND d.state='working' AND d.lease_expires_at<NOW())) AND ($3::text='' OR d.requested_agent_id=$3) ORDER BY d.created_at ASC LIMIT $2`,[state,limit,agentId])).rows;
@@ -267,12 +267,21 @@ agentWorkConnectorRouter.get('/work',async(req,res)=>{
   }catch(error){res.status(500).json({error:'Agent work queue could not be loaded'});}
 });
 agentWorkConnectorRouter.post('/work/:id/claim',async(req,res)=>{
-  try{res.json({dispatch:await claimDispatch(text(req.params.id,120),text(req.body.executor_id,200)||'agent-worker',req.body.lease_seconds)});}
+  try{
+  if(req.agentPrincipal?.id==='tuku-pm-ovh'){
+    const owned=await getDispatch(text(req.params.id,120));
+    if(!owned||owned.requested_agent_id!=='tuku-pm')return res.status(403).json({error:'Dispatch is outside Tuku-PM scope',code:'SCOPE_DENIED'});
+  }
+  res.json({dispatch:await claimDispatch(text(req.params.id,120),text(req.body.executor_id,200)||'agent-worker',req.body.lease_seconds)});}
   catch(error){res.status(error.status||500).json({error:error.message||'Could not claim dispatch'});}
 });
 agentWorkConnectorRouter.post('/work/:id/heartbeat',async(req,res)=>{
   try{
-    const id=text(req.params.id,120),executor=text(req.body.executor_id,200),seconds=Math.max(60,Math.min(1800,Number(req.body.lease_seconds)||300));
+  if(req.agentPrincipal?.id==='tuku-pm-ovh'){
+    const owned=await getDispatch(text(req.params.id,120));
+    if(!owned||owned.requested_agent_id!=='tuku-pm')return res.status(403).json({error:'Dispatch is outside Tuku-PM scope',code:'SCOPE_DENIED'});
+  }
+  const id=text(req.params.id,120),executor=text(req.body.executor_id,200),seconds=Math.max(60,Math.min(1800,Number(req.body.lease_seconds)||300));
     const row=(await db.query(`UPDATE agent_work_dispatches SET lease_expires_at=NOW()+($3::text||' seconds')::interval,updated_at=NOW() WHERE id=$1 AND state='working' AND executor_id=$2 RETURNING *`,[id,executor,seconds])).rows[0];
     if(!row)return res.status(409).json({error:'Dispatch is not owned by this executor'});
     res.json({dispatch:row});
@@ -280,7 +289,11 @@ agentWorkConnectorRouter.post('/work/:id/heartbeat',async(req,res)=>{
 });
 agentWorkConnectorRouter.post('/work/:id/result',async(req,res)=>{
   try{
-    const result=await submitResult(text(req.params.id,120),{executorId:text(req.body.executor_id,200),status:text(req.body.status,40)||'review',summary:req.body.summary,resultContent:req.body.result_content,artifactUri:req.body.artifact_uri,failureReason:req.body.failure_reason});
+  if(req.agentPrincipal?.id==='tuku-pm-ovh'){
+    const owned=await getDispatch(text(req.params.id,120));
+    if(!owned||owned.requested_agent_id!=='tuku-pm')return res.status(403).json({error:'Dispatch is outside Tuku-PM scope',code:'SCOPE_DENIED'});
+  }
+  const result=await submitResult(text(req.params.id,120),{executorId:text(req.body.executor_id,200),status:text(req.body.status,40)||'review',summary:req.body.summary,resultContent:req.body.result_content,artifactUri:req.body.artifact_uri,failureReason:req.body.failure_reason});
     res.json(result);
   }catch(error){res.status(error.status||500).json({error:error.message||'Could not submit result'});}
 });
