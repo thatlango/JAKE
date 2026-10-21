@@ -61,7 +61,7 @@ function authenticateAgentConnector(req,res,next){
   const scoped=text(process.env.TUKU_PM_CONNECTOR_TOKEN,500);
   if(!secureEqual(submitted,scoped))return res.status(401).json({error:'Invalid agent connector credential',code:'AUTH_REQUIRED'});
   const workRoute=(req.method==='GET'&&req.path==='/work')||
-    (req.method==='POST'&&/^\\/work\\/[^/]+\\/(claim|heartbeat|result)$/.test(req.path));
+    (req.method==='POST'&&/^\/work\/[^/]+\/(claim|heartbeat|result)$/.test(req.path));
   if(!workRoute)return res.status(403).json({error:'Tuku-PM credential limited to its work queue',code:'SCOPE_DENIED'});
   req.agentPrincipal={type:'service',id:'tuku-pm-ovh',scopes:['agents:work:tuku-pm']};
   next();
