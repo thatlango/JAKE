@@ -237,18 +237,19 @@ agentWorkBrowserRouter.post('/work/items/:id/agent/revise',async(req,res)=>{
     res.json(result);
   }catch(error){res.status(error.status||500).json({error:error.message||'Could not request revision'});}
 });
-agentWorkBrowserRouter.post('/work/items/:id/agent/accept',async(req,res)=>{
-  try{
-    const workId=text(req.params.id,120);
-    const result=await db.withTransaction(async client=>{
-      const current=(await client.query('SELECT * FROM agent_work_dispatches WHERE work_item_id=$1 FOR UPDATE',[workId])).rows[0];
+// Both browser and machine acceptance use the same transaction and signed proof.
+async function acceptAgentDispatch(workId,body,byDispatchId=false){
+  return db.withTransaction(async client=>{
+      const selector=byDispatchId?'id':'work_item_id';
+      const current=(await client.query('SELECT * FROM agent_work_dispatches WHERE '+selector+'=$1 FOR UPDATE',[workId])).rows[0];
       if(!current)return null;
+      if(byDispatchId&&current.requested_agent_id!=='tuku-pm')throw Object.assign(new Error('Only Tuku-PM may use independent release completion'),{status:403});
       if(current.state!=='review')throw Object.assign(new Error('Only reviewed agent work can be accepted'),{status:409});
       // Reviewer acceptance is NOT proof of production for engineering packets.
       // The signed receipt is issued by a separate release authority and binds
       // the exact dispatch, PR, release SHA, OCI digest and live verification.
-      const productionProof=validateReceipt(current,req.body?.production_receipt,
-        req.body?.production_signature,process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY);
+      const productionProof=validateReceipt(current,body?.production_receipt,
+        body?.production_signature,process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY);
       const row=(await client.query(`UPDATE agent_work_dispatches SET state='completed',completed_at=NOW(),lease_expires_at=NULL,updated_at=NOW() WHERE id=$1 RETURNING *`,[current.id])).rows[0];
       await client.query(`UPDATE work_items SET status='done',blocked=FALSE,blocked_reason='',completed_at=COALESCE(completed_at,NOW()),updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1`,[workId]);
       await client.query(`UPDATE agent_runs SET status='completed',progress=100,completed_at=NOW(),blockers_count=0,updated_at=NOW() WHERE id=$1`,[current.run_id]);
@@ -256,10 +257,29 @@ agentWorkBrowserRouter.post('/work/items/:id/agent/accept',async(req,res)=>{
       await recordAgentEvent(client,{runId:current.run_id,agentId:current.requested_agent_id,agentName:current.requested_agent_name,eventType:'work_completed',state:'completed',summary:'Agent deliverable accepted',artifactRef:current.artifact_uri,metadata:{work_item_id:workId,dispatch_id:current.id}});
       return{dispatch:row,work:await getWork(workId,client)};
     });
+}
+
+agentWorkBrowserRouter.post('/work/items/:id/agent/accept',async(req,res)=>{
+  try{
+    const workId=text(req.params.id,120);
+    const result=await acceptAgentDispatch(workId,req.body,false);
     if(!result)return res.status(404).json({error:'No agent dispatch for this work item'});
     res.json(result);
   }catch(error){res.status(error.status||500).json({error:error.message||'Could not accept agent result'});}
 });
+
+// Separate release-only connector cannot create work, claim, or publish code.
+// JakeOS enforces the independent Ed25519 production receipt transactionally.
+agentWorkConnectorRouter.post('/work/:id/accept-verified',async(req,res)=>{
+  try{
+    if(req.agentPrincipal?.id!=='tuku-pm-release')return res.status(403).json({error:'Independent release principal required',code:'SCOPE_DENIED'});
+    const dispatchId=text(req.params.id,120);
+    const result=await acceptAgentDispatch(dispatchId,req.body,true);
+    if(!result)return res.status(404).json({error:'Release dispatch not found'});
+    res.json({state:'completed',dispatch_id:result.dispatch.id,work_item_id:result.work.id});
+  }catch(error){res.status(error.status||500).json({error:error.message||'Could not accept verified release'});}
+});
+
 
 agentWorkConnectorRouter.get('/work',async(req,res)=>{
   try{
