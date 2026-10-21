@@ -53,8 +53,17 @@ function secureEqual(a,b){const x=Buffer.from(String(a||'')),y=Buffer.from(Strin
 function authenticateAgentConnector(req,res,next){
   const expected=token();
   if(!expected)return res.status(503).json({error:'Agent connector authentication is not configured',code:'CONNECTOR_AUTH_NOT_CONFIGURED'});
-  if(!secureEqual(bearer(req),expected))return res.status(401).json({error:'Invalid agent connector credential',code:'AUTH_REQUIRED'});
-  req.agentPrincipal={type:'service',id:'tuku-agent-os',scopes:['agents:read','agents:write']};
+  const submitted=bearer(req);
+  if(secureEqual(submitted,expected)){
+    req.agentPrincipal={type:'service',id:'tuku-agent-os',scopes:['agents:read','agents:write']};
+    return next();
+  }
+  const scoped=text(process.env.TUKU_PM_CONNECTOR_TOKEN,500);
+  if(!secureEqual(submitted,scoped))return res.status(401).json({error:'Invalid agent connector credential',code:'AUTH_REQUIRED'});
+  const workRoute=(req.method==='GET'&&req.path==='/work')||
+    (req.method==='POST'&&/^\/work\/[^/]+\/(claim|heartbeat|result)$/.test(req.path));
+  if(!workRoute)return res.status(403).json({error:'Tuku-PM credential limited to its work queue',code:'SCOPE_DENIED'});
+  req.agentPrincipal={type:'service',id:'tuku-pm-ovh',scopes:['agents:work:tuku-pm']};
   next();
 }
 function eventKey(body){
