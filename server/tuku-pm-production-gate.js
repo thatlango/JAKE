@@ -44,11 +44,17 @@ function validateReceipt(dispatch, receipt, signature, signingKey, at=Date.now()
   if(!sha.test(String(agentOutput.source_sha||''))||receipt.base_sha!==agentOutput.source_sha)denial('receipt does not match source baseline');
   const built=receipt.build||{};
   const live=receipt.deployment||{};
-  if(built.status!=='passed'||built.commit_sha!==receipt.release_sha||
-      !digest.test(String(built.image_digest||''))||
+  // BDS currently serves compiled static files from a read-only bind mount.
+  // Bind-mount bundles and OCI images both require immutable SHA256 provenance.
+  if(!['oci_image','static_bundle'].includes(built.artifact_type)||
+      built.status!=='passed'||built.commit_sha!==receipt.release_sha||
+      !digest.test(String(built.artifact_digest||''))||
       typeof built.build_url!=='string'||!/^https:\/\//.test(built.build_url))denial('immutable passing build provenance missing');
   if(live.status!=='live'||live.commit_sha!==receipt.release_sha||
-      live.image_digest!==built.image_digest||!digest.test(String(live.rollback_digest||'')))denial('deployed commit, image or rollback proof mismatch');
+      live.artifact_type!==built.artifact_type||
+      live.artifact_digest!==built.artifact_digest||!digest.test(String(live.rollback_digest||'')))denial('deployed artifact, commit or rollback proof mismatch');
+  if(built.artifact_type==='static_bundle'&&
+      live.static_mount!=='/opt/tuku/apps/tukubds/dist')denial('static production mount not verified');
   let host;
   try{
     const u=new URL(String(live.production_url||''));
@@ -66,6 +72,6 @@ function validateReceipt(dispatch, receipt, signature, signingKey, at=Date.now()
       verified>at+120000||at-verified>60*60*1000||
       deployed>verified||verified-deployed>24*60*60*1000)denial('stale or inconsistent release verification time');
   return {required:true,verified:true,repository:receipt.repository,release_sha:receipt.release_sha,
-    production_url:live.production_url,verified_at:receipt.verified_at};
+    artifact_digest:live.artifact_digest,production_url:live.production_url,verified_at:receipt.verified_at};
 }
 module.exports={requiresProduction,validateReceipt};
