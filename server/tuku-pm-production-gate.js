@@ -17,7 +17,7 @@ function requiresProduction(dispatch){
   // Even a "plan" request requires production proof if the agent actually
   // delivered a code PR. The source deliverable controls the exit standard.
   if(/^https:\/\/github\.com\/.+\/pull\/\d+$/.test(String(dispatch.artifact_uri||'')))return true;
-  if(/\b(implement|release|deploy|ship)\b/i.test(String(dispatch.deliverable_type||'')))return true;
+  if(/\b(implement|implementation|release|deploy|ship|code)\b/i.test(String(dispatch.deliverable_type||'')))return true;
   // Plans and discoveries without code are document deliverables.
   return !/^(plan|discover)\b/i.test(remainder);
 }
