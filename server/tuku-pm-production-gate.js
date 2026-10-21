@@ -14,8 +14,11 @@ function requiresProduction(dispatch){
   const prefix=req.match(/^\s*\/?tuku-pm\b\s*[:\-]?\s*/i);
   if(!prefix)return true; // Unknown malformed Tuku-PM packet: fail closed.
   const remainder=req.slice(prefix[0].length);
-  // Plans and discoveries are document deliverables. Everything else must
-  // demonstrate live production, even if someone rearranges command words.
+  // Even a "plan" request requires production proof if the agent actually
+  // delivered a code PR. The source deliverable controls the exit standard.
+  if(/^https:\/\/github\.com\/.+\/pull\/\d+$/.test(String(dispatch.artifact_uri||'')))return true;
+  if(/\b(implement|release|deploy|ship)\b/i.test(String(dispatch.deliverable_type||'')))return true;
+  // Plans and discoveries without code are document deliverables.
   return !/^(plan|discover)\b/i.test(remainder);
 }
 function denial(reason){
@@ -49,7 +52,7 @@ function validateReceipt(dispatch, receipt, signature, signingKey, at=Date.now()
   let host;
   try{
     const u=new URL(String(live.production_url||''));
-    if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash)denial('production endpoint must be canonical HTTPS');
+    if(u.protocol!=='https:'||u.port||u.username||u.password||u.search||u.hash)denial('production endpoint must be canonical HTTPS');
     host=u.hostname;
     if(u.pathname!=='/'&&u.pathname!=='')denial('production endpoint must be canonical root');
   }catch{denial('production URL invalid');}
