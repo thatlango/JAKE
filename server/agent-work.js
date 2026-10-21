@@ -248,7 +248,7 @@ agentWorkBrowserRouter.post('/work/items/:id/agent/accept',async(req,res)=>{
       // The signed receipt is issued by a separate release authority and binds
       // the exact dispatch, PR, release SHA, OCI digest and live verification.
       const productionProof=validateReceipt(current,req.body?.production_receipt,
-        req.body?.production_signature,process.env.TUKU_PM_RELEASE_ATTESTATION_KEY);
+        req.body?.production_signature,process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY);
       const row=(await client.query(`UPDATE agent_work_dispatches SET state='completed',completed_at=NOW(),lease_expires_at=NULL,updated_at=NOW() WHERE id=$1 RETURNING *`,[current.id])).rows[0];
       await client.query(`UPDATE work_items SET status='done',blocked=FALSE,blocked_reason='',completed_at=COALESCE(completed_at,NOW()),updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1`,[workId]);
       await client.query(`UPDATE agent_runs SET status='completed',progress=100,completed_at=NOW(),blockers_count=0,updated_at=NOW() WHERE id=$1`,[current.run_id]);
