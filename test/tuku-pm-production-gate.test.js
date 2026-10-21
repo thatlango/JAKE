@@ -21,7 +21,7 @@ function evidence(){
     schema_version:1,work_item_id:dispatch.work_item_id,dispatch_id:dispatch.id,
     repository:'thatlango/TukuBDS',pull_request_url:pr,base_sha:baseline,release_sha:release,
     build:{status:'passed',commit_sha:release,build_url:'https://console.cloud.google.com/cloud-build/builds/build123',
-      artifact_digest:image},
+      artifact_type:'static_bundle',artifact_digest:image},
     deployment:{status:'live',commit_sha:release,artifact_type:'static_bundle',artifact_digest:image,static_mount:'/opt/tuku/apps/tukubds/dist',rollback_digest:rollback,
       production_url:'https://bds.tukutuku.org/',deployed_at:'2026-10-21T15:36:00.000Z'},
     checks:{ci:'passed',security:'passed',browser_e2e:'passed',permissions:'passed',
