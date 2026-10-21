@@ -12,7 +12,7 @@ This prevents false closure. It does NOT provision an autonomous release service
 2. An isolated coding runner creates a PR. JakeOS records IMPLEMENTED / REVIEW, not DONE.
 3. An independent runner validates typecheck, build, E2E, authorisation, security/tenancy and test evidence. Failures return to FIX with owner, next action and evidence.
 4. Merge only after review and policy gates; record final merged SHA (not the original base SHA).
-5. External build produces an immutable OCI digest with matching commit and passing build URL.
+5. External build produces an immutable artifact digest with matching commit and passing build URL. BDS web uses a checksummed static bundle; containerized products can use an OCI image digest.
 6. Release manager confirms scope and risk authority, preservation of database backups, tested rollback and available headroom; deploys using the approved production release adapter.
 7. Verify the exact production release and actual role-based user journey: health, data isolation, correctness, browser E2E, logs/telemetry and security. On failure, roll back the application without destroying database data and reopen the work.
 8. Independent SRE / release authority signs an exact short-lived receipt binding work ID, dispatch, merged SHA, digest, prod URL, rollback, all checks and A3 approval.
@@ -28,8 +28,8 @@ Mandatory receipt:
 - schema_version 1, original work_item_id and dispatch_id
 - repository thatlango/TukuBDS, exact delivered GitHub PR URL
 - base_sha from original agent result; release_sha from the final merged code
-- build status passed with release_sha, HTTPS build URL, immutable image digest
-- deployed status live with matching source SHA and image digest, prior rollback digest, production HTTPS URL and deployed_at
+- build status passed with release_sha, HTTPS build URL, artifact_type (static_bundle or oci_image) and immutable SHA256 artifact digest
+- deployed status live with matching source SHA, artifact_type, artifact SHA256, prior rollback digest, production HTTPS URL and deployed_at. For BDS static bundles the verifier must establish the deployed mount is /opt/tuku/apps/tukubds/dist
 - checks all passed: ci, security, browser_e2e, permissions, live_health, live_user_journey, telemetry, rollback_ready
 - A3-approved release_authority, scoped release_approval_ref, independent verifier_id, verified_at within one hour.
 
@@ -44,3 +44,7 @@ Draft PR https://github.com/thatlango/TukuBDS/pull/83 has not yet passed a full 
 - test/tuku-pm-production-gate.test.js verifies receipt schema, signature and all release gates.
 - test/tuku-pm-production-accept-route.test.js simulates the actual route and ensures no completion SQL runs on invalid or missing proof.
 - The production JakeOS image must include both changed server files and be released through production readiness standards, with rollback and live smoke. A merged PR alone is NOT live enforcement.
+
+## Live BDS packaging confirmed 21 October 2026
+
+The current BDS web Docker container is nginx:1.27-alpine with a read-only bind mount at /usr/share/nginx/html from /opt/tuku/apps/tukubds/dist. The /opt/tuku/apps/tukubds path is a symlink to a dated release directory. Therefore a real TukuBDS release receipt must carry artifact_type=static_bundle, the SHA256 of the immutable compiled web artifact, and independently verified equality with the contents served through this mount. It must not substitute the generic nginx base-image ID for the application artifact digest. A switch must keep the previous release directory and support restoration without database rollback.
