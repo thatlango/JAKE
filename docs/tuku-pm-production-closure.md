@@ -22,7 +22,9 @@ Do not silently abandon work after a failed CI job, missing credentials, or pend
 
 ## Release receipt and trust
 
-The JakeOS server needs TUKU_PM_RELEASE_ATTESTATION_KEY from an independently managed root-protected secret. It must be 32+ characters. No value is supplied or generated in this PR. The coding agent must never possess this secret. The signature is HMAC-SHA256 of the exact JSON-encoded production_receipt in the acceptance POST; it must be produced by an independent release verifier.
+JakeOS holds ONLY the independent issuer's Ed25519 public verification PEM, configured as TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY_B64 (base64 encoding of the PEM). The issuer retains the private key outside JakeOS and all coding agents. No key is generated or provisioned by this PR. The signature is detached Ed25519 over the exact compact JSON encoding of production_receipt, encoded base64url.
+
+An independently provisioned TUKU_PM_RELEASE_CONNECTOR_TOKEN grants only POST /api/connectors/v1/agents/work/:id/accept-verified. The coding observer token does not grant this route. Both browser review acceptance and the narrow release connector use the same transaction and public-key proof validation; unsigned/unverified work cannot be marked done.
 
 Mandatory receipt:
 - schema_version 1, original work_item_id and dispatch_id
@@ -33,7 +35,7 @@ Mandatory receipt:
 - checks all passed: ci, security, browser_e2e, permissions, live_health, live_user_journey, telemetry, rollback_ready
 - A3-approved release_authority, scoped release_approval_ref, independent verifier_id, verified_at within one hour.
 
-The issuer is NOT implemented or enabled by this PR. This first HMAC-based guard prevents unsupported completion; fully unattended high-assurance release should use separately managed signing/verification identities, immutable attestation storage and replay detection.
+The independent issuer and delivery controller source are implemented in Tuku Agent OS PRs #9 and #10. Their privileged SRE services are not yet activated; without externally signed CI, A3, deployment evidence and private signer credentials, no receipt may be issued. For high-assurance unattended release, retain audit-grade attestation storage and replay detection.
 
 ## First pilot: TukuBDS PR #83
 
@@ -43,6 +45,7 @@ Draft PR https://github.com/thatlango/TukuBDS/pull/83 has not yet passed a full 
 
 - test/tuku-pm-production-gate.test.js verifies receipt schema, signature and all release gates.
 - test/tuku-pm-production-accept-route.test.js simulates the actual route and ensures no completion SQL runs on invalid or missing proof.
+- test/tuku-pm-release-connector-auth.test.js verifies release-only bearer scope and legacy token isolation.
 - The production JakeOS image must include both changed server files and be released through production readiness standards, with rollback and live smoke. A merged PR alone is NOT live enforcement.
 
 ## Live BDS packaging confirmed 21 October 2026
