@@ -18,7 +18,7 @@ const db={
   async withTransaction(fn){return fn({query:(sql,values)=>db.perform(sql,values)});},
   async perform(sql,values){
     ledger.push(String(sql).slice(0,100));
-    if(sql.startsWith('SELECT * FROM agent_work_dispatches WHERE work_item_id='))return{rows:[{...dispatch}]};
+    if(sql.startsWith('SELECT * FROM agent_work_dispatches WHERE work_item_id=')||sql.startsWith('SELECT * FROM agent_work_dispatches WHERE id='))return{rows:[{...dispatch}]};
     if(sql.startsWith('UPDATE agent_work_dispatches')){updates.push('dispatch');return{rows:[{...dispatch,state:'completed'}]};}
     if(sql.startsWith('UPDATE work_items')){updates.push('work');return{rows:[]};}
     if(sql.startsWith('UPDATE agent_runs')){updates.push('run');return{rows:[]};}
@@ -47,6 +47,7 @@ Module._load=function(request,parent,...rest){
 };
 try{require('../server/agent-work');}finally{Module._load=original;}
 const handler=paths['POST /work/items/:id/agent/accept'];
+const releaseHandler=paths['POST /work/:id/accept-verified'];
 function receipt(){
   const source='a'.repeat(40),release='b'.repeat(40),image='sha256:'+'c'.repeat(64);
   return{
@@ -79,6 +80,21 @@ test('real acceptance route refuses a forged receipt without signature',async()=
   const before=updates.length;
   const result=await call({production_receipt:receipt(),production_signature:'0'.repeat(86)});
   assert.equal(result.status,409);
+  assert.equal(updates.length,before);
+});
+test('dedicated release route rejects coding token and missing signed proof',async()=>{
+  assert.equal(typeof releaseHandler,'function');
+  async function releaseCall(principal,body){
+    return new Promise(resolve=>{
+      const res={statusCode:200,status(code){this.statusCode=code;return this;},json(data){resolve({status:this.statusCode,data});}};
+      void releaseHandler({params:{id:dispatch.id},agentPrincipal:{id:principal},body},res);
+    });
+  }
+  let out=await releaseCall('tuku-pm-ovh',{});
+  assert.equal(out.status,403);
+  const before=updates.length;
+  out=await releaseCall('tuku-pm-release',{});
+  assert.equal(out.status,409);
   assert.equal(updates.length,before);
 });
 test('valid separately signed receipt permits the existing completion transaction',async()=>{
