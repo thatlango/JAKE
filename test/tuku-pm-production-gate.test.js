@@ -43,6 +43,8 @@ test('build/fix/ship require release verification, planning and non-Tuku agents 
   assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM'}),true);
   assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM plan product=bds: something'}),false);
   assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM discover product=bds: something'}),false);
+  assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM plan product=bds',artifact_uri:pr}),true);
+  assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM plan product=bds',deliverable_type:'implementation'}),true);
   assert.equal(requiresProduction({...dispatch,requested_agent_id:'assurance-reviewer'}),false);
   assert.deepEqual(validateReceipt({...dispatch,requested_agent_id:'assurance-reviewer'},null,'',null,moment),{required:false});
 });
@@ -74,6 +76,7 @@ test('another dispatch, wrong PR, mismatched build/deploy and wrong host blocked
   let r=evidence();r.build.commit_sha=baseline;blocked(()=>validate(r),'provenance');
   r=evidence();r.deployment.image_digest=rollback;blocked(()=>validate(r),'deployed commit');
   r=evidence();r.deployment.production_url='https://another.example/';blocked(()=>validate(r),'wrong production host');
+  r=evidence();r.deployment.production_url='https://bds.tukutuku.org:8443/';blocked(()=>validate(r),'production URL invalid');
   r=evidence();r.base_sha=release;blocked(()=>validate(r),'source baseline');
 });
 test('requires all independent security, browser, operational and rollback checks',()=>{
