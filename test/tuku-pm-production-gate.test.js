@@ -21,8 +21,8 @@ function evidence(){
     schema_version:1,work_item_id:dispatch.work_item_id,dispatch_id:dispatch.id,
     repository:'thatlango/TukuBDS',pull_request_url:pr,base_sha:baseline,release_sha:release,
     build:{status:'passed',commit_sha:release,build_url:'https://console.cloud.google.com/cloud-build/builds/build123',
-      image_digest:image},
-    deployment:{status:'live',commit_sha:release,image_digest:image,rollback_digest:rollback,
+      artifact_digest:image},
+    deployment:{status:'live',commit_sha:release,artifact_type:'static_bundle',artifact_digest:image,static_mount:'/opt/tuku/apps/tukubds/dist',rollback_digest:rollback,
       production_url:'https://bds.tukutuku.org/',deployed_at:'2026-10-21T15:36:00.000Z'},
     checks:{ci:'passed',security:'passed',browser_e2e:'passed',permissions:'passed',
       live_health:'passed',live_user_journey:'passed',telemetry:'passed',rollback_ready:'passed'},
@@ -59,11 +59,20 @@ test('correct signed production evidence accepted with exact immutable source',(
   assert.equal(r.release_sha,release);
   assert.equal(r.production_url,'https://bds.tukutuku.org/');
 });
+test('a verified OCI artifact is supported for future containerized releases',()=>{
+  const r=evidence();r.build.artifact_type='oci_image';r.deployment.artifact_type='oci_image';
+  delete r.deployment.static_mount;
+  assert.equal(validate(r).verified,true);
+});
+test('a static web release cannot claim an unverified bind mount',()=>{
+  const r=evidence();r.deployment.static_mount='/tmp/other';
+  blocked(()=>validate(r),'static production mount');
+});
 test('false flags or altered signed evidence cannot bypass',()=>{
   const r=evidence();r.checks.browser_e2e='not_run';
   blocked(()=>validate(r),'required independent check');
   const good=evidence(),signature=sign(good);
-  good.build.image_digest='sha256:'+'e'.repeat(64);
+  good.build.artifact_digest='sha256:'+'e'.repeat(64);
   blocked(()=>validate(good,KEY,dispatch,signature),'signature');
 });
 test('another dispatch, wrong PR, mismatched build/deploy and wrong host blocked',()=>{
@@ -74,7 +83,7 @@ test('another dispatch, wrong PR, mismatched build/deploy and wrong host blocked
     const r=evidence();r[field]=val;blocked(()=>validate(r),term);
   }
   let r=evidence();r.build.commit_sha=baseline;blocked(()=>validate(r),'provenance');
-  r=evidence();r.deployment.image_digest=rollback;blocked(()=>validate(r),'deployed commit');
+  r=evidence();r.deployment.artifact_digest=rollback;blocked(()=>validate(r),'deployed artifact');
   r=evidence();r.deployment.production_url='https://another.example/';blocked(()=>validate(r),'wrong production host');
   r=evidence();r.deployment.production_url='https://bds.tukutuku.org:8443/';blocked(()=>validate(r),'production URL invalid');
   r=evidence();r.base_sha=release;blocked(()=>validate(r),'source baseline');
