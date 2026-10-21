@@ -84,7 +84,7 @@ test('real acceptance route refuses a forged receipt without signature',async()=
 test('valid separately signed receipt permits the existing completion transaction',async()=>{
   const saved=process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY;
   const now=Date;
-  process.env.TUKU_PM_RELEASE_ATTESTATION_KEY=key;
+  process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY=key;
   // Receipt verifier checks its timestamp against wall clock; use current time
   // while preserving the causality between deployment and verification.
   const r=receipt();
@@ -97,7 +97,7 @@ test('valid separately signed receipt permits the existing completion transactio
     assert.equal(result.status,200,JSON.stringify(result.data));
     assert.deepEqual(updates.slice(before),['dispatch','work','run']);
   }finally{
-    if(saved===undefined)delete process.env.TUKU_PM_RELEASE_ATTESTATION_KEY;
-    else process.env.TUKU_PM_RELEASE_ATTESTATION_KEY=saved;
+    if(saved===undefined)delete process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY;
+    else process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY=saved;
   }
 });
