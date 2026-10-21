@@ -9,6 +9,7 @@ const agentWorkBrowserRouter=express.Router();
 const agentWorkConnectorRouter=express.Router();
 
 const AGENTS={
+  'tuku-pm':{name:'Tuku-PM Product Delivery',local:false,description:'Scoped persistent product management, code delivery and release verification; managed by Tuku Agent OS.'},
   'command-orchestrator':{name:'Command Orchestrator',local:true,description:'Plan, coordinate and turn ambiguous work into a clear execution path.'},
   'opportunity-watch':{name:'Opportunity Watch',local:false,description:'Find, verify and monitor opportunities, tenders, grants and procurement notices.'},
   'bid-partnerships':{name:'Bid & Partnerships',local:true,description:'Prepare bids, proposals, partnership material and submission-ready commercial work.'},
@@ -21,6 +22,7 @@ const now=()=>new Date().toISOString();
 
 function routeAgent(request=''){
   const q=String(request).toLowerCase();
+  if(/^\s*\/?tuku-pm\b/.test(q))return'tuku-pm';
   if(/\b(tender|rfp|eoi|bid|proposal|technical proposal|financial proposal)\b/.test(q))return'bid-partnerships';
   if(/\b(find|scan|search|watch|source)\b.*\b(opportunit|tender|procurement|grant)\b/.test(q))return'opportunity-watch';
   if(/\b(audit|assurance|verify|verification|security review|qa|quality review)\b/.test(q))return'assurance-reviewer';
@@ -257,9 +259,10 @@ agentWorkConnectorRouter.get('/work',async(req,res)=>{
   try{
     const state=['queued','working','review','blocked','failed'].includes(text(req.query.state,40))?text(req.query.state,40):'queued';
     const limit=Math.max(1,Math.min(Number(req.query.limit)||50,200));
+    const agentId=text(req.query.agent_id,120);
     const rows=(await db.query(`SELECT d.*,w.title AS work_title,w.description AS work_description,w.priority,w.due_at,w.project_id,p.name AS project_name
       FROM agent_work_dispatches d JOIN work_items w ON w.id=d.work_item_id LEFT JOIN projects p ON p.id=w.project_id
-      WHERE d.state=$1 ORDER BY d.created_at ASC LIMIT $2`,[state,limit])).rows;
+      WHERE (d.state=$1 OR ($1='queued' AND d.state='working' AND d.lease_expires_at<NOW())) AND ($3::text='' OR d.requested_agent_id=$3) ORDER BY d.created_at ASC LIMIT $2`,[state,limit,agentId])).rows;
     res.json({dispatches:rows});
   }catch(error){res.status(500).json({error:'Agent work queue could not be loaded'});}
 });

@@ -11,6 +11,7 @@ bus.setMaxListeners(100);
 
 const AGENT_REGISTRY=Object.freeze([
   ['command-orchestrator','Command Orchestrator','Command'],
+  ['tuku-pm','Tuku-PM Product Delivery','Product'],
   ['opportunity-watch','Opportunity Watch','Revenue'],
   ['bid-partnerships','Bid & Partnerships','Revenue'],
   ['document-knowledge','Document & Knowledge','Revenue'],
