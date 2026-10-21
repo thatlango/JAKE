@@ -58,6 +58,13 @@ function authenticateAgentConnector(req,res,next){
     req.agentPrincipal={type:'service',id:'tuku-agent-os',scopes:['agents:read','agents:write']};
     return next();
   }
+  const release=text(process.env.TUKU_PM_RELEASE_CONNECTOR_TOKEN,500);
+  if(release && secureEqual(submitted,release)){
+    const allowed=req.method==='POST'&&/^\/work\/[^/]+\/accept-verified$/.test(req.path);
+    if(!allowed)return res.status(403).json({error:'Release credential limited to verified acceptance',code:'SCOPE_DENIED'});
+    req.agentPrincipal={type:'service',id:'tuku-pm-release',scopes:['agents:work:accept-verified']};
+    return next();
+  }
   const scoped=text(process.env.TUKU_PM_CONNECTOR_TOKEN,500);
   if(!secureEqual(submitted,scoped))return res.status(401).json({error:'Invalid agent connector credential',code:'AUTH_REQUIRED'});
   const workRoute=(req.method==='GET'&&req.path==='/work')||
