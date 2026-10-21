@@ -4,7 +4,6 @@
 const crypto=require('node:crypto');
 const sha=/^[0-9a-f]{40}$/;
 const digest=/^sha256:[0-9a-f]{64}$/;
-const signaturePattern=/^[0-9a-f]{64}$/;
 const outcomes=['ci','security','browser_e2e','permissions','live_health',
   'live_user_journey','telemetry','rollback_ready'];
 
@@ -29,11 +28,18 @@ function denial(reason){
 }
 function validateReceipt(dispatch, receipt, signature, signingKey, at=Date.now()){
   if(!requiresProduction(dispatch))return {required:false};
-  if(typeof signingKey!=='string'||signingKey.length<32)denial('independent release verifier not configured');
+  // The application owns ONLY the public verification key. The independent
+  // release verifier retains the private Ed25519 key in its own security domain.
+  if(typeof signingKey!=='string'||!signingKey.includes('BEGIN PUBLIC KEY'))denial('independent release verifier not configured');
   if(!receipt||typeof receipt!=='object'||Array.isArray(receipt)||receipt.schema_version!==1)denial('receipt is missing or invalid');
-  if(!signaturePattern.test(String(signature||'')))denial('release signature is missing or invalid');
-  const expected=crypto.createHmac('sha256',signingKey).update(JSON.stringify(receipt)).digest('hex');
-  if(!crypto.timingSafeEqual(Buffer.from(signature,'hex'),Buffer.from(expected,'hex')))denial('release attestation signature mismatch');
+  if(!/^[A-Za-z0-9_-]{85,88}$/.test(String(signature||'')))denial('release signature is missing or invalid');
+  let authentic=false;
+  try{
+    const key=crypto.createPublicKey(signingKey);
+    if(key.asymmetricKeyType!=='ed25519')denial('release signer algorithm not Ed25519');
+    authentic=crypto.verify(null,Buffer.from(JSON.stringify(receipt),'utf8'),key,Buffer.from(signature,'base64url'));
+  }catch{denial('release attestation signature mismatch');}
+  if(!authentic)denial('release attestation signature mismatch');
   if(receipt.work_item_id!==dispatch.work_item_id||receipt.dispatch_id!==dispatch.id)denial('receipt bound to another work item');
   if(receipt.repository!=='thatlango/TukuBDS')denial('repository has no approved release policy');
   if(!sha.test(String(receipt.release_sha||'')))denial('release commit SHA invalid');
