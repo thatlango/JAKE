@@ -38,7 +38,11 @@ test('build/fix/ship require release verification, planning and non-Tuku agents 
   assert.equal(requiresProduction(dispatch),true);
   for(const cmd of ['build','fix','ship','deploy','recover','resume','finish','complete','implement'])
     assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM '+cmd+' product=bds: something'}),true,cmd);
+  assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM product=bds: fix the inbox'}),true);
+  assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM: audit evidence and ship'}),true);
+  assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM'}),true);
   assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM plan product=bds: something'}),false);
+  assert.equal(requiresProduction({...dispatch,request_text:'Tuku-PM discover product=bds: something'}),false);
   assert.equal(requiresProduction({...dispatch,requested_agent_id:'assurance-reviewer'}),false);
   assert.deepEqual(validateReceipt({...dispatch,requested_agent_id:'assurance-reviewer'},null,'',null,moment),{required:false});
 });
