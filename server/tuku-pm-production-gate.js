@@ -10,8 +10,13 @@ const outcomes=['ci','security','browser_e2e','permissions','live_health',
 
 function requiresProduction(dispatch){
   if(dispatch?.requested_agent_id!=='tuku-pm')return false;
-  return /^\s*\/?tuku-pm\b\s*[:\-]?\s*(build|fix|ship|deploy|recover|resume|finish|complete|implement)\b/i
-    .test(String(dispatch.request_text||''));
+  const req=String(dispatch.request_text||'');
+  const prefix=req.match(/^\s*\/?tuku-pm\b\s*[:\-]?\s*/i);
+  if(!prefix)return true; // Unknown malformed Tuku-PM packet: fail closed.
+  const remainder=req.slice(prefix[0].length);
+  // Plans and discoveries are document deliverables. Everything else must
+  // demonstrate live production, even if someone rearranges command words.
+  return !/^(plan|discover)\b/i.test(remainder);
 }
 function denial(reason){
   const err=new Error('Tuku-PM production completion blocked: '+reason);
