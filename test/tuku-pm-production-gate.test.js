@@ -4,7 +4,8 @@ const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const {requiresProduction,validateReceipt}=require('../server/tuku-pm-production-gate');
 
-const KEY='operator-only-synthetic-release-key-do-not-use';
+const {privateKey:TEST_PRIVATE,publicKey:TEST_PUBLIC}=crypto.generateKeyPairSync('ed25519');
+const KEY=TEST_PUBLIC.export({format:'pem',type:'spki'});
 const moment=Date.parse('2026-10-21T16:00:00.000Z');
 const baseline='a'.repeat(40);
 const release='b'.repeat(40);
@@ -30,7 +31,7 @@ function evidence(){
     verifier_id:'release-verifier-ovh',verified_at:'2026-10-21T15:47:00.000Z'
   };
 }
-const sign=r=>crypto.createHmac('sha256',KEY).update(JSON.stringify(r)).digest('hex');
+const sign=r=>crypto.sign(null,Buffer.from(JSON.stringify(r),'utf8'),TEST_PRIVATE).toString('base64url');
 const validate=(r,key=KEY,d=dispatch,signature=sign(r))=>validateReceipt(d,r,signature,key,moment);
 function blocked(fn,words){assert.throws(fn,error=>error.status===409&&error.code==='PRODUCTION_PROOF_REQUIRED'&&error.message.includes(words));}
 
