@@ -4,6 +4,7 @@ const crypto=require('crypto');
 const db=require('./db');
 const localAi=require('./ai');
 const {broadcastAgentEvent}=require('./agent-control');
+const {validateReceipt}=require('./tuku-pm-production-gate');
 
 const agentWorkBrowserRouter=express.Router();
 const agentWorkConnectorRouter=express.Router();
@@ -243,10 +244,15 @@ agentWorkBrowserRouter.post('/work/items/:id/agent/accept',async(req,res)=>{
       const current=(await client.query('SELECT * FROM agent_work_dispatches WHERE work_item_id=$1 FOR UPDATE',[workId])).rows[0];
       if(!current)return null;
       if(current.state!=='review')throw Object.assign(new Error('Only reviewed agent work can be accepted'),{status:409});
+      // Reviewer acceptance is NOT proof of production for engineering packets.
+      // The signed receipt is issued by a separate release authority and binds
+      // the exact dispatch, PR, release SHA, OCI digest and live verification.
+      const productionProof=validateReceipt(current,req.body?.production_receipt,
+        req.body?.production_signature,process.env.TUKU_PM_RELEASE_ATTESTATION_KEY);
       const row=(await client.query(`UPDATE agent_work_dispatches SET state='completed',completed_at=NOW(),lease_expires_at=NULL,updated_at=NOW() WHERE id=$1 RETURNING *`,[current.id])).rows[0];
       await client.query(`UPDATE work_items SET status='done',blocked=FALSE,blocked_reason='',completed_at=COALESCE(completed_at,NOW()),updated_at=NOW(),last_touched_at=NOW(),version=version+1 WHERE id=$1`,[workId]);
       await client.query(`UPDATE agent_runs SET status='completed',progress=100,completed_at=NOW(),blockers_count=0,updated_at=NOW() WHERE id=$1`,[current.run_id]);
-      await recordWorkEvent(client,workId,'agent_result_accepted',{dispatch_id:current.id});
+      await recordWorkEvent(client,workId,'agent_result_accepted',{dispatch_id:current.id,production_proof:productionProof.required?{release_sha:productionProof.release_sha,production_url:productionProof.production_url,verified_at:productionProof.verified_at}:null});
       await recordAgentEvent(client,{runId:current.run_id,agentId:current.requested_agent_id,agentName:current.requested_agent_name,eventType:'work_completed',state:'completed',summary:'Agent deliverable accepted',artifactRef:current.artifact_uri,metadata:{work_item_id:workId,dispatch_id:current.id}});
       return{dispatch:row,work:await getWork(workId,client)};
     });
