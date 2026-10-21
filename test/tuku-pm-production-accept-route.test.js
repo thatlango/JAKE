@@ -3,7 +3,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const Module=require('node:module');
 const crypto=require('node:crypto');
-const key='synthetic-independent-release-signer-min32';
+const {privateKey:TEST_PRIVATE,publicKey:TEST_PUBLIC}=crypto.generateKeyPairSync('ed25519');
+const key=TEST_PUBLIC.export({format:'pem',type:'spki'});
 const dispatch={
   id:'dispatch_accept01',work_item_id:'work_accept01',run_id:'run_accept01',
   requested_agent_id:'tuku-pm',requested_agent_name:'Tuku-PM',deliverable_type:'implementation',
@@ -76,12 +77,12 @@ test('real acceptance route refuses draft PR without independent production rece
 });
 test('real acceptance route refuses a forged receipt without signature',async()=>{
   const before=updates.length;
-  const result=await call({production_receipt:receipt(),production_signature:'0'.repeat(64)});
+  const result=await call({production_receipt:receipt(),production_signature:'0'.repeat(86)});
   assert.equal(result.status,409);
   assert.equal(updates.length,before);
 });
 test('valid separately signed receipt permits the existing completion transaction',async()=>{
-  const saved=process.env.TUKU_PM_RELEASE_ATTESTATION_KEY;
+  const saved=process.env.TUKU_PM_RELEASE_VERIFICATION_PUBLIC_KEY;
   const now=Date;
   process.env.TUKU_PM_RELEASE_ATTESTATION_KEY=key;
   // Receipt verifier checks its timestamp against wall clock; use current time
@@ -89,7 +90,7 @@ test('valid separately signed receipt permits the existing completion transactio
   const r=receipt();
   r.verified_at=new Date(Date.now()-60000).toISOString();
   r.deployment.deployed_at=new Date(Date.now()-120000).toISOString();
-  const sig=crypto.createHmac('sha256',key).update(JSON.stringify(r)).digest('hex');
+  const sig=crypto.sign(null,Buffer.from(JSON.stringify(r),'utf8'),TEST_PRIVATE).toString('base64url');
   try{
     const before=updates.length;
     const result=await call({production_receipt:r,production_signature:sig});
