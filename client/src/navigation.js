@@ -6,6 +6,7 @@ export const NAV_GROUPS = [
   ]},
   { label: 'Market', items: [
     { id: 'opportunities', label: 'Opportunities', icon: 'target' },
+    { id: 'funding-applications', label: 'Funding & Applications', icon: 'document' },
     { id: 'revenue-sprint', label: 'Revenue Mission', icon: 'chart' },
     { id: 'cashflow', label: 'Money', icon: 'money' },
     { id: 'crm', label: 'Relationships', icon: 'users' },
@@ -55,6 +56,7 @@ export const MODULE_META = {
   crm:{title:'Relationships',subtitle:'People, organisations and follow-ups'},
   cashflow:{title:'Money',subtitle:'Cash movement, invoices and financial attention'},
   opportunities:{title:'Opportunities',subtitle:'Qualify demand, pursue, submit and convert'},
+  'funding-applications':{title:'Funding & Applications',subtitle:'Application deadlines, receipts and outcomes'},
   'revenue-sprint':{title:'Revenue Mission',subtitle:'Plan, targets, pipeline, accounts, actions and cash conversion'},
   estate:{title:'Tuku Estate',subtitle:'Products, usage and commercial signals'},
   'estate-control':{title:'Estate Control',subtitle:'Cross-product controls and estate status'},
