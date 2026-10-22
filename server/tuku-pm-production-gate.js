@@ -14,7 +14,7 @@ const releasePolicies=Object.freeze({
     static_mount:'/opt/tuku/apps/tukubds/dist',aliases:['bds','tuku-bds']
   }),
   'thatlango/lendflow':Object.freeze({
-    host:'lendflow.tukutuku.org',artifact_type:'oci_image',
+    host:'lendflow.tukutuku.org',artifact_type:'compose_image_set',
     aliases:['lendflow']
   }),
   'thatlango/JAKE':Object.freeze({
