@@ -87,3 +87,17 @@ python3 /opt/tuku/agent-os/scripts/estate_deploy_preflight.py \
 ```
 
 **Next security boundary:** build a distinct root-controlled production adapter that independently rechecks signed CI and A3 evidence, runs real backup+restore and migrations, performs a guarded Compose switch with rollback and then emits independently signed deployment proof. Do not allow this rehearsal code or its output to stand in for that authority.
+
+## Stage 3 — Independent container receipt issuer (22 October 2026)
+
+`estate_receipt_issuer.py` implements **offline/tested**, NOT enabled, general receipt generation for LendFlow (all three images) and JakeOS (single OCI image). The legacy BDS static-release issuer remains separately scoped.
+
+Distinct Ed25519 signature authorities: `tuku-pm-ci-v1`, `tuku-pm-a3-v1`, `tuku-pm-deploy-v1`, and `tuku-pm-qa-v1`. The issuer must separately hold a fifth private key, inaccessible to coding/build/deployment agents. All signed evidence is bound to the same repository, Work ID, PR/merge commit and artifact digest, then verified against actual Docker image IDs/source labels and approved HTTPS production endpoints.
+
+LendFlow artifact type is **`compose_image_set`** (SHA-256 of an ordered/canonical service-image manifest), NOT a single OCI image. Receipt issuance checks the web, API and worker images and verifies live owner, checker, and cashier journeys through independently signed QA evidence. JakeOS may use `oci_image` for its single image; BDS requires the original verified `static_bundle` mount.
+
+Receipt signature is Ed25519 over the exact compact JSON serialization expected by JakeOS. No receipt may be issued on failed financial CI, stale A3 approval, changed worker image, wrong production host, missing QA role, missing signing identity or mismatched Work/dispatch source binding.
+
+**Test evidence:** 13 new issuer tests and 27 pre-existing release-control tests passed (40/40). JakeOS receipt policy tests passed 16/16 inside isolated Node 22 container. No production mutation was performed.
+
+**Activation remains blocked:** CI/A3/deploy/QA public keys and independent attestors absent; product release-adapter, deployment proof and real role-based browser QA still not operational; JakeOS new verifier policy must itself pass the normal guarded production cutover before it becomes active. Do not enable issuer/delivery or automatic Work closure based on disposable test signatures.
