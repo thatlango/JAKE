@@ -19,7 +19,7 @@ import urllib.request
 
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from estate_release_guard import REGISTRY, ROOT, SHA40, validate
+from estate_release_guard import REGISTRY, ROOT, SHA40, validate, evaluate_product, disk_available_kib
 
 UTC=dt.timezone.utc
 DIGEST=re.compile(r"sha256:[0-9a-f]{64}")
@@ -164,6 +164,9 @@ def main():
     result=evaluate(registry,request,json.loads(args.ci_envelope.read_text()),json.loads(args.approval_envelope.read_text()),args.ci_public_key.read_bytes(),args.approval_public_key.read_bytes(),pr_get,commit_get)
     if args.emit:
         if not result["deployment_permitted"]:raise ValueError("Product automatic release is not activated")
+        baseline=evaluate_product(request["product"],validate(registry)[request["product"]],with_probes=True)
+        if baseline["status"]!="baseline_healthy" or disk_available_kib()<5_500_000:
+            raise ValueError("Production drift, failed health check or insufficient disk")
         folder=ROOT/"release-intents"
         folder.mkdir(parents=True,exist_ok=True)
         path=folder/(result["product"]+"-"+result["merge_commit"]+".json")
