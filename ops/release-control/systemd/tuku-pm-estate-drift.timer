@@ -1,0 +1,13 @@
+[Unit]
+Description=Tuku-PM periodic estate drift inspection (monitor-only)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+AccuracySec=1min
+RandomizedDelaySec=2min
+Persistent=true
+Unit=tuku-pm-estate-drift.service
+
+[Install]
+WantedBy=timers.target

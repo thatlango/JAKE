@@ -1,0 +1,20 @@
+[Unit]
+Description=Tuku-PM read-only estate image and configuration drift guard
+After=network-online.target docker.service
+Wants=network-online.target
+ConditionPathExists=/opt/tuku/agent-os/ops/estate-release-registry.json
+
+[Service]
+Type=oneshot
+User=sentinelx
+Group=sentinelx
+WorkingDirectory=/opt/tuku/work/tuku-autonomy/release-control
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/tuku/agent-os/scripts/estate_release_guard.py --registry /opt/tuku/agent-os/ops/estate-release-registry.json --probe --report-file /opt/tuku/work/tuku-autonomy/release-control/last-report.json
+ProtectHome=true
+PrivateTmp=true
+UMask=0077
+TimeoutStartSec=130
+
+[Install]
+WantedBy=multi-user.target
