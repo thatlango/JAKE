@@ -60,10 +60,10 @@ test('correct signed production evidence accepted with exact immutable source',(
   assert.equal(r.release_sha,release);
   assert.equal(r.production_url,'https://bds.tukutuku.org/');
 });
-test('a verified OCI artifact is supported for future containerized releases',()=>{
+test('a BDS static release cannot claim a containerized artifact',()=>{
   const r=evidence();r.build.artifact_type='oci_image';r.deployment.artifact_type='oci_image';
   delete r.deployment.static_mount;
-  assert.equal(validate(r).verified,true);
+  blocked(()=>validate(r),'immutable passing build provenance');
 });
 test('a static web release cannot claim an unverified bind mount',()=>{
   const r=evidence();r.deployment.static_mount='/tmp/other';
