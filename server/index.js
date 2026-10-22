@@ -22,6 +22,7 @@ const {authenticateOpportunityConnector}=require('./opportunities-connector-auth
 const {agentBrowserRouter,agentConnectorRouter,authenticateAgentConnector}=require('./agent-control');
 const {agentWorkConnectorRouter,startAgentWorkWorker}=require('./agent-work');
 const {portfolioRouter}=require('./portfolio');
+const {fundingApplicationsRouter}=require('./funding-applications');
 const {momentumAuth}=require('./momentum-auth');
 const {startJobs}=require('./jobs');
 const {requireJakeAuth,webAuthRouter,momentumAuthRouter}=require('./tuku-auth');
@@ -63,6 +64,7 @@ app.use('/api/search-console',requireJakeAuth,searchConsoleRouter);
 app.use('/api/accounts',requireJakeAuth,accountsRouter);
 app.use('/api/revenue-sprint',requireJakeAuth,revenueSprintRouter);
 app.use('/api/portfolio',requireJakeAuth,portfolioRouter);
+app.use('/api/funding/applications',requireJakeAuth,fundingApplicationsRouter);
 app.use('/api/ops/subscriptions',requireJakeAuth,subscriptionRouter);
 app.use('/api/ops',requireJakeAuth,opsRouter);
 app.use('/api/tukupay',requireJakeAuth,tukuPayRouter);
