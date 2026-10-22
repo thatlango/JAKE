@@ -1,0 +1,167 @@
+{
+  "capture_date": "2026-10-22",
+  "products": {
+    "jakeos": {
+      "automatic_deploy_enabled": false,
+      "compose_files": [
+        {
+          "path": "/opt/tuku/apps/jakeos-current/compose.yml",
+          "sha256": "8d6d3dabf9ed61560cc98201cd556f02844856e33d6e34c157ba88167eca6b0d"
+        },
+        {
+          "path": "/opt/tuku/apps/jakeos-current/compose.tuku-pm.yml",
+          "sha256": "bfcfd09c363527e272622f15ccc89f44b2e53decf7bacec1e72038dec8eb7f33"
+        }
+      ],
+      "health_urls": {
+        "web": "https://jakeos.tukutuku.org/"
+      },
+      "independent_receipt_issuer": false,
+      "independent_signed_ci": false,
+      "mode": "observed_only",
+      "release_risk": "estate_control_critical",
+      "repository": "thatlango/JAKE",
+      "services": {
+        "jakeos-web": {
+          "image": "jakeos:tuku-pm-scoped-85cb5073",
+          "image_id": "sha256:a4551c324897fe29b736f8649f4fbe7ab7d8377852a122ef2ea8334e07cd8e49",
+          "source_revision": null
+        }
+      }
+    },
+    "lendflow": {
+      "automatic_deploy_enabled": false,
+      "compose_files": [
+        {
+          "path": "/opt/tuku/platform/lendflow.compose.yml",
+          "sha256": "2d39074899c1d75b7bbdd3baf62a798fd70f84005fe26ac7e3615dd45d073e41"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.release.yml",
+          "sha256": "ac21ff8b62b32d2eeb50ccf5338f09761067bbafaf797ec835a81719cc2964b7"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.approval-hotfix.yml",
+          "sha256": "b7fccf0b11877336f0f20d64415f676678da0a1296b9b4dac290b02d84f66f99"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.customisation-payout.yml",
+          "sha256": "370759a8f616156d701e20cf7d0e9e6d3a9f6c33f18f638ad2f7a53b0c3fdc71"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.auth-callback-fix.yml",
+          "sha256": "039953cbd14cc119aaae547be38750c45aa776e838dc1a4dd8e3ff8a13270288"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.repayment-ui.yml",
+          "sha256": "71e1518e0c8c66492703ead7a58319ae8891caf1597d78fdd2d43603186b04db"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.quick-repayment.yml",
+          "sha256": "540e028c00c361ea545cef617080aedb3bd9a7fff51476336716f8c424952075"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.collections-repayment.yml",
+          "sha256": "2508f6335ec84d166ea02cb5638727273789fb285d79f96d78ce67cb3dff653b"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-team-payout-20261020/compose.confirmation-evidence.yml",
+          "sha256": "5002f403ea6a801581ec2c9fe56e51b4cd64dc0685fd08522c9e5a0f05e322d3"
+        },
+        {
+          "path": "/opt/tuku/apps/tuku-domains/lendflow-ux-sprint-20261020/compose.persona-ux.yml",
+          "sha256": "b8db967758873904976a58feaf1190bd760b141bdde3d2d51f73b3e8329e057c"
+        },
+        {
+          "path": "/opt/tuku/apps/tuku-domains/lendflow-ux-sprint-20261020/compose.persona-routing.yml",
+          "sha256": "9df054cc85d1d2222388a26cf0718e782e5a4216c50bff7c27c451022dcfb362"
+        },
+        {
+          "path": "/opt/tuku/apps/tuku-domains/lendflow-ux-sprint-20261020/compose.sprint-b-policy.yml",
+          "sha256": "3363754355167a3af0b5a8d57563a55a7fd279b8e26e6eaa39e59a8e58474db7"
+        },
+        {
+          "path": "/opt/tuku/apps/tuku-domains/lendflow-ux-sprint-20261020/compose.sprint-b-saved.yml",
+          "sha256": "52d1644c913ad40a39d745ffc51d99a635353b8c2b2b11640726d1a2fc3be9bd"
+        },
+        {
+          "path": "/opt/tuku/apps/tuku-domains/lendflow-ux-sprint-20261020/compose.sprint-b-quote.yml",
+          "sha256": "ec4d10c130bfc53628d43943e6521e90be208a881fc8bee0f0abdbcf42f2fb61"
+        },
+        {
+          "path": "/opt/tuku/releases/lendflow-manual-f6043ef-20261019/compose.manual.yml",
+          "sha256": "111df60a9de0246ed99a6f1e17ded4adbeae90fcbe4fa4babbc5f20c8c0b93b7"
+        },
+        {
+          "path": "/opt/tuku/apps/tuku-domains/lendflow-ux-sprint-20261020/compose.sprint-b-handover.yml",
+          "sha256": "c008d3eb5c0711a16d82c2ee9521d91711a1f8383dac5dbd3b77b469c43e7afc"
+        },
+        {
+          "path": "/opt/tuku/work/tuku-autonomy/ci-sandboxes/lendflow-pr85-final-2488292/compose.pr85-2488292.yml",
+          "sha256": "b690fe9c40eba6d421c6c9eb8bc0c779fb77bfd0fe465e780ccfd516b237d105"
+        }
+      ],
+      "health_urls": {
+        "api": "https://lendflow.tukutuku.org/api/v1/health/ready",
+        "web": "https://lendflow.tukutuku.org/"
+      },
+      "independent_receipt_issuer": false,
+      "independent_signed_ci": false,
+      "known_ci_fallback": "exact-SHA isolated build + database E2E + guarded Docker cutover; GitHub Actions startup_failure tracked in issue #77",
+      "merged_commit": "c5ec9da4669b94fbecf68797cc5055cc0c7cd8ee",
+      "mode": "release_control_candidate",
+      "release_risk": "financial_high",
+      "repository": "thatlango/lendflow",
+      "services": {
+        "lendflow-api": {
+          "image": "lendflow-api:pr85-2488292",
+          "image_id": "sha256:8a7ee9d3c55643e2af8716a5f67c3fd752720a00bd2d1e751cd6c6cfa672aa61",
+          "source_revision": "2488292547e16bdc2c54b2028023d3d76e7db738"
+        },
+        "lendflow-web": {
+          "image": "lendflow-web:pr85-2488292",
+          "image_id": "sha256:1a0f7b1a859be369dcedceb6020eaca1862692258833b5f1da1cf1bae6ba0735",
+          "source_revision": "2488292547e16bdc2c54b2028023d3d76e7db738"
+        },
+        "lendflow-worker": {
+          "image": "lendflow-worker:pr85-2488292",
+          "image_id": "sha256:ceeef337e2f375fef1a2e01c19ac95fd3f5a571efbc21050e82b1de6c73b3a1d",
+          "source_revision": "2488292547e16bdc2c54b2028023d3d76e7db738"
+        }
+      },
+      "source_revision": "2488292547e16bdc2c54b2028023d3d76e7db738",
+      "source_tree": "c4f656e059ae11ebc8848f4a6ebe941013013bb8"
+    },
+    "tuku-bds": {
+      "automatic_deploy_enabled": false,
+      "compose_files": [
+        {
+          "path": "/opt/tuku/platform/tuku-bds.compose.yml",
+          "sha256": "d02acd45293b78e43f87f99faf9a61b77c6852096938b661dc818433cb3a1209"
+        }
+      ],
+      "health_urls": {
+        "web": "https://bds.tukutuku.org/"
+      },
+      "independent_receipt_issuer": false,
+      "independent_signed_ci": false,
+      "mode": "observed_only",
+      "release_risk": "business_critical",
+      "repository": "thatlango/TukuBDS",
+      "services": {
+        "tuku-bds-api": {
+          "image": "node:22-alpine",
+          "image_id": "sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402",
+          "source_revision": null
+        },
+        "tuku-bds-web": {
+          "image": "nginx:1.27-alpine",
+          "image_id": "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+          "source_revision": null
+        }
+      }
+    }
+  },
+  "schema_version": 1,
+  "scope": "Production observations and release policy metadata; not a credential or signature"
+}
