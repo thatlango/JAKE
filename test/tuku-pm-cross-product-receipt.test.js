@@ -9,7 +9,7 @@ const moment=Date.parse('2026-10-22T08:30:00.000Z');
 const BASE='a'.repeat(40), RELEASE='b'.repeat(40);
 const DIGEST='sha256:'+'c'.repeat(64), ROLLBACK='sha256:'+'d'.repeat(64);
 const cases=[
-  {repo:'thatlango/lendflow',hint:'lendflow',host:'lendflow.tukutuku.org',artifact:'oci_image'},
+  {repo:'thatlango/lendflow',hint:'lendflow',host:'lendflow.tukutuku.org',artifact:'compose_image_set'},
   {repo:'thatlango/JAKE',hint:'jakeos',host:'jakeos.tukutuku.org',artifact:'oci_image'},
   {repo:'thatlango/TukuBDS',hint:'bds',host:'bds.tukutuku.org',artifact:'static_bundle',mount:'/opt/tuku/apps/tukubds/dist'}
 ];
@@ -52,7 +52,7 @@ test('cross-product requested product substitution is denied even with valid sig
   }
 });
 test('container releases cannot masquerade as static bundles or reuse BDS mount',()=>{
-  for(const policy of cases.filter(x=>x.artifact==='oci_image')){
+  for(const policy of cases.filter(x=>x.artifact!=='static_bundle')){
     let {work,receipt}=scenario(policy);
     receipt.deployment.static_mount='/opt/tuku/apps/tukubds/dist';
     denied(work,receipt,'static mount');
