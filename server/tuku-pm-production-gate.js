@@ -62,8 +62,9 @@ function validateReceipt(dispatch, receipt, signature, signingKey, at=Date.now()
   const hinted=String(dispatch.request_text||'').match(/\bproduct\s*[:=]\s*([a-zA-Z0-9_-]+)/i);
   if(hinted&&!policy.aliases.includes(hinted[1].toLowerCase()))denial('receipt repository differs from requested product');
   if(!sha.test(String(receipt.release_sha||'')))denial('release commit SHA invalid');
-  const escapedRepo=receipt.repository.replace(/[.*+?^${}()|[\]\\]/g,'\\  if(!/^https:\/\/github\.com\/thatlango\/TukuBDS\/pull\/[0-9]+$/.test(String(receipt.pull_request_url||'')))denial('pull request URL invalid');');
-  if(!new RegExp('^https://github\\.com/'+escapedRepo+'/pull/[0-9]+
+  const prPrefix='https://github.com/'+receipt.repository+'/pull/';
+  if(!String(receipt.pull_request_url||'').startsWith(prPrefix)||
+      !/^[1-9][0-9]*$/.test(String(receipt.pull_request_url||'').slice(prPrefix.length)))denial('pull request URL invalid');
   let agentOutput={};
   try{agentOutput=JSON.parse(dispatch.result_content||'{}');}catch{denial('agent result content invalid');}
   if(agentOutput.draft_pr!==receipt.pull_request_url)denial('receipt does not match delivered pull request');
