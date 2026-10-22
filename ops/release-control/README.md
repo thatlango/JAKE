@@ -101,3 +101,21 @@ Receipt signature is Ed25519 over the exact compact JSON serialization expected 
 **Test evidence:** 13 new issuer tests and 27 pre-existing release-control tests passed (40/40). JakeOS receipt policy tests passed 16/16 inside isolated Node 22 container. No production mutation was performed.
 
 **Activation remains blocked:** CI/A3/deploy/QA public keys and independent attestors absent; product release-adapter, deployment proof and real role-based browser QA still not operational; JakeOS new verifier policy must itself pass the normal guarded production cutover before it becomes active. Do not enable issuer/delivery or automatic Work closure based on disposable test signatures.
+
+## Stage 4 — Bounded production Compose adapter (22 October 2026)
+
+`estate_deploy_adapter.py` is installed **inactive** as root-owned source. Default operation is read-only `--request ... --candidate ...` validation. `--execute` is fail-closed and requires:
+- root identity, global release lock, reviewed product policy flag `automatic_deploy_enabled=true` (ALL CURRENTLY FALSE)
+- separate Ed25519-signed CI and A3 evidence plus live GitHub merge/tree verification
+- separately protected Ed25519 deployment signing identity and exact JakeOS Work/dispatch binding
+- all images installed locally with SHA-pinned IDs, canonical baseline, sufficient free disk and correct Compose service names
+- LendFlow-only audited PostgreSQL backup driver (pg_dump custom format, root-private dump and disposable **actual restore**); no schema migrations supported
+- guarded Compose switch with `--no-build --no-deps --force-recreate`, verified image IDs, HTTPS health and secondary readiness
+- exact original image-ID rollback on any failed live check OR signed deployment-evidence finalization failure
+- root-private independently signed deployment envelope; QA/receipt signing remain with different identities, never this deploy adapter
+
+The adapter cannot build or merge, approve A3, sign CI or QA, or mark JakeOS Work complete. Unauthorized products cannot use its backup/cutover paths. Restoring the application images never overwrites the production financial database.
+
+**Verification:** 7 adapter simulation tests added, total **47/47** Python controls passing. Tests exercised successful cutover, changed-source rollback, tampered rollback image, failed evidence rollback, Compose service bounds and rejected unsupported DB driver. No live deployment attempted.
+
+**Still blocked:** external signed CI+A3 signers, deployment signer, independent QA signing/browser E2E and a real isolated coding provider must be activated by their separate operators. No simulated key or mock CI result constitutes production authorization. The current registry holds automatic deployment off.
