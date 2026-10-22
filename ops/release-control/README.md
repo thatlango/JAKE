@@ -68,3 +68,22 @@ A separate restricted release adapter must still validate the signed evidence, v
 - Add real-time alert delivery and an execution controller that persists and resumes prompt-driven jobs. The monitor currently writes reports and journals only.
 
 **Activation rule:** fail closed. No production deploy and no JakeOS "Done" from the monitor, a passed unit test, a merged PR, or an unsigned technical report.
+
+## Stage 2: read-only deployment rehearsal (22 October 2026)
+
+`estate_deploy_preflight.py` is deployed as root-owned **inactive** code under `/opt/tuku/agent-os/scripts/`. It accepts an approved product's release request plus a local immutable-image candidate manifest, and reconstructs candidate/rollback Compose overlays in memory without executing Docker Compose.
+
+It requires exactly the registered containers, source and repository provenance labels, an exact SHA-256 digest of the candidate image manifest bound to the release request, local Docker image ID parity, an unchanged healthy production baseline, enough disk space, and **actual rollback tag-to-image-ID parity**. It never changes containers and always returns `automatic_deployment_permitted: false`. This is not a deploy adapter or signed release authorization.
+
+**Verification:** 10 additional failure-path tests (27 total controls) passed. The actual LendFlow web/API/worker images and 17 Compose paths passed a read-only structural release rehearsal. Evidence held at `/opt/tuku/work/tuku-autonomy/release-control/live-rehearsal-report.json`.
+
+Usage:
+
+```bash
+python3 /opt/tuku/agent-os/scripts/estate_deploy_preflight.py \
+  --registry /opt/tuku/agent-os/ops/estate-release-registry.json \
+  --request /opt/tuku/work/tuku-autonomy/release-control/live-rehearsal-request.json \
+  --candidate /opt/tuku/work/tuku-autonomy/release-control/live-rehearsal-candidate.json
+```
+
+**Next security boundary:** build a distinct root-controlled production adapter that independently rechecks signed CI and A3 evidence, runs real backup+restore and migrations, performs a guarded Compose switch with rollback and then emits independently signed deployment proof. Do not allow this rehearsal code or its output to stand in for that authority.
