@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { askClaude } from '../api/claude';
 import { Button, EmptyState, LoadingRows, PageHeader, Panel, Pill, StateBanner, formatMoney, relativeDate } from '../components/ProductUI';
 
-const VIEWS=[['overview','Overview'],['discover','Discover'],['pipeline','Pipeline'],['applications','Applications'],['watches','Watches']];
+const VIEWS=[['overview','Overview'],['discover','Discover'],['pipeline','Pipeline'],['applications','Applications'],['watches','Watches'],['expired','Expired']];
 const STAGES=['Watching','Qualifying','Pursuing','Drafting','Submitted','Decision','Won','Lost'];
 const TYPES=['Role','Consultancy','Tender','Grant','RFP','Framework Agreement','Partnership','Challenge','Programme','Supplier','Other'];
 const AUDIENCES=['Jacob','Tuku-Tuku','Both'];
@@ -13,7 +13,11 @@ const audienceTone=a=>a==='Jacob'?'info':a==='Tuku-Tuku'?'brand':'neutral';
 const fitTone=s=>String(s||'').toLowerCase().includes('strong')?'success':String(s||'').toLowerCase().includes('good')?'brand':String(s||'').toLowerCase().includes('conditional')||String(s||'').toLowerCase().includes('verification')?'warning':String(s||'').toLowerCase().includes('weak')||String(s||'').toLowerCase().includes('not eligible')?'danger':'neutral';
 const cleanList=value=>Array.isArray(value)?value.filter(Boolean):[];
 const dueSoon=o=>o.deadline&&new Date(o.deadline)>=new Date()&&new Date(o.deadline)<=new Date(Date.now()+14*86400000);
-const overdue=o=>o.deadline&&!['Won','Lost','Closed'].includes(o.stage)&&new Date(o.deadline)<new Date();
+// Hide unsubmitted, past-deadline leads at the end of the Uganda calendar day.
+// Submitted applications stay visible while awaiting decisions.
+const localToday=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const expiredLead=(o,today=localToday())=>Boolean(o.deadline&&/^\d{4}-\d{2}-\d{2}/.test(o.deadline)&&String(o.deadline).slice(0,10)<today&&!['Submitted','Decision','Won','Lost','Closed'].includes(o.stage));
+const overdue=o=>expiredLead(o);
 const score=o=>Number(o.fit_score||0)>0?String(o.fit_score)+'/5':Number(o.relevance_score||0)>0?String(o.relevance_score)+'%':'—';
 
 function OpportunityRow({o,onOpen,onPatch}){
@@ -44,11 +48,13 @@ export default function Opportunities({openAI,initialView='overview',initialOppo
   const setView=v=>{setViewState(v);const q=new URLSearchParams({module:'opportunities',view:v});window.history.replaceState({},'','/?'+q.toString());};
   const selectOpportunity=id=>{setSelected(id);window.history.pushState({},'',`/opportunities/${encodeURIComponent(id)}`);};
   const current=data.opportunities.find(x=>String(x.id)===String(selected))||null;
-  const active=data.opportunities.filter(o=>!['Won','Lost','Closed'].includes(o.stage));
-  const discover=data.opportunities.filter(o=>o.stage==='Discover');
+  const expired=data.opportunities.filter(o=>expiredLead(o));
+  const visible=data.opportunities.filter(o=>!expiredLead(o));
+  const active=visible.filter(o=>!['Won','Lost','Closed'].includes(o.stage));
+  const discover=visible.filter(o=>o.stage==='Discover');
   const urgent=active.filter(o=>overdue(o)||dueSoon(o)).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
   const highFit=active.filter(o=>Number(o.fit_score||0)>=4||Number(o.relevance_score||0)>=75).sort((a,b)=>Number(b.fit_score||0)-Number(a.fit_score||0));
-  const pipelineGroups=useMemo(()=>Object.fromEntries(STAGES.map(s=>[s,data.opportunities.filter(o=>o.stage===s)])),[data.opportunities]);
+  const pipelineGroups=useMemo(()=>Object.fromEntries(STAGES.map(s=>[s,visible.filter(o=>o.stage===s)])),[data.opportunities,visible]);
 
   const openNew=()=>{setForm(EMPTY);setDrawer('new');};
   const edit=o=>{setForm({...EMPTY,...o,opportunityType:o.opportunity_type||'Consultancy',valueAmount:o.value_amount||'',fitScore:o.fit_score||0,bidPosture:o.bid_posture||'Consider',sourceUrl:o.source_url||'',nextAction:o.next_action||'',watchProfileId:o.watch_profile_id||'',fitStatus:o.fit_status||'Needs assessment',eligibilityStatus:o.eligibility_status||'Needs verification',assessmentStatus:o.assessment_status||'Partial',assessmentConfidence:o.assessment_confidence||'Medium'});setDrawer(o.id);selectOpportunity(o.id);};
@@ -104,8 +110,8 @@ export default function Opportunities({openAI,initialView='overview',initialOppo
   };
 
   const metrics=<div className="px-metrics">
-    <div className="px-metric"><div className="px-metric-value">{data.summary.active??active.length}</div><div className="px-metric-label">Active</div><div className="px-metric-helper">Across Jacob + Tuku-Tuku</div></div>
-    <div className="px-metric px-metric--warning"><div className="px-metric-value">{data.summary.due14??urgent.length}</div><div className="px-metric-label">Due / 14d</div><div className="px-metric-helper">Needs action discipline</div></div>
+    <div className="px-metric"><div className="px-metric-value">{active.length}</div><div className="px-metric-label">Active</div><div className="px-metric-helper">Across Jacob + Tuku-Tuku</div></div>
+    <div className="px-metric px-metric--warning"><div className="px-metric-value">{urgent.length}</div><div className="px-metric-label">Due / 14d</div><div className="px-metric-helper">Needs action discipline</div></div>
     <div className="px-metric"><div className="px-metric-value">{data.summary.submitted??0}</div><div className="px-metric-label">Submitted / decision</div><div className="px-metric-helper">Awaiting outcome</div></div>
     <div className="px-metric px-metric--success"><div className="px-metric-value">{data.summary.won??0}</div><div className="px-metric-label">Won</div><div className="px-metric-helper">Convert into delivery</div></div>
   </div>;
@@ -136,19 +142,22 @@ export default function Opportunities({openAI,initialView='overview',initialOppo
 
   const applicationsView=<div className="px-grid-2">
     <Panel title="Application workspace" subtitle="Proposal and application artifacts are attached to the opportunity, not kept as a second pipeline.">{data.proposals.length===0?<EmptyState icon="document" title="No linked applications yet" body="Open a pursuit and start a proposal; it will stay linked to the opportunity lifecycle."/>:<div className="px-list">{data.proposals.map(p=><button className="px-list-row" key={p.id} style={{width:'100%',textAlign:'left',cursor:'pointer'}} onClick={()=>setProposal(p)}><div className="px-list-main"><div className="px-list-title">{p.title}</div><div className="px-list-sub">{p.opportunity_org||p.client||'No organisation'} · {p.opportunity_title||'Standalone proposal'}</div></div><Pill tone={p.status==='Accepted'?'success':p.status==='Sent'?'info':p.status==='Rejected'?'danger':'neutral'}>{p.status}</Pill></button>)}</div>}</Panel>
-    <Panel title="Pursuits needing an application" subtitle="Qualified opportunities with no linked proposal yet."><div className="px-list">{data.opportunities.filter(o=>['Pursuing','Drafting','Submitted','Decision'].includes(o.stage)&&Number(o.proposal_count||0)===0).slice(0,20).map(o=><div className="px-list-row" key={o.id}><div className="px-list-main"><div className="px-list-title">{o.title}</div><div className="px-list-sub">{o.org} · {o.stage}</div></div><Button variant="tonal" onClick={()=>startProposal(o)}>Start proposal</Button></div>)}</div></Panel>
+    <Panel title="Pursuits needing an application" subtitle="Qualified opportunities with no linked proposal yet."><div className="px-list">{visible.filter(o=>['Pursuing','Drafting','Submitted','Decision'].includes(o.stage)&&Number(o.proposal_count||0)===0).slice(0,20).map(o=><div className="px-list-row" key={o.id}><div className="px-list-main"><div className="px-list-title">{o.title}</div><div className="px-list-sub">{o.org} · {o.stage}</div></div><Button variant="tonal" onClick={()=>startProposal(o)}>Start proposal</Button></div>)}</div></Panel>
   </div>;
 
   const watchesView=<div className="px-stack">{data.watches.map(w=><Panel key={w.id} title={w.name} subtitle={w.description} actions={<div className="px-row"><Pill tone={audienceTone(w.audience)}>{w.audience}</Pill><Pill tone={w.active?'success':'neutral'}>{w.active?'Active':'Paused'}</Pill></div>}>
     <div className="px-between" style={{marginBottom:12}}><div className="px-kicker">{w.cadence} · {w.active_count||0} active · {w.opportunity_count||0} tracked</div></div>
-    <div className="px-list">{data.opportunities.filter(o=>o.watch_profile_id===w.id&&o.stage!=='Closed').slice(0,40).map(o=><OpportunityRow key={o.id} o={o} onOpen={edit} onPatch={patch}/>)}</div>
+    <div className="px-list">{visible.filter(o=>o.watch_profile_id===w.id&&o.stage!=='Closed').slice(0,40).map(o=><OpportunityRow key={o.id} o={o} onOpen={edit} onPatch={patch}/>)}</div>
   </Panel>)}</div>;
+
+  const expiredView=<Panel title="Expired opportunities" subtitle="Expired, unsubmitted opportunities are hidden from active queues but retained for review.">{expired.length===0?<EmptyState icon="check" title="No expired leads" body="No unsubmitted opportunities have passed their deadline."/>:<div className="px-list">{expired.sort((a,b)=>String(b.deadline).localeCompare(String(a.deadline))).map(o=><OpportunityRow key={o.id} o={o} onOpen={edit} onPatch={patch}/>)}</div>}</Panel>;
 
   return <div className="module">
     <PageHeader eyebrow="Opportunity management" title="Opportunities" subtitle="Discover, decide, pursue, prepare, submit and convert work from one canonical record." actions={<><Button variant="secondary" icon="spark" onClick={()=>openAI?.('Opportunity workspace: '+active.length+' active, '+urgent.length+' urgent, '+highFit.length+' high-fit. Tell me the three highest-leverage actions.')}>Review</Button><Button icon="plus" onClick={openNew}>Add opportunity</Button></>}/>
     {error&&<StateBanner tone="danger" title="Opportunity workspace needs attention">{error}</StateBanner>}
+    <div className="px-kicker" style={{marginBottom:8}}>{expired.length} expired opportunities hidden from active views · retained under Expired</div>
     <div className="filter-bar" style={{marginBottom:16}}>{VIEWS.map(([id,label])=><button key={id} className={'filter-btn '+(view===id?'filter-btn--active':'')} onClick={()=>setView(id)}>{label}</button>)}</div>
-    {view==='overview'?overview:view==='discover'?discoverView:view==='pipeline'?pipelineView:view==='applications'?applicationsView:watchesView}
+    {view==='overview'?overview:view==='discover'?discoverView:view==='pipeline'?pipelineView:view==='applications'?applicationsView:view==='expired'?expiredView:watchesView}
 
     {drawer&&<div className="px-drawer" onMouseDown={e=>e.target===e.currentTarget&&setDrawer(null)}><div className="px-drawer-card">
       <PageHeader eyebrow="Canonical opportunity" title={drawer==='new'?'Add opportunity':form.title||'Edit opportunity'} subtitle="One record owns the opportunity, assessment, pursuit decision, application work and outcome." actions={<button className="px-icon-button" onClick={closeDrawer}>×</button>}/>
